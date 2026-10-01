@@ -5,6 +5,7 @@
 - Docker PostgreSQL 16 container running and healthy.
 - Core schema migrated: `raw_job_listings`, `jobs`, `job_matches`, `schema_migrations`.
 - Database migrations, constraints, and cascade deletions tested and verified (7 passed).
+- Remote repository initialized and synced: https://github.com/Dibij/job-pipeline.
 
 ## What's Broken / Incomplete
 - No data ingestion pipelines built yet; database tables are empty.
