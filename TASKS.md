@@ -7,7 +7,7 @@
 
 ## Phase 2: Clean API Ingestion & Normalization
 - [x] 2.1 Implement base extractor class and Arbeitnow API extractor with raw DB staging.
-- [ ] 2.2 Implement Remotive API extractor with polite rate limiting.
+- [x] 2.2 Implement Remotive API extractor with polite rate limiting.
 - [ ] 2.3 Implement Pydantic normalization models for Arbeitnow and Remotive data.
 
 ## Phase 3: Deduplication & Enrichment

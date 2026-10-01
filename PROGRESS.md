@@ -2,14 +2,15 @@
 
 ## Current State
 - Phase 1 (Foundations & Local Database) complete.
-- Base extractor architecture (`BaseExtractor`) established in `src/extractors/base.py`.
-- `ArbeitnowExtractor` implemented and verified against live API (326 jobs staged into `raw_job_listings`).
-- Idempotency verified: re-running staging safely skips duplicate `(source, external_id)` pairs with zero errors.
-- Test suite passing (10 tests passed).
+- Two live public REST API extractors implemented and tested:
+  - `ArbeitnowExtractor`: 326 jobs staged.
+  - `RemotiveExtractor`: 16 jobs staged.
+- Total raw listings staged in `raw_job_listings`: 342.
+- Interactive database inspector available via `python -m src.db.connection`.
+- Test suite passing (12 tests passed).
 
 ## What's Broken / Incomplete
-- Only Arbeitnow extractor is built; Remotive extractor is needed next.
-- Jobs are currently sitting in raw JSON staging (`raw_job_listings`) and need normalization models.
+- Jobs reside in raw JSONB staging (`raw_job_listings`); unified transformation into `jobs` table not yet built.
 
 ## Next Step
-- Task 2.2: Implement Remotive API extractor (`RemotiveExtractor`) with polite rate limiting and raw DB staging.
+- Task 2.3: Implement unified Pydantic normalization model (`NormalizedJob`) and source transformers for Arbeitnow and Remotive.

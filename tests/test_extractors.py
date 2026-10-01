@@ -99,3 +99,41 @@ def test_arbeitnow_fetch_mocked():
         assert len(items) == 3
         assert items[0]["slug"] == "job-1"
         assert items[2]["slug"] == "job-3"
+
+
+def test_remotive_extract_external_id():
+    """Verify RemotiveExtractor properly extracts id or url as external ID."""
+    from src.extractors.remotive import RemotiveExtractor
+
+    extractor = RemotiveExtractor(delay_seconds=0)
+
+    item1 = {"id": 12345, "url": "https://remotive.com/job/12345"}
+    assert extractor.extract_external_id(item1) == "12345"
+
+    item2 = {"url": "https://remotive.com/job/without-id"}
+    assert extractor.extract_external_id(item2) == "https://remotive.com/job/without-id"
+
+    item3 = {}
+    assert extractor.extract_external_id(item3) == ""
+
+
+def test_remotive_fetch_mocked():
+    """Verify RemotiveExtractor correctly parses job list from response."""
+    from src.extractors.remotive import RemotiveExtractor
+
+    extractor = RemotiveExtractor(delay_seconds=0)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "jobs": [
+            {"id": 101, "title": "Python Engineer", "candidate_required_location": "Worldwide"},
+            {"id": 102, "title": "React Frontend", "candidate_required_location": "Anywhere"},
+        ]
+    }
+
+    with patch.object(extractor.session, "get", return_value=mock_resp):
+        jobs = extractor.fetch_raw(category="software-dev")
+        assert len(jobs) == 2
+        assert jobs[0]["id"] == 101
+        assert jobs[1]["title"] == "React Frontend"
