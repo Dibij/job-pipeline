@@ -1,36 +1,37 @@
 #!/usr/bin/env python3
 """
-app.py — Local Web Dashboard for Remote Job Listings
+app.py — Local Web Dashboard for Job Listings backed by PostgreSQL.
 
 USAGE:
-    python app.py
+    python tools/app.py
 
 SERVES:
     http://localhost:5000
-
-FEATURES:
-    - Reads directly from D:\\Code\\Job\\tools\\jobs.json
-    - Interactive visual UI with search, salary, region, and tech tag filters
-    - Dedicated "Nepal / Global Remote Only" toggle
-    - Zero external dependencies required (uses standard library http.server)
 """
 
+import json
+import logging
 import os
 import sys
-import json
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
-TOOLS_DIR = Path(__file__).parent.resolve()
-JOBS_JSON = TOOLS_DIR / "jobs.json"
+# Add project root to path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.db.connection import get_connection
+from src.models import transform_raw_listing
+
+logger = logging.getLogger(__name__)
 
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Remote Job Finder — Kshitish Pandit</title>
+    <title>Job Pipeline & Matcher Dashboard</title>
     <style>
         :root {
             --bg-color: #0f172a;
@@ -66,6 +67,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             color: var(--accent-color);
         }
 
+        .db-status {
+            font-size: 0.85rem;
+            color: var(--success-color);
+            background: rgba(74, 222, 128, 0.1);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            font-weight: 600;
+        }
+
         .container {
             max-width: 1200px;
             margin: 30px auto;
@@ -98,7 +109,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-weight: 600;
         }
 
-        input[type="text"], input[type="number"], select {
+        input[type="text"], select {
             background: var(--bg-color);
             border: 1px solid var(--border-color);
             color: var(--text-main);
@@ -203,6 +214,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .badge-source {
             background: rgba(148, 163, 184, 0.15);
             color: var(--text-muted);
+            text-transform: uppercase;
         }
 
         .desc-snippet {
@@ -238,6 +250,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             text-decoration: none;
             font-size: 0.85rem;
             font-weight: 600;
+            display: inline-block;
             transition: background 0.2s ease;
         }
 
@@ -245,13 +258,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             background: var(--accent-color);
             color: var(--bg-color);
         }
+
+        .apply-btn.disabled {
+            background: var(--border-color);
+            color: var(--text-muted);
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>🌏 Remote Job Dashboard</h1>
-        <span style="font-size:0.9rem; color:var(--text-muted)">User: Kshitish Pandit</span>
+        <h1>⚡ Job Pipeline Dashboard</h1>
+        <span class="db-status" id="dbStatus">Connected to PostgreSQL</span>
     </header>
 
     <div class="container">
@@ -259,32 +278,32 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="controls">
             <div class="input-group">
                 <label for="searchInput">Search Keyword</label>
-                <input type="text" id="searchInput" placeholder="Title, tech, keyword...">
+                <input type="text" id="searchInput" placeholder="Title, company, skill...">
             </div>
 
             <div class="input-group">
                 <label for="tagSelect">Tech Stack Tag</label>
                 <select id="tagSelect">
                     <option value="">All Tech Stacks</option>
-                    <option value="react">React</option>
                     <option value="python">Python</option>
-                    <option value="node">Node.js</option>
+                    <option value="django">Django</option>
+                    <option value="react">React</option>
                     <option value="typescript">TypeScript</option>
-                    <option value="flutter">Flutter / Mobile</option>
-                    <option value="rust">Rust</option>
+                    <option value="node">Node.js</option>
+                    <option value="postgres">PostgreSQL</option>
                     <option value="ai">AI / ML / RAG</option>
                 </select>
             </div>
 
             <div class="toggle-group" id="nepalToggleBox">
                 <input type="checkbox" id="nepalToggle" checked>
-                <label for="nepalToggle" style="cursor:pointer; font-size:0.9rem; font-weight:600">🇳🇵 Nepal / Global Remote Only</label>
+                <label for="nepalToggle" style="cursor:pointer; font-size:0.9rem; font-weight:600">🇳🇵 Remote / Nepal Accessible</label>
             </div>
         </div>
 
         <div class="stats-bar">
             <span id="showingCount">Showing 0 jobs</span>
-            <span id="totalCount">Total in Database: 0</span>
+            <span id="totalCount">Total Staged in PostgreSQL: 0</span>
         </div>
 
         <div class="grid" id="jobsGrid">
@@ -300,16 +319,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             try {
                 const res = await fetch('/api/jobs');
                 allJobs = await res.json();
-                document.getElementById('totalCount').innerText = `Total in Database: ${allJobs.length}`;
+                document.getElementById('totalCount').innerText = `Total Staged in PostgreSQL: ${allJobs.length}`;
                 renderJobs();
             } catch (e) {
-                console.error("Error loading jobs:", e);
+                console.error("Error loading jobs from API:", e);
+                document.getElementById('dbStatus').innerText = "Database Error";
+                document.getElementById('dbStatus').style.color = "#f87171";
             }
         }
 
         function isNepalFriendly(loc) {
             if (!loc) return true;
-            const l = loc.lower ? loc.lower() : String(loc).toLowerCase();
+            const l = String(loc).toLowerCase();
             const restricted = ["usa only", "us only", "eu only", "uk only", "canada only", "latam only"];
             if (restricted.some(r => l.includes(r))) return false;
             return true;
@@ -351,23 +372,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 card.className = 'card';
                 
                 const tagsHtml = (j.tags || []).slice(0, 4).map(t => `<span class="badge">${t}</span>`).join('');
+                const applyUrl = j.url && j.url !== '#' ? j.url : null;
+                const buttonHtml = applyUrl 
+                    ? `<a href="${applyUrl}" target="_blank" rel="noopener noreferrer" class="apply-btn">Apply Now ↗</a>`
+                    : `<span class="apply-btn disabled">No Link</span>`;
 
                 card.innerHTML = `
                     <div>
                         <div class="card-header">
                             <span class="company-name">${j.company || 'Unknown Company'}</span>
-                            <span class="badge badge-source">${j.source || 'Web'}</span>
+                            <span class="badge badge-source">${j.source || 'Raw'}</span>
                         </div>
                         <h2 class="job-title">${j.title}</h2>
                         <div class="badges">
-                            <span class="badge badge-loc">📍 ${j.location || 'Worldwide'}</span>
+                            <span class="badge badge-loc">📍 ${j.location || 'Remote'}</span>
                             ${tagsHtml}
                         </div>
-                        <p class="desc-snippet">${j.description || 'No description preview available.'}</p>
+                        <p class="desc-snippet">${j.description || 'No description available.'}</p>
                     </div>
                     <div class="card-footer">
-                        <span class="salary-text">${j.salary && j.salary !== 'Not Listed' ? j.salary : 'Salary Unspecified'}</span>
-                        <a href="${j.url}" target="_blank" class="apply-btn">View Job ↗</a>
+                        <span class="salary-text">${j.salary ? j.salary : 'Salary Unspecified'}</span>
+                        ${buttonHtml}
                     </div>
                 `;
                 grid.appendChild(card);
@@ -384,33 +409,59 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </html>
 """
 
+
 class JobServerHandler(BaseHTTPRequestHandler):
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/" or parsed.path == "/index.html":
+        if parsed.path in ("/", "/index.html"):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(HTML_TEMPLATE.encode("utf-8"))
+
         elif parsed.path == "/api/jobs":
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
-            if JOBS_JSON.exists():
-                with open(JOBS_JSON, "rb") as f:
-                    self.wfile.write(f.read())
-            else:
-                self.wfile.write(b"[]")
+
+            jobs_list = []
+            try:
+                with get_connection(autocommit=True) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT source, payload FROM raw_job_listings ORDER BY id DESC LIMIT 500;")
+                        rows = cur.fetchall()
+                        for r in rows:
+                            try:
+                                norm = transform_raw_listing(r["source"], r["payload"])
+                                jobs_list.append({
+                                    "id": norm.external_id,
+                                    "source": norm.source,
+                                    "title": norm.title,
+                                    "company": norm.company_name,
+                                    "location": norm.location_raw or ("Remote" if norm.is_remote else "On-site"),
+                                    "description": norm.description_text[:300] + "..." if len(norm.description_text) > 300 else norm.description_text,
+                                    "tags": norm.tags,
+                                    "url": norm.apply_url,
+                                    "salary": f"{norm.salary_currency or '$'} {norm.salary_min or ''}-{norm.salary_max or ''}" if norm.salary_min or norm.salary_max else None,
+                                })
+                            except Exception as exc:
+                                logger.warning("Failed to normalize raw item: %s", exc)
+            except Exception as exc:
+                logger.error("Error fetching jobs from PostgreSQL: %s", exc)
+
+            self.wfile.write(json.dumps(jobs_list).encode("utf-8"))
         else:
             self.send_response(404)
             self.end_headers()
+
 
 def main():
     port = 5000
     server_address = ('', port)
     httpd = HTTPServer(server_address, JobServerHandler)
     print("==================================================")
-    print(f"  LOCAL REMOTE JOB DASHBOARD IS LIVE AT:")
+    print("  ⚡ POSTGRESQL JOB PIPELINE DASHBOARD IS LIVE AT:")
     print(f"  👉  http://localhost:{port}")
     print("==================================================")
     print("  Press Ctrl+C to stop the server.")
@@ -418,6 +469,7 @@ def main():
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nDashboard server stopped cleanly.")
+
 
 if __name__ == "__main__":
     main()
