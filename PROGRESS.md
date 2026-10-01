@@ -1,14 +1,15 @@
 # Project Progress
 
 ## Current State
-- Phase 1 (Foundations & Local Database) complete!
-- Docker PostgreSQL 16 container running and healthy.
-- Core schema migrated: `raw_job_listings`, `jobs`, `job_matches`, `schema_migrations`.
-- Database migrations, constraints, and cascade deletions tested and verified (7 passed).
-- Remote repository initialized and synced: https://github.com/Dibij/job-pipeline.
+- Phase 1 (Foundations & Local Database) complete.
+- Base extractor architecture (`BaseExtractor`) established in `src/extractors/base.py`.
+- `ArbeitnowExtractor` implemented and verified against live API (326 jobs staged into `raw_job_listings`).
+- Idempotency verified: re-running staging safely skips duplicate `(source, external_id)` pairs with zero errors.
+- Test suite passing (10 tests passed).
 
 ## What's Broken / Incomplete
-- No data ingestion pipelines built yet; database tables are empty.
+- Only Arbeitnow extractor is built; Remotive extractor is needed next.
+- Jobs are currently sitting in raw JSON staging (`raw_job_listings`) and need normalization models.
 
 ## Next Step
-- Task 2.1: Implement base extractor class (`BaseExtractor`) and Arbeitnow API extractor with raw DB staging into `raw_job_listings`.
+- Task 2.2: Implement Remotive API extractor (`RemotiveExtractor`) with polite rate limiting and raw DB staging.
