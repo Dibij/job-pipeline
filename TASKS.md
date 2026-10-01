@@ -3,7 +3,7 @@
 ## Phase 1: Foundations & Local Database
 - [x] 1.1 Clean legacy root clutter into `archive/`, init Git repository, create `.gitignore`, `requirements.txt`, and package layout (`src/extractors`, `src/models`, `src/db`).
 - [x] 1.2 Create `docker-compose.yml` for local PostgreSQL and verify container connectivity with a test script.
-- [ ] 1.3 Write and execute SQL migration script for `raw_job_listings`, `jobs`, and `job_matches` tables.
+- [x] 1.3 Write and execute SQL migration script for `raw_job_listings`, `jobs`, and `job_matches` tables.
 
 ## Phase 2: Clean API Ingestion & Normalization
 - [ ] 2.1 Implement base extractor class and Arbeitnow API extractor with raw DB staging.

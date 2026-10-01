@@ -1,13 +1,13 @@
 # Project Progress
 
 ## Current State
-- Docker PostgreSQL 16 container (`job_pipeline_postgres`) running healthy via Docker Compose.
-- Database connection layer implemented in `src/db/connection.py` using Psycopg 3.
-- Database ping and health queries verified via pytest (4 passed).
-- Tracking files updated.
+- Phase 1 (Foundations & Local Database) complete!
+- Docker PostgreSQL 16 container running and healthy.
+- Core schema migrated: `raw_job_listings`, `jobs`, `job_matches`, `schema_migrations`.
+- Database migrations, constraints, and cascade deletions tested and verified (7 passed).
 
 ## What's Broken / Incomplete
-- Tables (`raw_job_listings`, `jobs`, `job_matches`) are not yet migrated to PostgreSQL.
+- No data ingestion pipelines built yet; database tables are empty.
 
 ## Next Step
-- Task 1.3: Write and execute SQL migration script for `raw_job_listings`, `jobs`, and `job_matches` tables with indexes and constraint verification tests.
+- Task 2.1: Implement base extractor class (`BaseExtractor`) and Arbeitnow API extractor with raw DB staging into `raw_job_listings`.
