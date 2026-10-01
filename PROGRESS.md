@@ -1,15 +1,13 @@
 # Project Progress
 
 ## Current State
-- Phase 2 (Clean API Ingestion & Normalization) complete!
-- Raw staging established for Arbeitnow (326 jobs) and Remotive (16 jobs).
-- Pydantic schema `NormalizedJob` implemented in `src/models/job.py`.
-- Source transformers `transform_arbeitnow` and `transform_remotive` implemented in `src/models/transformers.py`.
-- HTML stripping, tag extraction, UTC timestamp parsing, and SHA-256 content fingerprinting verified.
-- Test suite passing (15 tests passed).
+- Phase 1 (Foundations & DB) and Phase 2 (Clean Extraction & Normalization) complete.
+- SHA-256 fingerprint deduplication & upsert pipeline (`JobRepository`) implemented.
+- End-to-end pipeline run executed: 656 raw staged listings normalized and deduplicated into **618 unique jobs** in PostgreSQL `jobs` table.
+- Test suite passing (16 tests passed).
 
 ## What's Broken / Incomplete
-- Normalized jobs are not yet written to the main `jobs` table in PostgreSQL.
+- Seniority levels (`intern`, `junior`, `mid`, `senior`) are currently defaulting; regex enrichment engine needed.
 
 ## Next Step
-- Task 3.1: Implement SHA-256 fingerprint deduplication & PostgreSQL upsert pipeline loading normalized jobs into `jobs`.
+- Task 3.2: Implement regex enrichment for seniority (`intern`, `junior`) and tech tags.

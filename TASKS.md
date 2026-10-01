@@ -11,7 +11,7 @@
 - [x] 2.3 Implement Pydantic normalization models for Arbeitnow and Remotive data.
 
 ## Phase 3: Deduplication & Enrichment
-- [ ] 3.1 Implement SHA-256 fingerprinting and PostgreSQL upsert pipeline.
+- [x] 3.1 Implement SHA-256 fingerprinting and PostgreSQL upsert pipeline.
 - [ ] 3.2 Implement regex enrichment for seniority (`intern`, `junior`) and tech tags.
 - [ ] 3.3 Run end-to-end integration check: fetch, normalize, deduplicate, and store.
 
