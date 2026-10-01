@@ -2,17 +2,23 @@
 
 ## Current State
 - Phase 1, Phase 2, Phase 3, and Phase 5 complete!
-- 618 unique jobs enriched with detected language (506 English, 112 German), seniority (51 Junior/Intern, 346 Senior), unpaid status, and Nepal accessibility.
-- CV Matching Engine (`MatchScorer`) scored all 618 jobs against candidate CV profile:
-  - Automatic disqualification for German language, unpaid volunteer roles, and region-locked non-Nepal jobs.
-  - Heavy penalty for Senior/Lead/Architect roles.
-  - Strong bonus for entry-level/junior positions and candidate tech stack (Python, Django, React, Next.js, Node, PostgreSQL, AI/LLM).
-- Webview at `http://localhost:5000` updated with live match scores, matched skill badges, and default smart filters (hiding German, Senior, and Unpaid jobs).
-- Test suite passing (25 tests passed).
+- 618 unique jobs stored in PostgreSQL with rule-based baseline `MatchScorer`.
+- Task 5b.1 Seniority Audit completed:
+  - Out of 346 jobs marked `senior`, 321 (92.8%) were triggered by title keywords (`senior`, `lead`, `manager`, `architect`).
+  - 25 jobs (7.2%) were triggered solely by body text (`5+ years`).
+- Task 7.1 Laya Spike completed locally:
+  - **Model**: `convaiinnovations/laya` (ModernBERT-large architecture, 421M parameters).
+  - **Hardware used**: CPU (via `torch 2.14.1+cpu`). (System GPU: NVIDIA GeForce RTX 2050 4GB VRAM).
+  - **Speed**: Cold load 94.8s; Inference: **2,830.9 ms (~2.8s) per forward pass** on CPU across 3 typed questions.
+  - **Input Token Limit**: 1,024 tokens maximum (Spike used 511 input tokens, 119 state tokens).
+  - **Spike Decisions**:
+    - `skills_fit` (score): 3.32 / 4.0 (47.6% strong match, 44.4% perfect match).
+    - `is_remote` (noul/boolean): 0.7961 (79.6% remote probability).
+    - `seniority_level` (choice): `junior` (79.5% junior probability).
 
 ## What's Broken / Incomplete
-- Phase 4 (HN & Merojob) skipped per user request.
-- Daily `FEED.md` generator not yet created.
+- Full job descriptions easily exceed Laya's 1,024 token limit and need structured section splitting and truncation (Task 7.2 & 7.3).
+- Model weights cached in `~/.cache/huggingface/` (gitignored).
 
 ## Next Step
-- Task 6.1: Implement `FEED.md` digest exporter generating daily ranked job feed directly in repository.
+- Task 7.2: Build JD section extraction module (`src/matching/extractor.py`) to split listings into sections (requirements, responsibilities, boilerplate) with test coverage on messy JDs.
