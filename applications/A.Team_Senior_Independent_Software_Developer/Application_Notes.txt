@@ -1,0 +1,33 @@
+================================================================================
+APPLICATION NOTES — A.Team (Senior Independent Software Developer)
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Senior Independent Software Developer
+- Company: A.Team
+- Track: Backend/Platform Engineer
+- Chosen Resume: 5_Backend_Platform_Engineer.pdf
+- Posting / Apply URL: https://remotive.com/remote-jobs/software-development/senior-independent-software-developer-1919265
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+A.Team is a home for senior independent software builders to team up with high-growth companies. 
+Requirements: 4+ years of full-stack or backend engineering experience, track record of shipping production software independently, and strong system architecture skills.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://remotive.com/remote-jobs/software-development/senior-independent-software-developer-1919265
+2. Upload Resume: 5_Backend_Platform_Engineer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.

@@ -1,0 +1,72 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{helvet}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\renewcommand{\familydefault}{\sfdefault}
+\pagenumbering{gobble}
+\titleformat{\section}{\large\bfseries}{}{0em}{}
+\titlespacing*{\section}{0pt}{8pt}{6pt}
+\setlist[itemize]{noitemsep, topsep=2pt}
+\begin{document}
+
+\begin{center}
+    {\LARGE \textbf{Kshitish Pandit}} \\[6pt]
+    \href{mailto:dibijsharma@gmail.com}{dibijsharma@gmail.com} \quad | \quad +977-9703995826 \\[2pt]
+    Kathmandu, Nepal \\[2pt]
+    \href{https://github.com/Dibij}{github.com/Dibij} \quad | \quad
+    \href{https://www.linkedin.com/in/kshitish-pandit}{linkedin.com/in/kshitish-pandit}
+\end{center}
+
+\vspace{6pt}
+
+\section*{Summary}
+Mobile developer with hands-on experience shipping a full-scale, production-grade Flutter application -- covering real-time communication, cloud backend integration, CI/CD, and a substantial automated test suite -- plus supporting native Android (Kotlin) work.
+
+\section*{Featured Mobile Projects}
+
+\textbf{Sambandha -- Cross-Platform Dating \& Matchmaking App} \\
+\textit{Flutter, Dart, Firebase, WebRTC}
+\begin{itemize}[leftmargin=*]
+    \item Built a feature-rich Flutter app (Android \& iOS) combining modern dating flows -- swiping, video reels -- with cultural matchmaking (Kundli/astrological compatibility)
+    \item Integrated peer-to-peer WebRTC audio/video calling and an encrypted real-time chat system
+    \item Implemented geospatial discovery/search, a weighted matching engine, and a safety-focused panic-alert system with live listeners
+    \item Structured the app using an MVVM pattern (dedicated viewmodels/repositories/services layers) across 30+ screens and features
+    \item Wrote and maintained an extensive automated test suite (unit + widget tests) spanning multiple sprints, covering chat, verification, matching, and notifications
+    \item Set up CI/CD with GitHub Actions (\texttt{flutter\_ci.yml}, \texttt{release.yml}) for automated build, lint, and release bundling
+\end{itemize}
+
+\vspace{4pt}
+\textbf{Notification Server (Companion Service)} \\
+\textit{Node.js, Express.js, Firebase Admin SDK}
+\begin{itemize}[leftmargin=*]
+    \item Built the backend push-notification microservice that powers the Sambandha app's real-time alerts via Firebase Cloud Messaging
+\end{itemize}
+
+\vspace{4pt}
+\textbf{Flutter Dashboard Prototype} \\
+\textit{Flutter, Dart}
+\begin{itemize}[leftmargin=*]
+    \item Built a Flutter application scaffold with a custom dashboard UI as a foundation for further app development
+\end{itemize}
+
+\section*{Technical Skills}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Mobile:} Flutter, Dart, Kotlin (native Android), MVVM architecture
+    \item \textbf{Real-Time \& Cloud:} Firebase (Auth, Firestore, Cloud Functions, FCM), WebRTC, geolocation services
+    \item \textbf{Testing \& CI/CD:} Widget/unit testing, GitHub Actions
+    \item \textbf{Backend Integration:} Node.js, Express.js, REST APIs
+\end{itemize}
+
+\section*{Certifications}
+\begin{itemize}[leftmargin=*]
+    \item Diploma in Data Science and Machine Learning -- Vrit Technologies
+\end{itemize}
+
+\section*{Education}
+\textbf{Softwarica College of IT and E-Commerce}, Kathmandu \\
+Bachelor's in Computer Science (Artificial Intelligence focus)
+
+\end{document}

@@ -1,0 +1,33 @@
+================================================================================
+APPLICATION NOTES — Gremlin (Senior Backend Engineer)
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Senior Backend Engineer
+- Company: Gremlin
+- Track: Backend/Platform Engineer
+- Chosen Resume: 5_Backend_Platform_Engineer.pdf
+- Posting / Apply URL: https://jobicy.com/jobs/152754-senior-backend-engineer-4
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+Gremlin provides Reliability Automation software to help high-availability engineering teams find and fix reliability risks before outages occur. 
+Requirements: Backend software engineering experience, microservices architecture, API reliability, concurrent systems, and high-availability design.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://jobicy.com/jobs/152754-senior-backend-engineer-4
+2. Upload Resume: 5_Backend_Platform_Engineer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.

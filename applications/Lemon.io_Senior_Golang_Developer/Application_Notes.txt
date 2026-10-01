@@ -1,0 +1,33 @@
+================================================================================
+APPLICATION NOTES — Lemon.io (Senior Golang Developer)
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Senior Golang Developer
+- Company: Lemon.io
+- Track: Backend/Platform Engineer
+- Chosen Resume: 5_Backend_Platform_Engineer.pdf
+- Posting / Apply URL: https://remotive.com/remote-jobs/software-development/senior-golang-developer-2091098
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+Lemon.io is seeking Senior Backend Engineers for startups in US & Europe. 
+Requirements: Strong proficiency in Go (Golang) or high-performance concurrent backend languages, REST/gRPC API design, microservices, and database optimization.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://remotive.com/remote-jobs/software-development/senior-golang-developer-2091098
+2. Upload Resume: 5_Backend_Platform_Engineer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.

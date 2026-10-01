@@ -1,0 +1,33 @@
+================================================================================
+APPLICATION NOTES — Gremlin (Data Scientist, AI/ML)
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Data Scientist, AI/ML
+- Company: Gremlin
+- Track: AI/ML Engineer
+- Chosen Resume: 1_AI_ML_Engineer.pdf
+- Posting / Apply URL: https://jobicy.com/jobs/152746-data-scientist-ai-ml
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+Gremlin is seeking a Data Scientist / AI/ML Engineer. 
+Requirements: Statistical analysis, predictive modeling, machine learning model evaluation, Python (Pandas/Scikit-Learn/NumPy), and applying ML to reliability datasets.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://jobicy.com/jobs/152746-data-scientist-ai-ml
+2. Upload Resume: 1_AI_ML_Engineer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.

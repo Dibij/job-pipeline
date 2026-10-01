@@ -1,0 +1,33 @@
+================================================================================
+APPLICATION NOTES — SeatGeek (Senior Machine Learning Engineer)
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Senior Machine Learning Engineer
+- Company: SeatGeek
+- Track: AI/ML Engineer
+- Chosen Resume: 1_AI_ML_Engineer.pdf
+- Posting / Apply URL: https://jobicy.com/jobs/152727-senior-machine-learning-engineer-2
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+SeatGeek is seeking a Senior Machine Learning Engineer to build recommendation systems, pricing algorithms, and fan-facing AI features. 
+Requirements: Production ML pipelines, feature engineering, Python (PyTorch/Scikit-Learn), model deployment, and scaling ML inference.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://jobicy.com/jobs/152727-senior-machine-learning-engineer-2
+2. Upload Resume: 1_AI_ML_Engineer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.

@@ -1,0 +1,33 @@
+================================================================================
+APPLICATION NOTES — Playson (Senior Backend Engineer (Core Team))
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Senior Backend Engineer (Core Team)
+- Company: Playson
+- Track: Backend/Platform Engineer
+- Chosen Resume: 5_Backend_Platform_Engineer.pdf
+- Posting / Apply URL: https://jobicy.com/jobs/152752-senior-backend-engineer-core-team
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+Playson is seeking a hands-on Senior Backend Developer for their Core Team. 
+Requirements: Deeply hands-on backend development, high-load systems, performance optimization, core API architecture, and database query tuning.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://jobicy.com/jobs/152752-senior-backend-engineer-core-team
+2. Upload Resume: 5_Backend_Platform_Engineer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.

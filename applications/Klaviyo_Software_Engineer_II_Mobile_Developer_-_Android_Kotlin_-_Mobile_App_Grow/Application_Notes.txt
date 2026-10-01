@@ -1,0 +1,33 @@
+================================================================================
+APPLICATION NOTES — Klaviyo (Software Engineer II (Mobile Developer))
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Software Engineer II (Mobile Developer)
+- Company: Klaviyo
+- Track: Mobile App Developer
+- Chosen Resume: 4_Mobile_App_Developer.pdf
+- Posting / Apply URL: https://jobicy.com/jobs/152750-software-engineer-ii-mobile-developer-android-kotlin-mobile-app-growth
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+Klaviyo is seeking a Mobile Developer (Android/Kotlin) for Mobile App Growth. 
+Requirements: Experience building mobile applications, mobile SDK integrations, push notifications, UI component growth experiments, and responsive mobile architecture.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://jobicy.com/jobs/152750-software-engineer-ii-mobile-developer-android-kotlin-mobile-app-growth
+2. Upload Resume: 4_Mobile_App_Developer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.

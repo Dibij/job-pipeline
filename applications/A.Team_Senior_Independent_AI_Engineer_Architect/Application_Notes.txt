@@ -1,0 +1,33 @@
+================================================================================
+APPLICATION NOTES — A.Team (Senior Independent AI Engineer / Architect)
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Senior Independent AI Engineer / Architect
+- Company: A.Team
+- Track: AI/ML Engineer
+- Chosen Resume: 1_AI_ML_Engineer.pdf
+- Posting / Apply URL: https://remotive.com/remote-jobs/software-development/senior-independent-ai-engineer-architect-1919266
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+A.Team is an invite-only network of senior AI engineers building production AI systems for startups and enterprises. 
+Requirements: Deep expertise in LLM orchestration, Retrieval-Augmented Generation (RAG), vector databases, prompt engineering, and production ML pipelines.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://remotive.com/remote-jobs/software-development/senior-independent-ai-engineer-architect-1919266
+2. Upload Resume: 1_AI_ML_Engineer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.

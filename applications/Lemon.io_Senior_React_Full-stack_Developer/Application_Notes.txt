@@ -1,0 +1,34 @@
+================================================================================
+APPLICATION NOTES — Lemon.io (Senior React Full-stack Developer)
+================================================================================
+
+APPLICANT IDENTITY:
+- Name: Kshitish Pandit
+- Email: dibijsharma@gmail.com
+- GitHub: https://github.com/Dibij
+
+APPLICATION DETAILS:
+- Target Role: Senior React Full-stack Developer
+- Company: Lemon.io
+- Track: Full-Stack Web Developer
+- Chosen Resume: 3_FullStack_Web_Developer.pdf
+- Posting / Apply URL: https://remotive.com/remote-jobs/software-development/senior-react-full-stack-developer-2091101
+
+--------------------------------------------------------------------------------
+JOB DESCRIPTION / REQUIREMENTS:
+--------------------------------------------------------------------------------
+Lemon.io connects senior developers with hand-picked startups in the US and Europe. 
+Requirements: 4+ years of professional experience with React, TypeScript, Next.js, and Node.js. 
+Strong expertise in building responsive web applications, state management, and modern component design.
+
+--------------------------------------------------------------------------------
+MANUAL SUBMISSION CHECKLIST:
+--------------------------------------------------------------------------------
+1. Open Application URL: https://remotive.com/remote-jobs/software-development/senior-react-full-stack-developer-2091101
+2. Upload Resume: 3_FullStack_Web_Developer.pdf (located in this folder)
+3. Paste / Attach Cover Letter: CoverLetter.md (located in this folder)
+4. Verify Contact Information:
+   - Full Name: Kshitish Pandit
+   - Email: dibijsharma@gmail.com
+   - Portfolio / GitHub: https://github.com/Dibij
+5. Note: Automated submission was deliberately bypassed to comply with site ToS. Review and submit manually when approved.
