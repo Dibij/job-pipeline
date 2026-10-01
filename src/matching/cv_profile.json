@@ -1,0 +1,47 @@
+{
+  "candidate": {
+    "name": "Kshitish Pandit",
+    "location": "Kathmandu, Nepal",
+    "timezone": "UTC+5:45",
+    "experience_years": 0,
+    "target_seniority": ["intern", "junior", "entry-level"],
+    "excluded_seniority": ["senior", "lead", "principal", "staff", "director", "head of", "architect"],
+    "required_languages": ["english"],
+    "excluded_languages": ["german"],
+    "allow_unpaid": false,
+    "require_remote_accessible": true
+  },
+  "skills": {
+    "primary": [
+      {"name": "python", "weight": 10},
+      {"name": "django", "weight": 9},
+      {"name": "react", "weight": 9},
+      {"name": "typescript", "weight": 9},
+      {"name": "next.js", "weight": 8},
+      {"name": "node.js", "weight": 8},
+      {"name": "postgresql", "weight": 8},
+      {"name": "javascript", "weight": 7},
+      {"name": "rest-api", "weight": 7},
+      {"name": "ai/ml", "weight": 8},
+      {"name": "llm", "weight": 8},
+      {"name": "rag", "weight": 7}
+    ],
+    "secondary": [
+      {"name": "docker", "weight": 5},
+      {"name": "flutter", "weight": 5},
+      {"name": "sql", "weight": 5},
+      {"name": "git", "weight": 4},
+      {"name": "tailwind", "weight": 4},
+      {"name": "fastapi", "weight": 5}
+    ]
+  },
+  "scoring_weights": {
+    "junior_intern_bonus": 30,
+    "senior_penalty": -80,
+    "german_language_penalty": -100,
+    "unpaid_penalty": -100,
+    "nepal_inaccessible_penalty": -80,
+    "remote_bonus": 15,
+    "tech_stack_max_score": 50
+  }
+}

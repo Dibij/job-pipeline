@@ -1,13 +1,18 @@
 # Project Progress
 
 ## Current State
-- Phase 1 (Foundations & DB) and Phase 2 (Clean Extraction & Normalization) complete.
-- SHA-256 fingerprint deduplication & upsert pipeline (`JobRepository`) implemented.
-- End-to-end pipeline run executed: 656 raw staged listings normalized and deduplicated into **618 unique jobs** in PostgreSQL `jobs` table.
-- Test suite passing (16 tests passed).
+- Phase 1, Phase 2, Phase 3, and Phase 5 complete!
+- 618 unique jobs enriched with detected language (506 English, 112 German), seniority (51 Junior/Intern, 346 Senior), unpaid status, and Nepal accessibility.
+- CV Matching Engine (`MatchScorer`) scored all 618 jobs against candidate CV profile:
+  - Automatic disqualification for German language, unpaid volunteer roles, and region-locked non-Nepal jobs.
+  - Heavy penalty for Senior/Lead/Architect roles.
+  - Strong bonus for entry-level/junior positions and candidate tech stack (Python, Django, React, Next.js, Node, PostgreSQL, AI/LLM).
+- Webview at `http://localhost:5000` updated with live match scores, matched skill badges, and default smart filters (hiding German, Senior, and Unpaid jobs).
+- Test suite passing (25 tests passed).
 
 ## What's Broken / Incomplete
-- Seniority levels (`intern`, `junior`, `mid`, `senior`) are currently defaulting; regex enrichment engine needed.
+- Phase 4 (HN & Merojob) skipped per user request.
+- Daily `FEED.md` generator not yet created.
 
 ## Next Step
-- Task 3.2: Implement regex enrichment for seniority (`intern`, `junior`) and tech tags.
+- Task 6.1: Implement `FEED.md` digest exporter generating daily ranked job feed directly in repository.
