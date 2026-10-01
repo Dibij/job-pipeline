@@ -40,3 +40,41 @@ def check_db_health() -> Dict[str, Any]:
                 "user": row["current_user"],
                 "version": row["version"],
             }
+
+
+def execute_query(sql: str, params: Any = None) -> list:
+    """Convenience helper to run a query and return rows as dictionaries."""
+    with get_connection(autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.fetchall()
+
+
+if __name__ == "__main__":
+    health = check_db_health()
+    print(f"PostgreSQL Status: {health['status'].upper()}")
+    print(f"Database:          {health['database']}")
+    print(f"User:              {health['user']}")
+    print(f"Version:           {health['version'].split(',')[0]}")
+    print("\nTable Row Counts:")
+    with get_connection(autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name != 'schema_migrations'
+                ORDER BY table_name;
+            """)
+            tables = [row["table_name"] for row in cur.fetchall()]
+            for tbl in tables:
+                cur.execute(f"SELECT count(*) FROM {tbl};")
+                cnt = cur.fetchone()["count"]
+                print(f"  - {tbl}: {cnt}")
+            
+            # Print breakdown of raw_job_listings by source if populated
+            cur.execute("SELECT source, count(*) FROM raw_job_listings GROUP BY source;")
+            sources = cur.fetchall()
+            if sources:
+                print("\nRaw Staged by Source:")
+                for s in sources:
+                    print(f"  - {s['source']}: {s['count']} job(s)")
