@@ -1,14 +1,13 @@
 # Project Progress
 
 ## Current State
-- Root workspace cleaned and legacy artifacts organized into `archive/`.
-- Web dashboard preserved in `tools/app.py`.
-- Git repository initialized with `.gitignore` and `.env.example`.
-- Python virtual environment created with all dependencies installed.
-- Core package structure created under `src/` and verified with pytest (2 passed).
+- Docker PostgreSQL 16 container (`job_pipeline_postgres`) running healthy via Docker Compose.
+- Database connection layer implemented in `src/db/connection.py` using Psycopg 3.
+- Database ping and health queries verified via pytest (4 passed).
+- Tracking files updated.
 
 ## What's Broken / Incomplete
-- PostgreSQL container not running; `docker-compose.yml` not created yet.
+- Tables (`raw_job_listings`, `jobs`, `job_matches`) are not yet migrated to PostgreSQL.
 
 ## Next Step
-- Task 1.2: Create `docker-compose.yml` for local PostgreSQL 16, start the container, and verify connectivity with a connection test script.
+- Task 1.3: Write and execute SQL migration script for `raw_job_listings`, `jobs`, and `job_matches` tables with indexes and constraint verification tests.
