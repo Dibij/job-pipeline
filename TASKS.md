@@ -38,7 +38,7 @@
 
 ## Phase 7: Laya Scoring
 - [x] 7.1 Spike: run Laya locally on one hard-coded example and print raw output. Record hardware, speed, and token limit in PROGRESS.md. STOP and show result before 7.2.
-- [ ] 7.2 JD section extraction: module that splits a JD into sections (title, responsibilities, requirements, nice-to-haves, benefits, company blurb, legal/EEO). Heading + keyword rules, graceful fallback when no headings. Tests with messy inputs.
+- [x] 7.2 JD section extraction: module that splits a JD into sections (title, responsibilities, requirements, nice-to-haves, benefits, company blurb, legal/EEO). Heading + keyword rules, graceful fallback when no headings. Tests with messy inputs.
 - [ ] 7.3 Truncation to token budget: fit scoring input inside Laya's limit using configurable `LAYA_INPUT_TOKEN_BUDGET`. Priority order to keep: title, company, location/remote, requirements, responsibilities, nice-to-haves, company blurb. Drop benefits and legal boilerplate first. Add `[...]` marker when cutting. Include compact CV summary in budget.
 - [ ] 7.4 Typed questions and scoring: 4-6 typed questions (score: skills fit, seniority fit, domain fit; boolean: fully remote, requires unreachable hours, looks like a real job). Combine answers into one score with weights from a config file.
 - [ ] 7.5 Confidence gating: if Laya's confidence on a question is below a configurable threshold, mark job "needs review" instead of trusting the score.
