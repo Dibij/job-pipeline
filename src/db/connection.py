@@ -47,7 +47,9 @@ def execute_query(sql: str, params: Any = None) -> list:
     with get_connection(autocommit=True) as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
-            return cur.fetchall()
+            if cur.description is not None:
+                return cur.fetchall()
+            return []
 
 
 if __name__ == "__main__":

@@ -40,7 +40,7 @@
 - [x] 7.1 Spike: run Laya locally on one hard-coded example and print raw output. Record hardware, speed, and token limit in PROGRESS.md.
 - [x] 7.2 JD section extraction: `src/matching/jd_extractor.py`. Heading + keyword rules, graceful fallback. 24 tests.
 - [x] 7.3 Truncation to token budget: `src/matching/jd_truncator.py`. Budget computed from real token counts (not assumed). Count with real tokenizer. Priority: title, company, location, requirements, responsibilities, nice-to-haves, company blurb. Drop benefits/legal first. Add `[...]` markers. Include compact CV summary. Tests: very long, very short, empty, and real DB JDs.
-- [ ] 7.4 Typed questions and scoring: `config/laya_questions.yaml` + `src/matching/laya_scorer.py`. Load from config (never hard-code). Gate questions remove disqualified jobs with reason codes. Penalty questions subtract points. Score questions weighted average → 0-100. Show per-question breakdown for 10 real jobs.
+- [x] 7.4 Typed questions and scoring: `config/laya_questions.yaml` + `src/matching/laya_scorer.py`. Load from config (never hard-code). Gate questions remove disqualified jobs with reason codes. Penalty questions subtract points. Score questions weighted average → 0-100. Show per-question breakdown for 10 real jobs.
 - [ ] 7.5 Confidence gating: if any score/gate question confidence < threshold, mark "needs_review". Config-driven threshold.
 - [ ] 7.6 Storage: new table `laya_job_scores`. Stores final score, per-question data, confidence flag, checkpoint version, config version, timestamp. Never overwrites.
 - [ ] 7.7 Evaluation: labeled CSV (~30-50 jobs: good_fit / maybe / bad_fit), comparison script for MatchScorer vs Laya vs labels.
