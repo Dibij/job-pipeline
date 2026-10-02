@@ -86,3 +86,13 @@ choice_questions:
       frontend: 3
 
 confidence_threshold: 0.65
+
+# Gate behavior configuration (Task 7.4b)
+# When gates_warn_only is true, Laya gates NEVER disqualify — they only add
+# gate_warnings. Plain-code hard filters remain the only disqualifiers.
+# Set to false after calibration (7.8a) is done and gate accuracy is confirmed.
+gates_warn_only: true
+
+# When gates_warn_only is false, a gate can only DISQUALIFY if the noul
+# probability exceeds this threshold. Below it, the gate adds a warning only.
+gate_disqualify_threshold: 0.90

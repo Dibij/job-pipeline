@@ -47,10 +47,10 @@
 
 ## Phase 7 — Training Workstream (src/training/, scripts/, TRAINING.md)
 - [ ] 7.8a Temperature calibration: fit a temperature on labeled data to fix Laya's uncalibrated confidence. Evaluate before/after on held-out split. Save temperature as versioned config. (Can run with fewer than 150 labels.)
-- [ ] 7.8b Fine-tune Laya decision head: supervised head training (or RLCD if confirmed supported by docs). Only runs when labeled rows ≥ 150 (configurable). Never trains on Laya's own predictions as labels. Saves versioned checkpoints (out of git). Prints comparison report vs baseline and original Laya before recommending new checkpoint.
+- [ ] 7.8b Fine-tune Laya decision head: supervised head training with proper scoring rules (Brier/RPS). Only runs when labeled rows ≥ 150 (configurable). Never trains on Laya's own predictions as labels. Saves versioned checkpoints (out of git). Prints comparison report vs baseline and original Laya before recommending new checkpoint.
 
 ## Phase 7 — Training Scaffolding Scripts (no real training yet)
-- [ ] scripts/export_for_labeling.py: run unlabeled jobs through extractor → truncator → Laya, write `labeling_batch_YYYYMMDD.csv` (id, title, company, link, Laya answers, confidence, empty `my_label`). Sort least-confident first; mix in random jobs to avoid bias.
-- [ ] scripts/ingest_labels.py: read labeled CSV, validate, insert into `laya_labels` table (never overwrite).
-- [ ] scripts/calibrate_laya.py (7.8a): temperature fitting on train split, evaluation on held-out, save versioned config.
-- [ ] scripts/train_laya.py (7.8b): reads labeled rows, supports `--dry-run` on tiny fake dataset. Refuses to train when labels < 150 with clear explanation.
+- [x] scripts/export_for_labeling.py: run unlabeled jobs through extractor → truncator → Laya, write `labeling_batch_YYYYMMDD.csv` (id, title, company, link, Laya answers, confidence, empty `my_label`). Sort least-confident first; mix in random jobs to avoid bias.
+- [x] scripts/ingest_labels.py: read labeled CSV, validate, insert into `laya_labels` table (never overwrite).
+- [x] scripts/calibrate_laya.py (7.8a): temperature fitting on train split, evaluation on held-out, save versioned config.
+- [x] scripts/train_laya.py (7.8b): reads labeled rows, supports `--dry-run` on tiny fake dataset. Refuses to train when labels < 150 with clear explanation.

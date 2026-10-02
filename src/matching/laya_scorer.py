@@ -38,6 +38,7 @@ class LayaScoreResult:
     disqualification_reason: Optional[str]
     needs_review: bool
     role_type: str
+    gate_warnings: List[str] = field(default_factory=list)
     questions: Dict[str, LayaQuestionResult] = field(default_factory=dict)
     tokens_used: int = 0
 
@@ -50,6 +51,8 @@ class LayaScorer:
         self.device = device
         self.config = self._load_config()
         self.confidence_threshold = self.config.get("confidence_threshold", 0.65)
+        self.gates_warn_only = self.config.get("gates_warn_only", True)
+        self.gate_disqualify_threshold = self.config.get("gate_disqualify_threshold", 0.90)
         
         # Load Laya model
         logger.info("Loading Laya model on %s...", device)
@@ -153,6 +156,7 @@ class LayaScorer:
         # --- A. Gate Questions ---
         is_passed = True
         disqualification_reason = None
+        gate_warnings: List[str] = []
 
         gate_configs = self.config.get("gate_questions", {})
         for q_id, q_cfg in gate_configs.items():
@@ -169,12 +173,24 @@ class LayaScorer:
             # Determine boolean answer: true if noul_prob >= 0.5 else false
             bool_answer = (noul_prob >= 0.5)
             bad_answer = q_cfg.get("bad_answer", False)
+            reason_code = q_cfg.get("reason_code", "DISQUALIFIED")
 
-            # If answer matches bad answer with confident probability (> 0.55)
-            if bool_answer == bad_answer and (noul_prob > 0.55 if bad_answer else noul_prob < 0.45):
-                is_passed = False
-                if not disqualification_reason:
-                    disqualification_reason = q_cfg.get("reason_code", "DISQUALIFIED")
+            # Probability of the bad condition:
+            # If bad_answer is True: statement being True is bad -> p_bad = noul_prob
+            # If bad_answer is False: statement being False is bad -> p_bad = 1.0 - noul_prob
+            p_bad = float(noul_prob) if bad_answer else float(1.0 - noul_prob)
+
+            # Warning threshold: if model leans toward the bad condition (p_bad > 0.50)
+            if p_bad > 0.50:
+                gate_warnings.append(f"{reason_code}:{q_id}(p_bad={p_bad:.2f})")
+
+                # Disqualification threshold:
+                # 1. Gates must not be in warn-only mode (gates_warn_only=False)
+                # 2. Probability of bad must reach or exceed gate_disqualify_threshold (default 0.90)
+                if not self.gates_warn_only and p_bad >= self.gate_disqualify_threshold:
+                    is_passed = False
+                    if not disqualification_reason:
+                        disqualification_reason = reason_code
 
             question_results[q_id] = LayaQuestionResult(
                 question_type="noul",
@@ -284,6 +300,7 @@ class LayaScorer:
             disqualification_reason=disqualification_reason,
             needs_review=needs_review,
             role_type=role_type,
+            gate_warnings=gate_warnings,
             questions=question_results,
             tokens_used=input_tokens
         )

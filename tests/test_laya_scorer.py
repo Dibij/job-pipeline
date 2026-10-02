@@ -25,6 +25,8 @@ def mock_scorer(monkeypatch):
     scorer.device = "cpu"
     scorer.config = scorer._load_config()
     scorer.confidence_threshold = 0.65
+    scorer.gates_warn_only = scorer.config.get("gates_warn_only", True)
+    scorer.gate_disqualify_threshold = scorer.config.get("gate_disqualify_threshold", 0.90)
     scorer.agent = None
     scorer.formatted_questions = scorer._build_laya_questions()
     return scorer
@@ -37,14 +39,17 @@ def test_scorer_loads_yaml_config(mock_scorer):
     assert "choice_questions" in mock_scorer.config
     assert "skills_match" in mock_scorer.formatted_questions
     assert "is_real_job" in mock_scorer.formatted_questions
+    assert mock_scorer.gates_warn_only is True
+    assert mock_scorer.gate_disqualify_threshold == 0.90
 
 
-def test_scorer_disqualifies_bad_gate(mock_scorer):
-    # Simulate a job that requires country residency (bad_answer=True for needs_work_authorization)
+def test_scorer_warn_only_mode_does_not_disqualify(mock_scorer):
+    """When gates_warn_only=True, even bad gates only generate warnings without disqualifying."""
+    mock_scorer.gates_warn_only = True
     values = {
         "is_real_job": {"noul": 0.95, "answer_confidence": 0.95},
         "remote_from_nepal": {"noul": 0.85, "answer_confidence": 0.85},
-        "needs_work_authorization": {"noul": 0.88, "answer_confidence": 0.88}, # Disqualifier!
+        "needs_work_authorization": {"noul": 0.95, "answer_confidence": 0.95}, # p_bad=0.95
         "unpaid_or_commission_only": {"noul": 0.05, "answer_confidence": 0.95},
         "requires_other_language": {"noul": 0.05, "answer_confidence": 0.95},
         "skills_match": {"score": 3.8, "answer_confidence": 0.8},
@@ -55,15 +60,89 @@ def test_scorer_disqualifies_bad_gate(mock_scorer):
         "needs_multi_years": {"noul": 0.1, "answer_confidence": 0.9},
         "role_type": {"choice": "backend", "answer_confidence": 0.85}
     }
-    conf = {k: 0.85 for k in values}
-    probs = {k: {} for k in values}
+    mock_res = MockDecisionResult(values, {k: 0.85 for k in values}, {k: {} for k in values})
+    result = mock_scorer._evaluate_decision("test-id", "Backend Dev", "Acme", mock_res)
 
-    mock_res = MockDecisionResult(values, conf, probs)
+    assert result.is_passed is True
+    assert result.disqualification_reason is None
+    assert result.final_score > 0.0
+    assert any("REGION_LOCKED" in w for w in result.gate_warnings)
+
+
+def test_scorer_disqualifies_when_warn_only_false_and_above_threshold(mock_scorer):
+    """When gates_warn_only=False and p_bad >= 0.90, job is DISQUALIFIED."""
+    mock_scorer.gates_warn_only = False
+    values = {
+        "is_real_job": {"noul": 0.95, "answer_confidence": 0.95},
+        "remote_from_nepal": {"noul": 0.85, "answer_confidence": 0.85},
+        "needs_work_authorization": {"noul": 0.92, "answer_confidence": 0.92}, # p_bad=0.92 >= 0.90
+        "unpaid_or_commission_only": {"noul": 0.05, "answer_confidence": 0.95},
+        "requires_other_language": {"noul": 0.05, "answer_confidence": 0.95},
+        "skills_match": {"score": 3.8, "answer_confidence": 0.8},
+        "seniority_fit": {"score": 3.5, "answer_confidence": 0.8},
+        "domain_fit": {"score": 4.0, "answer_confidence": 0.9},
+        "growth_fit": {"score": 3.0, "answer_confidence": 0.7},
+        "fixed_overlap_hours": {"noul": 0.1, "answer_confidence": 0.9},
+        "needs_multi_years": {"noul": 0.1, "answer_confidence": 0.9},
+        "role_type": {"choice": "backend", "answer_confidence": 0.85}
+    }
+    mock_res = MockDecisionResult(values, {k: 0.85 for k in values}, {k: {} for k in values})
     result = mock_scorer._evaluate_decision("test-id", "Backend Dev", "Acme", mock_res)
 
     assert result.is_passed is False
     assert result.disqualification_reason == "REGION_LOCKED"
     assert result.final_score == 0.0
+
+
+def test_gate_polarity_pin_down(mock_scorer):
+    """Verifies polarity direction for both bad_answer=True and bad_answer=False gates."""
+    mock_scorer.gates_warn_only = False
+
+    base_values = {
+        "is_real_job": {"noul": 0.95},
+        "remote_from_nepal": {"noul": 0.95},
+        "needs_work_authorization": {"noul": 0.05},
+        "unpaid_or_commission_only": {"noul": 0.05},
+        "requires_other_language": {"noul": 0.05},
+        "skills_match": {"score": 3.0},
+        "seniority_fit": {"score": 3.0},
+        "domain_fit": {"score": 3.0},
+        "growth_fit": {"score": 3.0},
+        "fixed_overlap_hours": {"noul": 0.05},
+        "needs_multi_years": {"noul": 0.05},
+        "role_type": {"choice": "backend"}
+    }
+
+    # 1. Test bad_answer=True: requires_other_language with high noul (0.95) -> bad!
+    val1 = dict(base_values, requires_other_language={"noul": 0.95})
+    res1 = mock_scorer._evaluate_decision("id1", "Dev", "Acme", MockDecisionResult(val1, {k: 0.9 for k in val1}, {}))
+    assert res1.is_passed is False
+    assert res1.disqualification_reason == "LANGUAGE"
+
+    # 2. Test bad_answer=True: unpaid_or_commission_only with high noul (0.95) -> bad!
+    val2 = dict(base_values, unpaid_or_commission_only={"noul": 0.95})
+    res2 = mock_scorer._evaluate_decision("id2", "Dev", "Acme", MockDecisionResult(val2, {k: 0.9 for k in val2}, {}))
+    assert res2.is_passed is False
+    assert res2.disqualification_reason == "UNPAID"
+
+    # 3. Test bad_answer=False: is_real_job with low noul (0.05) -> bad!
+    val3 = dict(base_values, is_real_job={"noul": 0.05})
+    res3 = mock_scorer._evaluate_decision("id3", "Dev", "Acme", MockDecisionResult(val3, {k: 0.9 for k in val3}, {}))
+    assert res3.is_passed is False
+    assert res3.disqualification_reason == "NOT_REAL_JOB"
+
+    # 4. Test bad_answer=False: remote_from_nepal with low noul (0.05) -> bad!
+    val4 = dict(base_values, remote_from_nepal={"noul": 0.05})
+    res4 = mock_scorer._evaluate_decision("id4", "Dev", "Acme", MockDecisionResult(val4, {k: 0.9 for k in val4}, {}))
+    assert res4.is_passed is False
+    assert res4.disqualification_reason == "NOT_ACCESSIBLE"
+
+    # 5. Threshold boundary check: p_bad = 0.85 (< 0.90) -> warning only, NOT disqualified
+    val5 = dict(base_values, needs_work_authorization={"noul": 0.85})
+    res5 = mock_scorer._evaluate_decision("id5", "Dev", "Acme", MockDecisionResult(val5, {k: 0.9 for k in val5}, {}))
+    assert res5.is_passed is True
+    assert res5.disqualification_reason is None
+    assert any("REGION_LOCKED" in w for w in res5.gate_warnings)
 
 
 def test_scorer_calculates_high_score_and_bonus(mock_scorer):

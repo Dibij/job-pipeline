@@ -15,10 +15,12 @@ This document tracks the calibration and fine-tuning engineering for Laya (Task 
 
 ---
 
-## 2. Research Findings on Laya Architecture & RLCD
-From official Convai Innovations documentation and package inspection of `laya`:
+## 2. Research Findings on Laya Architecture & Scoring Rules
+From package inspection of `laya` (specifically `laya.proper_reward` and `laya.RLAgent`):
 * **Encoder Backbone**: ModernBERT-large (421M parameters) for English, mmBERT-base (322M) for multilingual.
-* **RLCD Support**: Laya includes `laya.proper_reward` which implements strictly proper scoring rules (Brier score / Ranked Probability Score + Spherical reward) and `laya.RLAgent`.
+* **Scoring Rules & Training**: The package provides `laya.proper_reward`, documented as:
+  > *"Strictly proper scoring rule reward: log score + spherical score + ranked probability score. q: [..., N, K] reported distributions, target: [N, K]"*
+  The official package does not explicitly document "RLCD"; therefore, the training approach is accurately described as **supervised head training with proper scoring rules (Brier/RPS)**.
 * **Decision Heads**: The encoder produces pooled sentence embeddings (1024-dim), which pass into lightweight multi-task classification heads for `score`, `choice`, and `noul` decisions.
 * **Trainable vs Frozen**: Fine-tuning keeps the 421M parameter ModernBERT backbone **frozen** and optimizes only the classification heads. This dramatically reduces memory and compute requirements.
 

@@ -30,8 +30,10 @@ def run_evaluation(limit: int = 10):
     scorer = LayaScorer(device="cpu")
     print("\nModel ready. Scoring jobs...\n")
 
+    results = []
     for i, job in enumerate(rows, 1):
         result = scorer.score_job(job)
+        results.append((job, result))
         safe_title = job["title"].encode("ascii", "replace").decode("ascii")
         safe_company = job["company_name"].encode("ascii", "replace").decode("ascii")
 
@@ -41,6 +43,9 @@ def run_evaluation(limit: int = 10):
               f"Role: {result.role_type} | "
               f"Needs Review: {result.needs_review} | "
               f"Tokens: {result.tokens_used}")
+
+        if result.gate_warnings:
+            print(f"     Gate Warnings: {', '.join(result.gate_warnings)}")
 
         if not result.is_passed:
             print(f"     Reason: {result.disqualification_reason}")
@@ -56,6 +61,20 @@ def run_evaluation(limit: int = 10):
                 print(f"       - [BOOL]  {q_id:<20}: {val_str:<3} (p={q_res.normalized_value:.2f}, conf={q_res.confidence:.2f})")
 
         print("-" * 70)
+
+    # Print summary table
+    print("\n" + "=" * 90)
+    print("                     10-JOB EVALUATION SUMMARY (WARN-ONLY MODE)")
+    print("=" * 90)
+    print(f"{'#':<3} | {'Company':<15} | {'Title':<28} | {'Score':<6} | {'Status':<6} | {'Warnings'}")
+    print("-" * 90)
+    for i, (job, res) in enumerate(results, 1):
+        comp = job['company_name'][:14]
+        tit = job['title'][:27]
+        warns = ", ".join(res.gate_warnings) if res.gate_warnings else "None"
+        status = "PASS" if res.is_passed else "DISQ"
+        print(f"{i:<3} | {comp:<15} | {tit:<28} | {res.final_score:5.1f} | {status:<6} | {warns}")
+    print("=" * 90)
 
 
 if __name__ == "__main__":
