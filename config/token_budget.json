@@ -1,0 +1,10 @@
+{
+  "max_model_tokens": 1024,
+  "safety_margin": 50,
+  "cv_summary_tokens": 90,
+  "state_structure_tokens": 60,
+  "questions_text_tokens": 197,
+  "questions_keys_tokens": 61,
+  "total_reserved_tokens": 458,
+  "laya_input_token_budget": 566
+}

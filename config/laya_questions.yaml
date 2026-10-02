@@ -1,0 +1,88 @@
+score_questions:
+  skills_match:
+    weight: 0.35
+    instructions: "How well do the skills this job requires match the candidate's skills?"
+    criteria:
+      - "completely unrelated"
+      - "poor match"
+      - "partial match"
+      - "strong match"
+      - "perfect match"
+  seniority_fit:
+    weight: 0.30
+    instructions: "Is the experience level this job requires suitable for a student or fresh graduate with little professional experience?"
+    criteria:
+      - "not suitable at all, requires high experience"
+      - "poor fit"
+      - "moderate fit"
+      - "good fit"
+      - "ideal entry-level or junior role"
+  domain_fit:
+    weight: 0.20
+    instructions: "Is this job in a field the candidate wants: web, full-stack, backend, or AI development?"
+    criteria:
+      - "completely unrelated domain"
+      - "peripheral domain"
+      - "acceptable domain"
+      - "strong domain match"
+      - "exact domain match"
+  growth_fit:
+    weight: 0.15
+    instructions: "Would this job give a junior person room to learn, with duties that are clear and manageable?"
+    criteria:
+      - "unmanageable or no room to learn"
+      - "low growth potential"
+      - "moderate learning opportunity"
+      - "good mentorship and scope"
+      - "exceptional learning environment"
+
+gate_questions:
+  is_real_job:
+    instructions: "Is this a genuine job posting with clear duties and requirements?"
+    bad_answer: false
+    reason_code: "NOT_REAL_JOB"
+  remote_from_nepal:
+    instructions: "Can this job be done fully remotely by someone living in Nepal?"
+    bad_answer: false
+    reason_code: "NOT_ACCESSIBLE"
+  needs_work_authorization:
+    instructions: "Does this job require residency or work authorization in a specific country?"
+    bad_answer: true
+    reason_code: "REGION_LOCKED"
+  unpaid_or_commission_only:
+    instructions: "Is this job unpaid, volunteer, or commission-only?"
+    bad_answer: true
+    reason_code: "UNPAID"
+  requires_other_language:
+    instructions: "Does this job require fluency in a language other than English?"
+    bad_answer: true
+    reason_code: "LANGUAGE"
+
+penalty_questions:
+  fixed_overlap_hours:
+    instructions: "Does this job require working fixed hours in a US or European timezone?"
+    penalty: -15
+  needs_multi_years:
+    instructions: "Does this job require 3 or more years of professional experience?"
+    penalty: -20
+
+choice_questions:
+  role_type:
+    instructions: "What type of role is this?"
+    criteria:
+      web_fullstack: "Full-stack web development"
+      frontend: "Frontend web development"
+      backend: "Backend web or API engineering"
+      ai_ml: "AI, machine learning, or LLM engineering"
+      data: "Data science, analytics, or data engineering"
+      mobile: "Mobile app development (Flutter, iOS, Android)"
+      devops: "DevOps, infrastructure, SRE, or cloud"
+      admin_ops: "Administrative, operational, or customer support"
+      other: "Other technical or non-technical role"
+    bonus:
+      web_fullstack: 5
+      backend: 5
+      ai_ml: 5
+      frontend: 3
+
+confidence_threshold: 0.65
