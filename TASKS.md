@@ -41,8 +41,8 @@
 - [x] 7.2 JD section extraction: `src/matching/jd_extractor.py`. Heading + keyword rules, graceful fallback. 24 tests.
 - [x] 7.3 Truncation to token budget: `src/matching/jd_truncator.py`. Budget computed from real token counts (not assumed). Count with real tokenizer. Priority: title, company, location, requirements, responsibilities, nice-to-haves, company blurb. Drop benefits/legal first. Add `[...]` markers. Include compact CV summary. Tests: very long, very short, empty, and real DB JDs.
 - [x] 7.4 Typed questions and scoring: `config/laya_questions.yaml` + `src/matching/laya_scorer.py`. Load from config (never hard-code). Gate questions remove disqualified jobs with reason codes. Penalty questions subtract points. Score questions weighted average → 0-100. Show per-question breakdown for 10 real jobs.
-- [ ] 7.5 Confidence gating: if any score/gate question confidence < threshold, mark "needs_review". Config-driven threshold.
-- [ ] 7.6 Storage: new table `laya_job_scores`. Stores final score, per-question data, confidence flag, checkpoint version, config version, timestamp. Never overwrites.
+- [x] 7.5 Confidence gating: if any score/gate question confidence < threshold, mark "needs_review". Config-driven threshold. `use_confidence_flag: false` until 7.8a calibration — flag computed but never used to filter.
+- [x] 7.6 Storage: `laya_job_scores` table (migration 004). Stores final score, per-question data (JSONB), gate_warnings (JSONB), needs_review flag, laya_checkpoint, config_version, tokens_used, scored_at. Unique constraint on (job_id, checkpoint, config_version) for resumable batch scoring. `scripts/score_jobs.py` with `--limit`, `--dry-run`, ETA output.
 - [ ] 7.7 Evaluation: labeled CSV (~30-50 jobs: good_fit / maybe / bad_fit), comparison script for MatchScorer vs Laya vs labels.
 
 ## Phase 7 — Training Workstream (src/training/, scripts/, TRAINING.md)
