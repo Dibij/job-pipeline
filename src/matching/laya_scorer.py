@@ -53,11 +53,18 @@ class LayaScorer:
         self.confidence_threshold = self.config.get("confidence_threshold", 0.65)
         self.gates_warn_only = self.config.get("gates_warn_only", True)
         self.gate_disqualify_threshold = self.config.get("gate_disqualify_threshold", 0.90)
-        
+        # gate_warn_threshold: only surface a gate_warning when p_bad >= this value.
+        # Raised from the old 0.50 floor so noisy zero-shot probabilities don't pollute
+        # summaries before calibration. Raw probabilities are always stored.
+        self.gate_warn_threshold = self.config.get("gate_warn_threshold", 0.85)
+        # Task 7.5: flag is always COMPUTED but never used to filter/rank unless True.
+        self.use_confidence_flag = self.config.get("use_confidence_flag", False)
+
         # Load Laya model
         logger.info("Loading Laya model on %s...", device)
         self.agent = laya.load("convaiinnovations/laya", device=device)
         self.formatted_questions = self._build_laya_questions()
+
 
     def _load_config(self) -> Dict[str, Any]:
         if not self.config_path.exists():
@@ -180,8 +187,9 @@ class LayaScorer:
             # If bad_answer is False: statement being False is bad -> p_bad = 1.0 - noul_prob
             p_bad = float(noul_prob) if bad_answer else float(1.0 - noul_prob)
 
-            # Warning threshold: if model leans toward the bad condition (p_bad > 0.50)
-            if p_bad > 0.50:
+            # Warning threshold: only surface a warning when model is reasonably confident
+            # the bad condition holds. Raw probability is always stored in question_results.
+            if p_bad >= self.gate_warn_threshold:
                 gate_warnings.append(f"{reason_code}:{q_id}(p_bad={p_bad:.2f})")
 
                 # Disqualification threshold:
@@ -191,6 +199,7 @@ class LayaScorer:
                     is_passed = False
                     if not disqualification_reason:
                         disqualification_reason = reason_code
+
 
             question_results[q_id] = LayaQuestionResult(
                 question_type="noul",

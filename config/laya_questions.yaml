@@ -53,10 +53,9 @@ gate_questions:
     instructions: "Is this job unpaid, volunteer, or commission-only?"
     bad_answer: true
     reason_code: "UNPAID"
-  requires_other_language:
-    instructions: "Does this job require fluency in a language other than English?"
-    bad_answer: true
-    reason_code: "LANGUAGE"
+  # NOTE: requires_other_language removed (Task gate-cleanup).
+  # Language is detected deterministically by enrichment (detected_language column)
+  # and filtered by plain-code hard filters. No Laya question needed.
 
 penalty_questions:
   fixed_overlap_hours:
@@ -87,12 +86,22 @@ choice_questions:
 
 confidence_threshold: 0.65
 
-# Gate behavior configuration (Task 7.4b)
+# Gate behavior configuration (Tasks 7.4b, gate-cleanup)
 # When gates_warn_only is true, Laya gates NEVER disqualify — they only add
 # gate_warnings. Plain-code hard filters remain the only disqualifiers.
 # Set to false after calibration (7.8a) is done and gate accuracy is confirmed.
 gates_warn_only: true
 
-# When gates_warn_only is false, a gate can only DISQUALIFY if the noul
-# probability exceeds this threshold. Below it, the gate adds a warning only.
+# When gates_warn_only is false, a gate can only DISQUALIFY if p_bad exceeds
+# gate_disqualify_threshold. Below it, the gate adds a warning only.
 gate_disqualify_threshold: 0.90
+
+# Gate WARNING threshold: only record a gate_warning string when p_bad >= this value.
+# Below this value the raw probability is still stored in question data but NOT
+# surfaced as a warning string. Keeps noise out of summaries until calibration.
+gate_warn_threshold: 0.85
+
+# Task 7.5: whether to USE the needs_review flag to filter or rank results.
+# Keep false until calibration (7.8a) is done. The flag is always COMPUTED and
+# STORED regardless of this switch.
+use_confidence_flag: false

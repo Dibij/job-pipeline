@@ -1,4 +1,9 @@
-"""Task 7.4: Run LayaScorer on 10 real jobs and display per-question breakdown."""
+"""Task 7.4: Run LayaScorer on 10 real jobs and display per-question breakdown.
+
+Gate warning threshold is configurable (gate_warn_threshold in config/laya_questions.yaml,
+default 0.85). Warnings are stored in LayaScoreResult.gate_warnings but NOT printed in
+the summary table until calibration is done (Task 7.8a).
+"""
 import sys
 from pathlib import Path
 
@@ -14,7 +19,8 @@ def run_evaluation(limit: int = 10):
     print("       LAYA SCORING: 10 REAL JOBS EVALUATION")
     print("=" * 70)
 
-    # Fetch 10 diverse jobs that pass language check
+    # Fetch jobs that pass the plain-code hard filter (detected_language only;
+    # requires_other_language gate was removed — language is a plain-code filter now)
     rows = execute_query("""
         SELECT id, title, company_name, location_raw, is_remote, description_text
         FROM jobs
@@ -44,6 +50,8 @@ def run_evaluation(limit: int = 10):
               f"Needs Review: {result.needs_review} | "
               f"Tokens: {result.tokens_used}")
 
+        # Gate warnings still shown in per-job detail for debugging,
+        # but omitted from the summary table until calibration
         if result.gate_warnings:
             print(f"     Gate Warnings: {', '.join(result.gate_warnings)}")
 
@@ -62,19 +70,19 @@ def run_evaluation(limit: int = 10):
 
         print("-" * 70)
 
-    # Print summary table
-    print("\n" + "=" * 90)
-    print("                     10-JOB EVALUATION SUMMARY (WARN-ONLY MODE)")
-    print("=" * 90)
-    print(f"{'#':<3} | {'Company':<15} | {'Title':<28} | {'Score':<6} | {'Status':<6} | {'Warnings'}")
-    print("-" * 90)
+    # Summary table — gate warnings suppressed until calibration (Task 7.8a)
+    print("\n" + "=" * 70)
+    print("            10-JOB EVALUATION SUMMARY (WARN-ONLY MODE)")
+    print("=" * 70)
+    print(f"{'#':<3} | {'Company':<15} | {'Title':<28} | {'Score':<6} | {'Status'}")
+    print("-" * 70)
     for i, (job, res) in enumerate(results, 1):
         comp = job['company_name'][:14]
         tit = job['title'][:27]
-        warns = ", ".join(res.gate_warnings) if res.gate_warnings else "None"
         status = "PASS" if res.is_passed else "DISQ"
-        print(f"{i:<3} | {comp:<15} | {tit:<28} | {res.final_score:5.1f} | {status:<6} | {warns}")
-    print("=" * 90)
+        print(f"{i:<3} | {comp:<15} | {tit:<28} | {res.final_score:5.1f} | {status}")
+    print("=" * 70)
+    print("(Gate warnings stored in result.gate_warnings; omitted until calibration)")
 
 
 if __name__ == "__main__":
