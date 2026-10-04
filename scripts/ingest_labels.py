@@ -33,9 +33,17 @@ def ingest_labels_from_csv(csv_path: Path):
     skipped_invalid = 0
     skipped_duplicate = 0
 
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
+    # Try utf-8-sig / utf-8 first, fallback to cp1252 (Windows Excel)
+    rows = []
+    for enc in ["utf-8-sig", "utf-8", "cp1252", "latin-1"]:
+        try:
+            with open(csv_path, "r", encoding=enc) as f:
+                reader = csv.DictReader(f)
+                rows = list(reader)
+            break
+        except UnicodeDecodeError:
+            continue
+
 
     with get_connection(autocommit=False) as conn:
         with conn.cursor() as cur:

@@ -108,6 +108,17 @@ class LayaScorer:
 
         return questions
 
+    def _get_question_subsets(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Split questions into job-only (gates, penalties, role_type) and match questions.
+        
+        Job questions must be evaluated on pure job state without candidate summary
+        to prevent candidate skills from biasing job classification.
+        """
+        score_keys = set(self.config.get("score_questions", {}).keys())
+        match_questions = {k: v for k, v in self.formatted_questions.items() if k in score_keys}
+        job_questions = {k: v for k, v in self.formatted_questions.items() if k not in score_keys}
+        return job_questions, match_questions
+
     def score_job(
         self,
         job_dict: Dict[str, Any],
@@ -127,21 +138,44 @@ class LayaScorer:
             company=company,
             location=location
         )
-        state = build_truncated_laya_state(
+        state_match = build_truncated_laya_state(
             sections=sections,
             tokenizer=self.agent.tok,
             cv_summary=cv_summary
         )
 
         # 2. Run Laya inference
-        raw_result = laya.decide(
-            self.agent,
-            state,
-            questions=self.formatted_questions,
-            return_details=True
-        )
+        job_questions, match_questions = self._get_question_subsets()
+        if job_questions and match_questions:
+            # Pure job state without candidate summary for role_type and gate questions
+            state_job = {k: v for k, v in state_match.items() if k != "candidate_summary"}
+            res_job = laya.decide(self.agent, state_job, questions=job_questions, return_details=True)
+            res_match = laya.decide(self.agent, state_match, questions=match_questions, return_details=True)
+
+            # Merge results into combined structure
+            combined_values = {**getattr(res_job, "values", {}), **getattr(res_match, "values", {})}
+            combined_confidence = {**getattr(res_job, "confidence", {}), **getattr(res_match, "confidence", {})}
+            combined_probabilities = {**getattr(res_job, "probabilities", {}), **getattr(res_match, "probabilities", {})}
+            combined_tokens = (getattr(res_job, "usage", {}).get("input_tokens", 0) or 0) + (getattr(res_match, "usage", {}).get("input_tokens", 0) or 0)
+
+            class CombinedDecision:
+                def __init__(self, values, confidence, probabilities, tokens):
+                    self.values = values
+                    self.confidence = confidence
+                    self.probabilities = probabilities
+                    self.usage = {"input_tokens": tokens}
+
+            raw_result = CombinedDecision(combined_values, combined_confidence, combined_probabilities, combined_tokens)
+        else:
+            raw_result = laya.decide(
+                self.agent,
+                state_match,
+                questions=self.formatted_questions,
+                return_details=True
+            )
 
         return self._evaluate_decision(job_id, title, company, raw_result)
+
 
     def _evaluate_decision(
         self,

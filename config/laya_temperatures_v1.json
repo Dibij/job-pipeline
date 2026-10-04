@@ -1,0 +1,10 @@
+{
+  "version": "v1",
+  "train_samples": 13,
+  "val_samples": 4,
+  "calibration_results": {
+    "fitted_temperature": 1.45,
+    "ece_before": 0.28,
+    "ece_after": 0.08
+  }
+}

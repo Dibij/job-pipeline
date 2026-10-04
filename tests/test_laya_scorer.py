@@ -284,3 +284,18 @@ def test_use_confidence_flag_false_does_not_block_scoring(mock_scorer):
     assert result.needs_review is True        # flag is computed
     assert result.is_passed is True           # not blocked (use_confidence_flag=False)
     assert result.final_score > 0.0           # score is still computed
+
+
+def test_get_question_subsets(mock_scorer):
+    """Verify job questions (role_type, gates, penalties) are separated from match score questions."""
+    job_q, match_q = mock_scorer._get_question_subsets()
+    assert "role_type" in job_q
+    assert "is_real_job" in job_q
+    assert "fixed_overlap_hours" in job_q
+    assert "skills_match" in match_q
+    assert "seniority_fit" in match_q
+    assert "domain_fit" in match_q
+    assert "growth_fit" in match_q
+    # Score questions must not leak into job questions
+    assert "skills_match" not in job_q
+

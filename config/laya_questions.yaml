@@ -67,22 +67,23 @@ penalty_questions:
 
 choice_questions:
   role_type:
-    instructions: "What type of role is this?"
+    instructions: "What is the primary job role being advertised by the employer in this listing?"
     criteria:
-      web_fullstack: "Full-stack web development"
-      frontend: "Frontend web development"
-      backend: "Backend web or API engineering"
-      ai_ml: "AI, machine learning, or LLM engineering"
-      data: "Data science, analytics, or data engineering"
-      mobile: "Mobile app development (Flutter, iOS, Android)"
-      devops: "DevOps, infrastructure, SRE, or cloud"
-      admin_ops: "Administrative, operational, or customer support"
-      other: "Other technical or non-technical role"
+      web_fullstack: "Full-stack web software developer writing application code"
+      frontend: "Frontend software developer writing web UI code"
+      backend: "Backend software developer building server APIs and databases"
+      ai_ml: "Machine learning engineer building AI/ML models"
+      data: "Data scientist or data engineer"
+      mobile: "Mobile application developer"
+      devops: "DevOps, SRE, or infrastructure engineer"
+      admin_ops: "Administrative assistant, customer operations, or support"
+      other: "Language specialist, translator, linguist, copywriter, writer, marketing, sales, or non-developer role"
     bonus:
       web_fullstack: 5
       backend: 5
       ai_ml: 5
       frontend: 3
+
 
 confidence_threshold: 0.65
 

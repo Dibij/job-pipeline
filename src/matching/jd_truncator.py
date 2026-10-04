@@ -150,16 +150,25 @@ def build_truncated_laya_state(
 
     summary = cv_summary or get_compact_cv_summary()
 
+    req_content = sections.requirements
+    resp_content = sections.responsibilities
+
+    # Fallback: if listing had no standard headings and text fell into 'other',
+    # use it as requirements so Laya doesn't evaluate an empty job description.
+    if not req_content.strip() and not resp_content.strip() and sections.other.strip():
+        req_content = sections.other
+
     # Priorities to include from JD body
     priority_fields = [
-        ("requirements", sections.requirements),
-        ("responsibilities", sections.responsibilities),
+        ("requirements", req_content),
+        ("responsibilities", resp_content),
         ("nice_to_have", sections.nice_to_have),
         ("company_blurb", sections.company_blurb)
     ]
 
     remaining_budget = max_jd_tokens
     state_body: Dict[str, str] = {}
+
 
     for field_name, content in priority_fields:
         if not content or not content.strip():
