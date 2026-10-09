@@ -74,23 +74,32 @@ def run_temperature_calibration(
     scorer = LayaScorer(device="cpu")
     train_records = []
 
+    import numpy as np
+
     logger.info("Collecting model predictions on training split...")
+    qtype_map = {"choice": 0, "score": 1, "noul": 2}
+
     for job in train_data:
         res = scorer.score_job(job)
-        # Map label: good_fit -> high score, bad_fit -> low score
         label = job["label"]
         # Ground truth mapping for fit
         target_score = 4.0 if label == "good_fit" else (2.0 if label == "maybe" else 0.0)
 
         for q_id, q_res in res.questions.items():
-            train_records.append({
-                "q_id": q_id,
-                "qtype": q_res.question_type,
-                "options": len(q_res.probabilities) if q_res.probabilities else 2,
-                "probs": list(q_res.probabilities.values()) if q_res.probabilities else [1.0 - q_res.normalized_value, q_res.normalized_value],
-                "conf": q_res.confidence,
-                "target": 1 if (target_score >= 2.0) else 0
-            })
+            qt_code = qtype_map.get(q_res.question_type, 0)
+            if q_res.probabilities:
+                probs = np.array(list(q_res.probabilities.values()), dtype=np.float32)
+            else:
+                probs = np.array([1.0 - q_res.normalized_value, q_res.normalized_value], dtype=np.float32)
+
+            k = len(probs)
+            # Binary/discrete target index
+            target_idx = 1 if target_score >= 2.0 else 0
+            if qt_code == 1:  # score question (5 levels: 0..4)
+                target_idx = max(0, min(4, int(target_score)))
+            target_idx = min(target_idx, k - 1)
+
+            train_records.append((qt_code, probs, target_idx))
 
     logger.info("Fitting temperature scaling on %d question records...", len(train_records))
     
@@ -101,6 +110,7 @@ def run_temperature_calibration(
     except Exception as e:
         logger.error("Error during fit_temperatures: %s", e)
         calib_result = {"fitted_temperature": 1.45, "ece_before": 0.28, "ece_after": 0.08}
+
 
     # 5. Save versioned config
     out_config = CONFIG_DIR / f"laya_temperatures_{version}.json"
