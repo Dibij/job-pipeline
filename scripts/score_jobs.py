@@ -152,7 +152,12 @@ def main():
         "--config", type=Path, default=None,
         help="Path to laya_questions.yaml. Defaults to config/laya_questions.yaml."
     )
+    parser.add_argument(
+        "--device", type=str, default=None,
+        help="Device to run inference on ('cuda' or 'cpu'). Defaults to cuda if available."
+    )
     args = parser.parse_args()
+
 
     config_path = args.config or (PROJECT_ROOT / "config" / "laya_questions.yaml")
     config_version = compute_config_version(config_path)
@@ -199,11 +204,17 @@ def main():
         print("[INFO] All jobs already scored. Nothing to do.")
         return
 
+    # Determine device
+    import torch
+    default_device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = args.device or default_device
+
     # Load model once
-    print("\n[MODEL] Loading Laya...")
+    print(f"\n[MODEL] Loading Laya on {device}...")
     t_load = time.perf_counter()
-    scorer = LayaScorer(config_path=config_path, device="cpu")
+    scorer = LayaScorer(config_path=config_path, device=device)
     print(f"[MODEL] Ready in {time.perf_counter() - t_load:.1f}s\n")
+
 
     times: list[float] = []
     passed = 0

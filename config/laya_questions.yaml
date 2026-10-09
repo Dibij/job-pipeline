@@ -103,6 +103,7 @@ gate_disqualify_threshold: 0.90
 gate_warn_threshold: 0.85
 
 # Task 7.5: whether to USE the needs_review flag to filter or rank results.
-# Keep false until calibration (7.8a) is done. The flag is always COMPUTED and
-# STORED regardless of this switch.
+# Keep false so uncalibrated confidence never drops jobs prematurely.
 use_confidence_flag: false
+
+

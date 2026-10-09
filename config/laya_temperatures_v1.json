@@ -1,10 +1,19 @@
 {
   "version": "v1",
-  "train_samples": 13,
-  "val_samples": 4,
+  "n_labels_used": 17,
+  "ece_computed": false,
   "calibration_results": {
-    "fitted_temperature": 1.45,
-    "ece_before": 0.28,
-    "ece_after": 0.08
-  }
+    "temperature": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "temperature_by_options": {},
+    "n_by_bucket": {
+      "noul:2": 102,
+      "score:3-5": 68,
+      "choice:6-10": 17
+    }
+  },
+  "_note": "ECE skipped: only 17 labels (need 150). Temperatures fitted on full labeled set \u2014 usable but unvalidated by ECE."
 }

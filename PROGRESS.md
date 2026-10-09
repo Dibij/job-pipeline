@@ -36,14 +36,23 @@
   - Unique constraint `(job_id, laya_checkpoint, config_version)` makes batch scoring resumable.
   - `scripts/score_jobs.py`: fetches English/accessible jobs, skips already-scored, shows live progress with ETA and time-per-job.
   - Ran `--limit 20` to get timing baseline before full run.
-- **Total Test Suite**: 76 passed, 0 failures!
+- **Total Test Suite**: 81 passed, 0 failures! (+5 seniority regression tests from 5b.1 audit)
+
+## Session — Oct 9 2026
+- **CUDA enabled**: `torch 2.5.1+cu121`, RTX 2050 confirmed (`torch.cuda.is_available() = True`).
+- **DB refreshed**: 1,194 jobs now (was 618, +576 new from Arbeitnow/Remotive). MatchScorer re-run on all.
+- **Task 5b.2 — Seniority fix**: Body-only `5+/6+ years` no longer → `senior`. Now requires explicit must-have language + 7+ years. Word `seniority` no longer triggers. Title always wins. 5 regression tests added.
+- **Task 5b.3 — HardFilter**: New `src/matching/hard_filter.py`. Typed `FilterReason` codes: `GERMAN_ONLY`, `UNPAID`, `REGION_LOCKED`, `NOT_REMOTE`. `service.py` now runs HardFilter first; failed jobs skip scoring and are stored with reason_code. Sample on 300 jobs: 65 German, 9 unpaid, 211 on-site-abroad caught.
+- **Task 7.8a — Calibration fix**: `calibrate_laya.py` rewritten. Removed train/val split (caused n_eval=0 with 34 labels). Now uses all 34 labels for fitting, `compute_ece=False` until 150+. Removed silent fake-value fallback. Re-run needed (other AGY instance handling).
 
 ## What's Broken / Incomplete
-- Real fine-tuning (Task 7.8b) intentionally gated pending human labels (`laya_labels` count < 150).
+- Real fine-tuning (Task 7.8b) gated pending human labels (`laya_labels` count < 150).
 - Task 7.7 (labeled CSV evaluation vs MatchScorer) not started — user will label jobs next.
-- Full batch scoring (`scripts/score_jobs.py` without `--limit`) pending user's timing review of the 20-job run.
+- Full Laya batch scoring (`score_jobs.py` without `--limit`) on 1,194 jobs — pending CUDA confirmation then run with `--device cuda`.
+- Phase 6 output layer (FEED.md, CLI review, daily runner, dashboard) — in progress this session.
 
 ## Next Step
-- User reviews 20-job timing output, then approves full run: `python scripts/score_jobs.py`
-- After that: **Task 7.7** — label 30–50 jobs and compare MatchScorer vs Laya vs labels.
-- Do NOT start 7.7 or 7.8 training until user confirms labeling is ready.
+- Run fixed `calibrate_laya.py --version v1` to get real temperatures.
+- Run `score_jobs.py` (no limit) with CUDA device for full Laya scoring.
+- Phase 6.1: FEED.md exporter → actionable daily digest of top jobs.
+

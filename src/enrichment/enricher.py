@@ -58,10 +58,18 @@ class JobEnricher:
 
     @staticmethod
     def detect_seniority(title: str, description: str) -> str:
-        """Detect seniority level: intern, junior, mid, senior, or unspecified."""
+        """Detect seniority level: intern, junior, mid, senior, or unspecified.
+
+        Priority order:
+          1. Title signals — highest confidence, always wins.
+          2. Body signals — used only when title is ambiguous (returns "unspecified").
+             Body-only senior: requires BOTH explicit must-have language AND 7+ years.
+             Body-only 3-5 years alone = "mid" (not senior — many JDs say "preferred").
+             Body-only 5-6 years alone = "unspecified" (not senior — false positive risk).
+        """
         t_lower = title.lower()
 
-        # Check title first (highest priority)
+        # 1. Title takes absolute priority
         for pat in INTERN_TITLE_PATTERNS:
             if re.search(pat, t_lower, re.IGNORECASE):
                 return "intern"
@@ -74,16 +82,31 @@ class JobEnricher:
             if re.search(pat, t_lower, re.IGNORECASE):
                 return "senior"
 
-        # Check description for experience patterns
+        # 2. Title gave no signal — fall back to body, with weaker confidence
         desc_lower = description.lower()
-        if re.search(r"\b(0-1|0-2|no prior experience|no experience required|fresh graduate)\b", desc_lower):
+
+        # Junior signals in body
+        if re.search(
+            r"\b(0-1|0-2|no prior experience|no experience required|fresh graduate)\b",
+            desc_lower,
+        ):
             return "junior"
-        if re.search(r"\b(5\+|6\+|7\+|8\+|10\+)\s*(?:years?|yrs)\b", desc_lower):
+
+        # Strong senior: explicit must-have language + 7+ years
+        # (5-6 years alone is intentionally NOT senior — audit found many false positives)
+        strong_senior = (
+            re.search(r"\b(?:required|must have|must-have|minimum|you must have)\b.{0,100}\b(?:[7-9]\+|10\+)\s*(?:years?|yrs)\b", desc_lower)
+            or re.search(r"\b(?:[7-9]\+|10\+)\s*(?:years?|yrs)\b.{0,100}\b(?:required|mandatory|minimum|must)\b", desc_lower)
+        )
+        if strong_senior:
             return "senior"
-        if re.search(r"\b(3-5|2-4|3\+)\s*(?:years?|yrs)\b", desc_lower):
+
+        # Mid signals: 2-5 years mentioned (not gated by must-have — too noisy for senior)
+        if re.search(r"\b(3-5|2-4|3\+|2\+)\s*(?:years?|yrs)\b", desc_lower):
             return "mid"
 
         return "unspecified"
+
 
     @staticmethod
     def detect_unpaid(title: str, description: str) -> bool:
