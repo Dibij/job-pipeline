@@ -40,24 +40,27 @@ def export_unlabeled_jobs(batch_size: int = 30, output_dir: Optional[Path] = Non
     logger.info("Fetching %d unlabeled jobs from PostgreSQL...", batch_size)
 
     if not rescore:
-        # --no-rescore: pull directly from laya_job_scores joined to jobs.
-        # This guarantees we only export jobs that were already scored.
+        # --no-rescore: pull directly from laya_job_scores or job_matches joined to jobs.
+        # This guarantees we only export jobs that were already scored by either Laya or MatchScorer.
         rows = execute_query("""
             SELECT j.id, j.title, j.company_name, j.location_raw,
                    j.apply_url, j.description_text,
-                   s.final_score, s.role_type, s.needs_review, s.per_question_data
-            FROM laya_job_scores s
-            JOIN jobs j ON j.id = s.job_id
+                   COALESCE(s.final_score, m.match_score, 0) as final_score,
+                   COALESCE(s.role_type, 'unscored') as role_type,
+                   s.needs_review, s.per_question_data
+            FROM jobs j
+            LEFT JOIN laya_job_scores s ON j.id = s.job_id
+            LEFT JOIN job_matches m ON j.id = m.job_id
             LEFT JOIN laya_labels l ON l.job_id = j.id
             WHERE l.id IS NULL
-              AND j.detected_language = 'english'
+              AND (j.detected_language IS NULL OR j.detected_language = 'english')
               AND j.nepal_accessible = true
-            ORDER BY s.final_score DESC
+            ORDER BY COALESCE(s.final_score, m.match_score, 0) DESC
             LIMIT %s;
         """, (batch_size,))
 
         if not rows:
-            logger.info("No scored+unlabeled jobs found. Run score_jobs.py first.")
+            logger.info("No scored+unlabeled jobs found in database.")
             return
 
         logger.info("Found %d already-scored, unlabeled jobs.", len(rows))

@@ -10,12 +10,26 @@ A modular data engineering pipeline that aggregates messy job listings from mult
 - **Match**: Weighted rule-based ranking scoring postings against CV profile keywords.
 - **Output**: Daily markdown digest (`FEED.md`), interactive CLI review tool, and local web dashboard.
 
+## ⚡ Quick Commands Cheatsheet
+
+| Task | PowerShell Command | Note |
+| :--- | :--- | :--- |
+| **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe tools/app.py` | Open **http://localhost:5000** in browser |
+| **🚀 Generate FEED.md** | `& .\.venv\Scripts\python.exe scripts/export_feed.py` | Exports top matched jobs to `FEED.md` |
+| **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → Update FEED.md |
+| **📋 Interactive CLI Review** | `& .\.venv\Scripts\python.exe scripts/review_jobs.py` | Review jobs (`y/n/s/q`), saves to `data/reviewed_jobs.json` |
+| **📥 Export Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/export_for_labeling.py --no-rescore --batch-size 30` | Creates `data/labeling_batch_YYYYMMDD.csv` |
+| **📤 Ingest Human Labels** | `& .\.venv\Scripts\python.exe scripts/ingest_labels.py data/labeling_batch_YYYYMMDD.csv` | Ingests CSV into `laya_labels` in Postgres |
+| **🎯 Calibrate Laya** | `& .\.venv\Scripts\python.exe scripts/calibrate_laya.py --version v1` | Fits temperature scaling on human labels |
+
+---
+
 ## 🌐 Local Web Dashboard
 
 Launch the live visual web interface backed directly by your local PostgreSQL database:
 
 ```powershell
-.\.venv\Scripts\python tools/app.py
+& .\.venv\Scripts\python.exe tools/app.py
 ```
 
 Then open **[http://localhost:5000](http://localhost:5000)** in your browser.
