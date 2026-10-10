@@ -56,7 +56,13 @@ def score_all_jobs() -> Dict[str, Any]:
     for job in passed_jobs:
         score, matched_skills, missing_skills, breakdown = scorer.score_job(job)
         reason_code = None
-        if "SENIOR" in breakdown.get("flags", []) or score == 0.0:
+        if "PLACEHOLDER" in breakdown.get("flags", []):
+            reason_code = "PLACEHOLDER"
+            reason_counts[reason_code] = reason_counts.get(reason_code, 0) + 1
+        elif "NO_TECH_SIGNAL" in breakdown.get("flags", []):
+            reason_code = "NO_TECH_SIGNAL"
+            reason_counts[reason_code] = reason_counts.get(reason_code, 0) + 1
+        elif "SENIOR" in breakdown.get("flags", []) or score == 0.0:
             reason_code = "SENIOR" if "SENIOR" in breakdown.get("flags", []) else "LOW_SCORE"
             reason_counts[reason_code] = reason_counts.get(reason_code, 0) + 1
         else:

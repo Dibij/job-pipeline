@@ -3,7 +3,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.enrichment.enricher import JobEnricher
 from src.matching.jd_extractor import extract_sections
@@ -91,6 +91,51 @@ class MatchScorer:
         self.secondary_skills = {s["name"].lower(): s["weight"] for s in self.profile.get("skills", {}).get("secondary", [])}
         self.all_skills = {**self.primary_skills, **self.secondary_skills}
         self.weights = self.profile.get("scoring_weights", {})
+        self.technical_title_signals = [
+            s.lower() for s in self.profile.get("technical_title_signals", [
+                "engineer", "developer", "programmer", "data scientist"
+            ])
+        ]
+        self.placeholder_title_patterns = self.profile.get(
+            "placeholder_title_patterns", ["template", "test"]
+        )
+
+    def is_placeholder_title(self, title: str) -> bool:
+        """Check if job title matches known placeholder indicators ('template', 'test')."""
+        t = (title or "").strip()
+        for pat in self.placeholder_title_patterns:
+            p_lower = pat.lower()
+            if p_lower == "template":
+                if re.search(r"\btemplate\b", t, re.IGNORECASE):
+                    return True
+            elif p_lower == "test":
+                if re.search(r"^\s*\[?test\]?\s*$", t, re.IGNORECASE):
+                    return True
+                if re.search(r"\btest\s+(?:job|posting|position|role|title)\b", t, re.IGNORECASE):
+                    return True
+            else:
+                if re.search(r"\b" + re.escape(pat) + r"\b", t, re.IGNORECASE):
+                    return True
+        return False
+
+    def has_technical_title_signal(self, title: str) -> bool:
+        """Check if job title contains a technical signal keyword from cv_profile.json."""
+        t = (title or "").strip()
+        return any(
+            bool(re.search(r"\b" + re.escape(sig) + r"\b", t, re.IGNORECASE))
+            for sig in self.technical_title_signals
+        )
+
+    def is_feed_eligible(self, title: str, matched_skills: List[str]) -> Tuple[bool, Optional[str]]:
+        """Check whether a job meets the feed threshold (Task 6b):
+        - Must NOT be a placeholder title ('template', 'test').
+        - Must have matched skills OR a technical title signal.
+        """
+        if self.is_placeholder_title(title):
+            return False, "PLACEHOLDER"
+        if len(matched_skills) > 0 or self.has_technical_title_signal(title):
+            return True, None
+        return False, "NO_TECH_SIGNAL"
 
     def _skill_present(self, skill: str, title: str, target_text: str, tags: List[str]) -> bool:
         """Check if a skill is present in target sections or tags with word-boundary regex."""
@@ -181,7 +226,16 @@ class MatchScorer:
         )
         breakdown["skill_points"] = round(scaled_skill_score, 1)
 
-        # ── 3. TOTAL SCORE ─────────────────────────────────────────────────
+        # ── 3. FEED THRESHOLD CHECKS (Task 6b) ─────────────────────────────
+        if self.is_placeholder_title(title):
+            breakdown["flags"].append("PLACEHOLDER")
+            breakdown["reasons"].append("Placeholder title ('template' or 'test')")
+
+        if len(matched_skills) == 0 and not self.has_technical_title_signal(title):
+            breakdown["flags"].append("NO_TECH_SIGNAL")
+            breakdown["reasons"].append("No matched skills and no technical title signal")
+
+        # ── 4. TOTAL SCORE ─────────────────────────────────────────────────
         raw_total = (
             breakdown["skill_points"]
             + breakdown["seniority_adjustment"]

@@ -16,6 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.db.connection import execute_query
+from src.matching.scorer import MatchScorer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ def export_feed(top_n: int = 100) -> Path:
 
     total_unique_jobs = len(rows)
     passed_jobs: List[Dict[str, Any]] = []
+    scorer = MatchScorer()
     disqualified_counts: Dict[str, int] = {
         "NOT_REMOTE": 0,
         "NON_ENGLISH": 0,
@@ -81,6 +83,8 @@ def export_feed(top_n: int = 100) -> Path:
         "NON_TECHNICAL": 0,
         "SENIOR": 0,
         "LOW_SCORE": 0,
+        "PLACEHOLDER": 0,
+        "NO_TECH_SIGNAL": 0,
         "NEEDS_REVIEW": 0,
         "OTHER": 0,
     }
@@ -91,6 +95,20 @@ def export_feed(top_n: int = 100) -> Path:
             key = rc if rc in disqualified_counts else "OTHER"
             disqualified_counts[key] += 1
             continue
+
+        # Task 6b Feed threshold check (matched skills OR tech title signal, no placeholders)
+        skills = r.get("matched_skills") or []
+        if isinstance(skills, str):
+            try:
+                skills = json.loads(skills)
+            except Exception:
+                skills = []
+        is_eligible, drop_reason = scorer.is_feed_eligible(r.get("title") or "", skills)
+        if not is_eligible:
+            key = drop_reason if drop_reason in disqualified_counts else "OTHER"
+            disqualified_counts[key] += 1
+            continue
+
         passed_jobs.append(r)
 
     accessible_jobs = [r for r in passed_jobs if r.get("accessibility") == "ACCESSIBLE"][:top_n]

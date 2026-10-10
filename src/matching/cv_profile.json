@@ -24,6 +24,16 @@
     "marketing lead",
     "growth marketing"
   ],
+  "technical_title_signals": [
+    "engineer",
+    "developer",
+    "programmer",
+    "data scientist"
+  ],
+  "placeholder_title_patterns": [
+    "template",
+    "test"
+  ],
   "skills": {
     "primary": [
       {"name": "python", "weight": 10},

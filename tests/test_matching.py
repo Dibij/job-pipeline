@@ -88,3 +88,89 @@ def test_worldwide_restriction_accessible():
         job = make_job(is_remote=True, location_raw="Remote", remote_restriction=restriction)
         _, _, _, breakdown = scorer.score_job(job)
         assert "INACCESSIBLE" not in breakdown["flags"], f"Failed for restriction: {restriction}"
+
+
+# ---------------------------------------------------------------------------
+# 6b Regression tests: Feed threshold & placeholder filtering
+# ---------------------------------------------------------------------------
+
+def test_placeholder_title_template_flagged():
+    """Roles titled 'Non-Eng Template' or containing 'template' are dropped as placeholders."""
+    scorer = MatchScorer()
+    assert scorer.is_placeholder_title("Non-Eng Template") is True
+    assert scorer.is_placeholder_title("Template of Member of Technical Staff") is True
+    eligible, reason = scorer.is_feed_eligible("Non-Eng Template", [])
+    assert eligible is False
+    assert reason == "PLACEHOLDER"
+
+    job = make_job(title="Non-Eng Template", description_text="")
+    _, _, _, breakdown = scorer.score_job(job)
+    assert "PLACEHOLDER" in breakdown["flags"]
+
+
+def test_placeholder_title_test_flagged():
+    """Literal test titles ('test', '[TEST]', 'Test Job') are dropped as placeholders."""
+    scorer = MatchScorer()
+    assert scorer.is_placeholder_title("test") is True
+    assert scorer.is_placeholder_title("[TEST]") is True
+    assert scorer.is_placeholder_title("Test Job") is True
+    assert scorer.is_placeholder_title("test role") is True
+    eligible, reason = scorer.is_feed_eligible("Test Job", [])
+    assert eligible is False
+    assert reason == "PLACEHOLDER"
+
+
+def test_real_qa_test_engineer_not_placeholder():
+    """Legitimate QA/Test engineer positions must NOT be dropped as placeholders."""
+    scorer = MatchScorer()
+    assert scorer.is_placeholder_title("Manufacturing Test Automation Engineer") is False
+    assert scorer.is_placeholder_title("Software Test (QA) Automation Engineer") is False
+    assert scorer.is_placeholder_title("Senior ATE Test Engineer") is False
+    eligible, reason = scorer.is_feed_eligible("Software Test (QA) Automation Engineer", [])
+    assert eligible is True
+    assert reason is None
+
+
+def test_zero_skill_non_technical_role_dropped():
+    """A role with no matched skills and no technical title signal must NOT qualify via remote bonus alone."""
+    scorer = MatchScorer()
+    # Content Editor, Value Strategist, Video Creator have no technical signal in title
+    assert scorer.has_technical_title_signal("Content Editor") is False
+    assert scorer.has_technical_title_signal("Value Strategist") is False
+    assert scorer.has_technical_title_signal("In-House Content Creator (Freelance)") is False
+
+    eligible, reason = scorer.is_feed_eligible("Content Editor", [])
+    assert eligible is False
+    assert reason == "NO_TECH_SIGNAL"
+
+    job = make_job(title="Content Editor", description_text="Edit written articles.")
+    _, matched, _, breakdown = scorer.score_job(job)
+    assert len(matched) == 0
+    assert "NO_TECH_SIGNAL" in breakdown["flags"]
+
+
+def test_zero_skill_technical_role_kept():
+    """Roles like 'Full-stack Engineer - Creative Agents' with 0 matched skills MUST be kept."""
+    scorer = MatchScorer()
+    assert scorer.has_technical_title_signal("Full-stack Engineer - Creative Agents") is True
+    assert scorer.has_technical_title_signal("Full-Stack Engineer (Backend Leaning) - Creative Agents") is True
+    assert scorer.has_technical_title_signal("Data Scientist - Product Analytics") is True
+    assert scorer.has_technical_title_signal("Junior Frontend Developer") is True
+    assert scorer.has_technical_title_signal("Python Programmer") is True
+
+    eligible, reason = scorer.is_feed_eligible("Full-stack Engineer - Creative Agents", [])
+    assert eligible is True
+    assert reason is None
+
+    job = make_job(title="Full-stack Engineer - Creative Agents", description_text="Work on creative agent products.")
+    _, _, _, breakdown = scorer.score_job(job)
+    assert "NO_TECH_SIGNAL" not in breakdown["flags"]
+
+
+def test_non_technical_role_with_matched_skills_kept():
+    """If a role matches candidate skills, it is kept even if the title is non-standard."""
+    scorer = MatchScorer()
+    eligible, reason = scorer.is_feed_eligible("Remote Office Assistant", ["git"])
+    assert eligible is True
+    assert reason is None
+

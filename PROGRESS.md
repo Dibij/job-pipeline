@@ -55,6 +55,7 @@ See `TRAINING.md` for full rationale. Summary:
 - **5c.1 Audit & 5c.2 Fixes DONE** (Oct 10 2026) — FEED.md deduplicated, NON_ENGLISH & NON_TECHNICAL & country-locks filtered, MatchScorer updated with section-targeted skill matching and seniority fallback, evaluate_scoring.py deduplicated.
 - **5c.3 Supply Audit DONE** (Oct 10 2026) — Remotive category limit analyzed; 5 new candidate sources identified. `TRAINING.md` milestones updated.
 - **6a ACCESSIBILITY ARCHITECTURE DONE** (Oct 11 2026) — Migration 006 applied, 3-state enum (`ACCESSIBLE`, `BLOCKED`, `UNKNOWN`), fixed transformers (never default to 'Worldwide'), 18 regression tests added (suite 99 green). Re-normalized 1,846 jobs: ACCESSIBLE 10, BLOCKED 1765, UNKNOWN 71. FEED.md split into Verified Accessible (1 job) and Location Not Stated (23 jobs).
+- **6b FEED THRESHOLD & PLACEHOLDER FILTERING DONE** (Oct 11 2026) — Technical title signals in `cv_profile.json`, placeholder detection ('template', 'test'). Dropped 20 roles (1 PLACEHOLDER, 19 NO_TECH_SIGNAL without matched skills); kept 10 unknown + 1 accessible in FEED.md (including zero-skill tech roles like "Full-stack Engineer - Creative Agents"). 6 regression tests added (suite 105 green).
 - Task 7.7b READY TO START — add `sampling_stratum` and `label_guideline_version` to schema, hide Laya columns in export CSV.
 - Task 7.8b BLOCKED: needs M3 (500+ labels, 30+ `good_fit`).
 - Task 7.9 NOT STARTED: report script.

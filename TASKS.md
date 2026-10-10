@@ -58,8 +58,8 @@
   - 3-state `accessibility` logic: `accessible` (explicit worldwide/global/Nepal), `blocked` (exclusive lists, title region codes EMEA/NA/EU/US/LATAM, city-level locations), `unknown` (all others, including APAC/Asia).
   - Re-normalize all jobs from `raw_job_listings`.
   - `HardFilter` disqualifies only `blocked`. `FEED.md` groups `accessible` first and `unknown` in separate section ("location not stated").
-- [ ] 6b **Feed Threshold**:
-  - Require matched skills OR technical title signal (`cv_profile.json` -> `technical_title_signals`). Remote bonus alone does not qualify. Drop placeholder titles ("template", "test").
+- [x] 6b **Feed Threshold**:
+  - Require matched skills OR technical title signal (`cv_profile.json` -> `technical_title_signals`). Remote bonus alone does not qualify. Drop placeholder titles ("template", "test"). (Dropped 20 non-technical/placeholder roles; kept roles like "Full-stack Engineer - Creative Agents").
 - [ ] 6c **UNPAID False Positives**:
   - Contextual matching for "unpaid" (unpaid internship/role/position/volunteer, "this is an unpaid ..."). Regression tests.
 - [ ] 6d **Enrichment Integration & Backfill**:
