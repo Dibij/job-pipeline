@@ -14,59 +14,50 @@
 
 ---
 
-## Current State
-- Phase 1, Phase 2, Phase 3, and Phase 5 complete!
-- 618 unique jobs stored in PostgreSQL with rule-based baseline `MatchScorer`.
-- Task 5b.1 Seniority Audit completed (report on 30 jobs).
-- Task 7.1 Laya Spike completed locally:
-  - **Model**: `convaiinnovations/laya` (ModernBERT-large, 421M parameters).
-  - **Inference speed**: ~2.8s per forward pass on CPU.
-  - **Limit**: 1,024 max tokens.
-- Task 7.2 JD Section Extractor complete (`src/matching/jd_extractor.py`) with 24 tests.
-- Task 7.3 Token Budget Truncation complete (`src/matching/jd_truncator.py`):
-  - **Calculated JD text budget (`LAYA_INPUT_TOKEN_BUDGET`)**: **566 tokens** (saved in `config/token_budget.json`).
-  - 6 unit & integration tests covering very long, very short, empty, priority, and real PostgreSQL database JDs.
-- Task 7.4 Typed Questions & Scoring complete (`src/matching/laya_scorer.py`):
-  - Schema loaded from `config/laya_questions.yaml` (never hard-coded).
-  - Evaluated on 10 real database jobs: gates correctly disqualify region-locked and non-technical roles with reason codes.
-  - 5 tests covering formula normalization, gate disqualification, penalty application, and confidence review gating.
-- Task 7.4b Gate Debugging complete (`src/matching/laya_scorer.py`, `config/laya_questions.yaml`):
-  - **Empirical Gate & Polarity Audit**: Verified Laya's `noul` outputs $P(\text{true})$. Polarity in code is correct.
-  - **Root Cause**: Zero-shot uncalibrated predictions hover near 0.50–0.75. Old 0.55 threshold was too aggressive.
-  - **Warn-Only Mode**: `gates_warn_only: true` in config. Laya gates flag warnings without disqualifying.
-  - **High Configurable Threshold**: `gate_disqualify_threshold: 0.90` for post-calibration activation.
-  - **Polarity Unit Tests**: Polarity pinned down for all gate directions, warn-only mode, and threshold boundary.
-  - **Terminology Fix**: Updated `TASKS.md` and `TRAINING.md` to specify "supervised head training with proper scoring rules (Brier/RPS)".
-- **Gate Cleanup (pre-7.5):**
-  - Removed `requires_other_language` gate from `config/laya_questions.yaml`. Language is detected by enrichment (`detected_language` column) and filtered by plain-code hard filter. No Laya pass needed.
-  - Added `gate_warn_threshold: 0.85` (configurable). Only records a gate_warning when `p_bad >= 0.85`. Suppresses noisy zero-shot noise until calibration.
-  - Removed gate warnings from the 10-job summary table (still in per-job detail). Raw probabilities still stored.
-- **Task 7.5 (needs_review flag):**
-  - Added `use_confidence_flag: false` to `config/laya_questions.yaml`.
-  - `needs_review` flag is always **computed** (low confidence on any question sets it), but never used to filter or rank while `use_confidence_flag = false`.
-  - Tests confirm flag is stored but scoring proceeds regardless.
-- **Task 7.6 (laya_job_scores table + batch scoring):**
-  - Migration `004_laya_job_scores.sql` applied. Table has: `final_score`, `is_passed`, `disqualification_reason`, `needs_review`, `role_type`, `gate_warnings` (JSONB), `per_question_data` (JSONB), `laya_checkpoint`, `config_version`, `tokens_used`, `scored_at`.
-  - Unique constraint `(job_id, laya_checkpoint, config_version)` makes batch scoring resumable.
-  - `scripts/score_jobs.py`: fetches English/accessible jobs, skips already-scored, shows live progress with ETA and time-per-job.
-  - Ran `--limit 20` to get timing baseline before full run.
-- **Total Test Suite**: 81 passed, 0 failures! (+5 seniority regression tests from 5b.1 audit)
+## Current State (Oct 10 2026)
 
-## Session — Oct 9 2026
-- **CUDA enabled**: `torch 2.5.1+cu121`, RTX 2050 confirmed (`torch.cuda.is_available() = True`).
-- **DB refreshed**: 1,194 jobs now (was 618, +576 new from Arbeitnow/Remotive). MatchScorer re-run on all.
-- **Task 5b.2 — Seniority fix**: Body-only `5+/6+ years` no longer → `senior`. Now requires explicit must-have language + 7+ years. Word `seniority` no longer triggers. Title always wins. 5 regression tests added.
-- **Task 5b.3 — HardFilter**: New `src/matching/hard_filter.py`. Typed `FilterReason` codes: `GERMAN_ONLY`, `UNPAID`, `REGION_LOCKED`, `NOT_REMOTE`. `service.py` now runs HardFilter first; failed jobs skip scoring and are stored with reason_code. Sample on 300 jobs: 65 German, 9 unpaid, 211 on-site-abroad caught.
-- **Task 7.8a — Calibration fix**: `calibrate_laya.py` rewritten. Removed train/val split (caused n_eval=0 with 34 labels). Now uses all 34 labels for fitting, `compute_ece=False` until 150+. Removed silent fake-value fallback. Re-run needed (other AGY instance handling).
+### Infrastructure
+- Phase 1, Phase 2, Phase 3, Phase 5, and Phase 6 complete.
+- 1,194 unique jobs in PostgreSQL (576 added Oct 9). MatchScorer re-run on all.
+- CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed.
+- Task 5b.2 seniority fix and Task 5b.3 HardFilter complete.
+- Task 7.1-7.7 Laya spike, JD extraction, truncation, typed questions, confidence gating, batch scoring, and labeling scaffolding all complete.
+- Task 7.8a `calibrate_laya.py` rewritten (removed train/val split that caused n_eval=0).
+
+### Labeling (as of Oct 10 2026)
+86 human labels in `laya_labels`:
+
+| Label | Count | % |
+|-------|-------|---|
+| `bad_fit` | 65 | 75.6% |
+| `maybe` | 12 | 14.0% |
+| `good_fit` | 9 | 10.5% |
+
+The ~10% `good_fit` rate reflects the source bias (Arbeitnow, Remotive skew senior/US/EU). This is not a labeling error.
+
+### Key Decisions Recorded (Oct 10 2026)
+See `TRAINING.md` for full rationale. Summary:
+
+1. **Two datasets**: MEASURE/CALIBRATE set preserves natural distribution (never rebalanced). TRAIN set (7.8b only, train split only) may be rebalanced.
+2. **Training gated on both** total labels >= 150 AND `good_fit` >= 30 (`min_positive_labels`, configurable, default 30).
+3. **Binary primary view**: `good_fit` vs not. `maybe` = not good_fit. 3-class view reported as secondary.
+4. **Evaluation**: repeated stratified grouped k-fold; metrics are precision@k, recall@k, PR-AUC with bootstrap CIs. Primary metric is `recall@20`. Never report raw accuracy.
+5. **Labeling queue strata**: 40% random, 30% high MatchScorer, 30% Laya-uncertainty (last stratum deferred until 7.8a calibration is done).
+6. **No uncalibrated Laya gating**: raw probabilities (~0.10-0.26) are stored only; never used to discard jobs or decide labeling priority.
+7. **Label hygiene**: Laya columns must be hidden from the export CSV; accepting Laya's suggestion is not allowed. `label_guideline_version` must be recorded per row.
+8. **`noul` correction**: it is Laya's boolean primitive (P(yes)), not a nuance/variance signal. Checkpoint is uncalibrated until 7.8a; never call outputs "calibrated confidence" before that.
+
+---
 
 ## What's Broken / Incomplete
-- Real fine-tuning (Task 7.8b) gated pending human labels (`laya_labels` count < 150).
-- Task 7.7 (labeled CSV evaluation vs MatchScorer) not started — user will label jobs next.
-- Full Laya batch scoring (`score_jobs.py` without `--limit`) on 1,194 jobs — pending CUDA confirmation then run with `--device cuda`.
-- Phase 6 output layer (FEED.md, CLI review, daily runner, dashboard) — in progress this session.
+- Task 7.7b NOT STARTED: `laya_labels` table missing `sampling_stratum` and `label_guideline_version`; export CSV still shows Laya columns.
+- Task 7.8a NOT RUN yet with the fixed calibrate script (needs re-run after Oct 9 fix).
+- Task 7.8b BLOCKED: needs 150+ labels and 30+ `good_fit` (currently 9).
+- Task 7.9 NOT STARTED: no per-source / per-stratum report script.
+- Full Laya batch scoring (`score_jobs.py` without `--limit`) on 1,194 jobs -- pending.
+- Task 6.4 (dashboard wired to hard-filter output) -- not started.
+
+---
 
 ## Next Step
-- Run fixed `calibrate_laya.py --version v1` to get real temperatures.
-- Run `score_jobs.py` (no limit) with CUDA device for full Laya scoring.
-- Phase 6.1: FEED.md exporter → actionable daily digest of top jobs.
-
+**Task 7.7b** -- add `sampling_stratum` and `label_guideline_version` to the labeling schema and hide Laya columns from the export CSV. This unblocks clean stratified labeling towards M1 (150 labels).

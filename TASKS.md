@@ -20,7 +20,7 @@
 - [ ] 4.2 Build text parser for unformatted HN comment posts.
 - [ ] 4.3 Build polite BeautifulSoup scraper for Merojob tech listings.
 
-## Phase 5: CV Matching & Ranking (Rule-based baseline — DO NOT REMOVE)
+## Phase 5: CV Matching & Ranking (Rule-based baseline -- DO NOT REMOVE)
 - [x] 5.1 Define `cv_profile.json` structure for candidate skills and preferences.
 - [x] 5.2 Build rule-based MatchScorer with word-boundary regex matching and Nepal geo-filter.
 - [x] 5.3 Batch score stored jobs and write results to `job_matches`.
@@ -40,18 +40,30 @@
 - [x] 7.1 Spike: run Laya locally on one hard-coded example and print raw output. Record hardware, speed, and token limit in PROGRESS.md.
 - [x] 7.2 JD section extraction: `src/matching/jd_extractor.py`. Heading + keyword rules, graceful fallback. 24 tests.
 - [x] 7.3 Truncation to token budget: `src/matching/jd_truncator.py`. Budget computed from real token counts (not assumed). Count with real tokenizer. Priority: title, company, location, requirements, responsibilities, nice-to-haves, company blurb. Drop benefits/legal first. Add `[...]` markers. Include compact CV summary. Tests: very long, very short, empty, and real DB JDs.
-- [x] 7.4 Typed questions and scoring: `config/laya_questions.yaml` + `src/matching/laya_scorer.py`. Load from config (never hard-code). Gate questions remove disqualified jobs with reason codes. Penalty questions subtract points. Score questions weighted average → 0-100. Show per-question breakdown for 10 real jobs.
-- [x] 7.5 Confidence gating: if any score/gate question confidence < threshold, mark "needs_review". Config-driven threshold. `use_confidence_flag: false` until 7.8a calibration — flag computed but never used to filter.
+- [x] 7.4 Typed questions and scoring: `config/laya_questions.yaml` + `src/matching/laya_scorer.py`. Load from config (never hard-code). Gate questions remove disqualified jobs with reason codes. Penalty questions subtract points. Score questions weighted average to 0-100. Show per-question breakdown for 10 real jobs.
+- [x] 7.5 Confidence gating: if any score/gate question confidence < threshold, mark "needs_review". Config-driven threshold. `use_confidence_flag: false` until 7.8a calibration -- flag computed but never used to filter.
 - [x] 7.6 Storage: `laya_job_scores` table (migration 004). Stores final score, per-question data (JSONB), gate_warnings (JSONB), needs_review flag, laya_checkpoint, config_version, tokens_used, scored_at. Unique constraint on (job_id, checkpoint, config_version) for resumable batch scoring. `scripts/score_jobs.py` with `--limit`, `--dry-run`, ETA output.
-- [x] 7.7 Evaluation: labeled CSV (~30-50 jobs: good_fit / maybe / bad_fit), comparison script for MatchScorer vs Laya vs labels.
+- [x] 7.7 Labeling protocol: export batches from the DB, label manually, ingest. Scaffolding complete (`export_for_labeling.py`, `ingest_labels.py`). 86 labels ingested. Protocol updated -- see TRAINING.md §6 for full rules (strata, hygiene, Laya answer hiding).
 
-## Phase 7 — Training Workstream (src/training/, scripts/, TRAINING.md)
-- [x] 7.8a Temperature calibration: fit a temperature on labeled data to fix Laya's uncalibrated confidence. Evaluate before/after on held-out split. Save temperature as versioned config. (Can run with fewer than 150 labels.)
-- [ ] 7.8b Fine-tune Laya decision head: supervised head training with proper scoring rules (Brier/RPS). Only runs when labeled rows ≥ 150 (configurable). Never trains on Laya's own predictions as labels. Saves versioned checkpoints (out of git). Prints comparison report vs baseline and original Laya before recommending new checkpoint.
+## Phase 7 -- Training Workstream (src/training/, scripts/, TRAINING.md)
+- [ ] 7.7b **NOT STARTED** Schema & export hygiene changes:
+  - Add `sampling_stratum` column to `laya_labels` (or store in `metadata` JSONB key).
+  - Add `label_guideline_version` column to `laya_labels` (or store in `metadata` JSONB key).
+  - Update `scripts/export_for_labeling.py` to implement the three strata (random 40%, high_match_scorer 30%, laya_uncertainty 30% -- laya_uncertainty falls back to random until 7.8a).
+  - Hide or remove Laya score/confidence columns from the exported labeling CSV to prevent anchoring bias.
+- [x] 7.8a Temperature calibration: fit a temperature on labeled data to fix Laya's uncalibrated confidence. Evaluate before/after on held-out folds (repeated stratified grouped k-fold). Save temperature as versioned config. Report calibration quality and ranking metrics (precision@k, recall@k, PR-AUC with bootstrap CIs). Use natural-distribution data -- never rebalance the calibration set.
+- [ ] 7.8b **BLOCKED (M3)** Fine-tune Laya decision head: supervised head training with proper scoring rules (Brier/RPS). Gated on:
+  - >= 150 labeled rows total
+  - >= 30 `good_fit` labels (`min_positive_labels`, configurable -- default 30)
+  Both gates must pass. Primary metric is binary good_fit vs not; `maybe` maps to not good_fit. Rebalancing (class weights or downsampling bad_fit) allowed **in the train split only**. Held-out folds are never rebalanced. Use repeated stratified grouped k-fold. Report Laya vs MatchScorer comparison on the same folds. Save versioned checkpoints (out of git). Never trains on Laya's own predictions as labels.
+- [ ] 7.9 **NOT STARTED** Report script (`scripts/report_labels.py`):
+  - Per-source counts and `good_fit` rates (Arbeitnow, Remotive, etc.).
+  - Per-stratum counts and `good_fit` rates.
+  - Laya vs MatchScorer top-k metrics (precision@10, recall@10, recall@20, PR-AUC) on current labeled set, with bootstrap 95% CIs.
+  - Print caveat when `good_fit` count < 30.
 
-
-## Phase 7 — Training Scaffolding Scripts (no real training yet)
-- [x] scripts/export_for_labeling.py: run unlabeled jobs through extractor → truncator → Laya, write `labeling_batch_YYYYMMDD.csv` (id, title, company, link, Laya answers, confidence, empty `my_label`). Sort least-confident first; mix in random jobs to avoid bias.
+## Phase 7 -- Training Scaffolding Scripts (no real training yet)
+- [x] scripts/export_for_labeling.py: run unlabeled jobs through extractor, truncator, Laya, write `labeling_batch_YYYYMMDD.csv` (id, title, company, link, Laya answers, confidence, empty `my_label`). Sort least-confident first; mix in random jobs to avoid bias.
 - [x] scripts/ingest_labels.py: read labeled CSV, validate, insert into `laya_labels` table (never overwrite).
 - [x] scripts/calibrate_laya.py (7.8a): temperature fitting on train split, evaluation on held-out, save versioned config.
 - [x] scripts/train_laya.py (7.8b): reads labeled rows, supports `--dry-run` on tiny fake dataset. Refuses to train when labels < 150 with clear explanation.
