@@ -15,9 +15,9 @@ def score_all_jobs() -> Dict[str, Any]:
     """Hard-filter then score every stored job. Writes results to job_matches.
 
     Pipeline:
-      1. HardFilter — disqualify region-locked, German-only, unpaid, on-site-abroad jobs.
-      2. MatchScorer — score only the jobs that passed hard filter.
-      3. Upsert ALL jobs into job_matches (failed ones get score=0, reason_code set).
+      1. HardFilter — disqualify region-locked, non-English, unpaid, on-site-abroad, non-technical jobs.
+      2. MatchScorer — score jobs that passed hard filter (penalizes/disqualifies senior roles).
+      3. Upsert ALL jobs into job_matches.
     """
     scorer = MatchScorer()
 
@@ -49,16 +49,25 @@ def score_all_jobs() -> Dict[str, Any]:
 
     match_rows = []
     high_match_count = 0
+    really_passed_count = 0
 
     # Score jobs that passed the hard filter
     logger.info("Scoring %d jobs with MatchScorer...", len(passed_jobs))
     for job in passed_jobs:
         score, matched_skills, missing_skills, breakdown = scorer.score_job(job)
-        if score >= 60.0:
+        reason_code = None
+        if "SENIOR" in breakdown.get("flags", []) or score == 0.0:
+            reason_code = "SENIOR" if "SENIOR" in breakdown.get("flags", []) else "LOW_SCORE"
+            reason_counts[reason_code] = reason_counts.get(reason_code, 0) + 1
+        else:
+            really_passed_count += 1
+
+        if score >= 60.0 and reason_code is None:
             high_match_count += 1
+
         match_rows.append((
             job["id"], score, matched_skills, missing_skills,
-            Jsonb(breakdown), None,  # reason_code = NULL (passed)
+            Jsonb(breakdown), reason_code,
         ))
 
     # Record disqualified jobs with score=0 and reason_code
@@ -69,7 +78,6 @@ def score_all_jobs() -> Dict[str, Any]:
             result.reason.value,
         ))
 
-    # Upsert into job_matches (add reason_code column if not exists — migration guard)
     _ensure_reason_code_column()
 
     sql = """
@@ -93,11 +101,10 @@ def score_all_jobs() -> Dict[str, Any]:
         conn.commit()
 
     logger.info(
-        "Done. Scored %d jobs, %d disqualified, %d strong matches (>=60).",
-        len(passed_jobs), len(failed_jobs), high_match_count,
+        "Done. Scored %d jobs, %d really passed, %d disqualified, %d strong matches (>=60).",
+        len(passed_jobs), really_passed_count, len(failed_jobs) + (len(passed_jobs) - really_passed_count), high_match_count,
     )
 
-    # Top 5 matches from passed jobs only
     with get_connection(autocommit=True) as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -113,17 +120,17 @@ def score_all_jobs() -> Dict[str, Any]:
 
     return {
         "total": len(jobs),
-        "passed_filter": len(passed_jobs),
-        "disqualified": len(failed_jobs),
+        "passed_filter": really_passed_count,
+        "disqualified": len(jobs) - really_passed_count,
         "reason_counts": reason_counts,
-        "pass_rate": pass_rate,
+        "pass_rate": round(really_passed_count / len(jobs), 3) if jobs else 0.0,
         "high_matches": high_match_count,
         "top_5": top,
     }
 
 
 def _ensure_reason_code_column() -> None:
-    """Add reason_code column to job_matches if it doesn't exist (safe to call repeatedly)."""
+    """Add reason_code column to job_matches if it doesn't exist."""
     with get_connection(autocommit=True) as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -134,9 +141,9 @@ def _ensure_reason_code_column() -> None:
 
 if __name__ == "__main__":
     res = score_all_jobs()
-    print(f"\n=== HARD FILTER RESULTS ===")
+    print(f"\n=== HARD FILTER & SCORING RESULTS ===")
     print(f"  Total jobs:      {res['total']}")
-    print(f"  Passed filter:   {res['passed_filter']} ({res['pass_rate']*100:.0f}%)")
+    print(f"  Passed filter:   {res['passed_filter']} ({res['pass_rate']*100:.1f}%)")
     print(f"  Disqualified:    {res['disqualified']}")
     for reason, count in res['reason_counts'].items():
         if count:
@@ -145,7 +152,3 @@ if __name__ == "__main__":
     for idx, j in enumerate(res["top_5"], 1):
         print(f"{idx}. [{j['match_score']}%] {j['title']} @ {j['company_name']} ({j['experience_level']})")
         print(f"   Skills: {j['matched_skills']}")
-
-
-
-

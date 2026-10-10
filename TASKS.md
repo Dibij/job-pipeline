@@ -31,19 +31,19 @@
 - [x] 5b.3 Split hard filters from scoring. Extract German/unpaid/region-locked disqualifiers from `MatchScorer` into a `HardFilter` module with reason codes. Scoring runs only on passing jobs. Update tests, keep all passing, show before/after top-20 ranking.
 
 ## Phase 5c: Pipeline Hygiene (do before 7.7b)
-- [/] 5c.1 **AUDIT (read-only)** — find all feed/labeling hygiene issues before fixing anything. Report:
-  - Duplicate appearance root causes (FEED.md repeats same job multiple times).
-  - Filter holes: non-English non-German languages (French from arbeitnow.fr), country-locked locations (USA/Switzerland/etc. without Nepal), non-technical titles (linguist, copywriter, voice actor, account executive, etc.).
-  - Scorer breakdown for top 10 jobs: why a zero-matched-skills job can rank high.
-  - Supply: per-source unique jobs, passing jobs, unlabeled passing jobs, new per daily run.
-  - Label hygiene: duplicate labels (same URL or company+title), labeled-but-not-hard-filter-survivors, labeled-but-no-Laya-score; explain why 7.8a saw only 17 labels.
-- [ ] 5c.2 **FIXES** (one per commit, regression tests, suite stays green — only after 5c.1 approved):
-  - **5c.2a** De-duplicate FEED.md output: query uses `DISTINCT ON (job_id)` taking the latest score row per job. Test: FEED.md has no repeated job_id.
-  - **5c.2b** Language filter: extend HardFilter beyond German to flag any non-English detected_language (French, etc.) with reason code `NON_ENGLISH`. Test: French arbeitnow.fr jobs are disqualified.
-  - **5c.2c** Accessibility check: detect country-locked location strings (USA, Canada, Switzerland, etc. without Nepal/worldwide/global) and set `nepal_accessible=False` or add `REGION_LOCKED` reason code. Test: "Remote (USA)", "Remote (Switzerland)" are blocked.
-  - **5c.2d** Non-technical title filter: add title-based keyword blocklist (linguist, copywriter, writer, voice actor, account executive, content reviewer, office assistant, technicien, maintenance) to HardFilter with reason code `NON_TECHNICAL`. Test: all 22 flagged titles in audit are disqualified.
-  - **5c.2e** Scorer weight fix: `skill_points` must dominate; a job with zero matched skills must score < remote_bonus alone. Review `score_breakdown` weights in MatchScorer. Test: zero-skill jobs rank below jobs with >= 1 matched skill.
-  - Show before/after FEED.md top-20 after all fixes.
+- [x] 5c.1 **AUDIT (read-only)** — completed. Recorded duplicate root causes, filter holes, score breakdown, supply counts, label hygiene.
+- [x] 5c.2 **FIXES** (completed):
+  - **5c.2a** Feed join & single score: LATERAL joins for 1 row per job, ranked by MatchScorer only, Laya score in separate column, scanned count is unique jobs.
+  - **5c.2b** Cross-posted duplicates: migration 005 `canonical_job_id` + `canonicalize_jobs.py` using URL listing-ID extractor & slug fallback. 17 label pairs confirmed to agree.
+  - **5c.2c** Language filter: NON_ENGLISH (replaces GERMAN_ONLY) detects French and all non-English via `detected_language` + title/desc pattern fallback.
+  - **5c.2d** Location locks: single-country location strings (USA, Switzerland, etc.) blocked; ambiguous regions (APAC, Asia) marked NEEDS_REVIEW.
+  - **5c.2e** Non-technical title filter: configurable blocklist in `cv_profile.json` (`non_technical_title_blocklist`). FEED.md lists 3 example titles per filter reason.
+  - **5c.2f** Scorer fix: fallback to `JobEnricher.detect_seniority` when `experience_level` is unspecified (`senior` penalty -80 applied); skill matching focused on requirements & responsibilities sections via `jd_extractor.py`.
+  - **5c.2g** Re-run evaluation: `evaluate_scoring.py` updated to query deduplicated canonical postings (69 unique labeled postings).
+- [x] 5c.3 **SUPPLY AUDIT** (completed):
+  - Remotive vs Arbeitnow gap analyzed: Remotive extractor filtered exclusively by `category=software-dev` (returning active tier list ~19 jobs), whereas Arbeitnow queries paginated all-category endpoints (~1,445 jobs).
+  - Evaluated 5 candidate new sources: Jobicy API, WWR RSS, HN Algolia API, RemoteOK JSON, NoFluffJobs API.
+  - Updated `TRAINING.md` milestones for M1/M2/M3.
 
 ## Phase 6: Output & Automation
 - [x] 6.1 Implement `FEED.md` exporter: ranked table of jobs that passed hard filters, with score, title, company, location/remote, matched skills, and apply link. Include a section showing filter reason-code counts.

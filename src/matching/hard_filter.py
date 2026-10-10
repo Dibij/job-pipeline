@@ -1,28 +1,47 @@
-"""Hard filter module (Task 5b-3): pre-scoring disqualification with typed reason codes.
+"""Hard filter module (Tasks 5b-3, 5c.2c, 5c.2d): pre-scoring disqualification.
 
 Separates hard disqualifiers from MatchScorer so scoring only runs on jobs
 that pass all hard filters. Each rule returns a typed FilterResult with a
 reason code, making it easy to audit how many jobs each rule is killing.
 
 Reason codes:
-  GERMAN_ONLY         — JD is in German / requires German fluency
-  UNPAID              — position is unpaid / equity-only / volunteer
-  REGION_LOCKED       — explicitly restricted to regions Nepal cannot access
-  NOT_REMOTE          — on-site job outside Nepal
+  NON_ENGLISH         -- JD is not in English (French, German, etc.)
+  GERMAN_ONLY         -- Legacy alias kept so existing DB rows are not broken
+  UNPAID              -- position is unpaid / equity-only / volunteer
+  REGION_LOCKED       -- explicitly restricted to regions Nepal cannot access
+  NOT_REMOTE          -- on-site job outside Nepal
+  NON_TECHNICAL       -- role type is explicitly non-technical (per config blocklist)
+  NEEDS_REVIEW        -- ambiguous region; passes but flagged for review
+
+5c.2c changes:
+  - Detect non-English generally using detected_language field first (cheap).
+  - Fallback: pattern-match title+description for French/German indicators.
+  - Reason code renamed NON_ENGLISH; GERMAN_ONLY kept as alias.
+
+5c.2d changes:
+  - Explicit country-only location strings that exclude Nepal are blocked.
+  - Ambiguous regions (APAC, Asia, Worldwide) are NOT blocked but get
+    NEEDS_REVIEW reason code so they appear in a separate feed bucket.
+  - Swiss-only, USA-only, UK-only etc. detected from location_raw alone.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+import json
 
 
 class FilterReason(str, Enum):
-    GERMAN_ONLY = "GERMAN_ONLY"
+    NON_ENGLISH = "NON_ENGLISH"
+    GERMAN_ONLY = "NON_ENGLISH"    # legacy alias — same value, same DB rows
     UNPAID = "UNPAID"
     REGION_LOCKED = "REGION_LOCKED"
     NOT_REMOTE = "NOT_REMOTE"
+    NON_TECHNICAL = "NON_TECHNICAL"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
     PASS = "PASS"
 
 
@@ -40,10 +59,29 @@ class FilterResult:
     def fail(cls, reason: FilterReason, detail: str = "") -> "FilterResult":
         return cls(passed=False, reason=reason, detail=detail)
 
+    @classmethod
+    def review(cls, detail: str = "") -> "FilterResult":
+        """Pass but flag for human review (ambiguous region)."""
+        return cls(passed=True, reason=FilterReason.NEEDS_REVIEW, detail=detail)
+
 
 # ---------------------------------------------------------------------------
-# Compiled patterns
+# Non-English detection (5c.2c)
 # ---------------------------------------------------------------------------
+# Known non-English detected_language values from the enricher
+_NON_ENGLISH_LANGS = {
+    "german", "french", "spanish", "portuguese", "dutch", "italian",
+    "polish", "russian", "turkish", "arabic", "japanese", "chinese",
+    "korean", "hindi",
+}
+
+# French text patterns (title/desc fallback when detected_language is missing/wrong)
+_FRENCH_PATTERNS = [
+    re.compile(r"\b(nous recherchons|votre mission|vos missions|profil recherch[eé])\b", re.IGNORECASE),
+    re.compile(r"\b(d[eé]veloppeur|ing[eé]nieur|technicien|responsable|chef de)\b", re.IGNORECASE),
+    re.compile(r"\b(poste [àa] pourvoir|rejoindre notre[eé]quipe|exp[eé]rience requise)\b", re.IGNORECASE),
+]
+_FRENCH_THRESHOLD = 2
 
 _GERMAN_PATTERNS = [
     re.compile(r"\(m/w/d\)|\(d/m/w\)|\(w/m/d\)", re.IGNORECASE),
@@ -60,49 +98,40 @@ _GERMAN_PATTERNS = [
         re.IGNORECASE,
     ),
 ]
-_GERMAN_THRESHOLD = 2  # need at least this many pattern hits to call it German
+_GERMAN_THRESHOLD = 2
 
+
+def _check_language(title: str, description: str, detected_language: str) -> FilterResult:
+    """Block non-English jobs. Uses detected_language first, then pattern fallback."""
+    lang = (detected_language or "").lower().strip()
+
+    # Fast path: enricher already classified it
+    if lang and lang not in ("", "english", "en"):
+        if lang in _NON_ENGLISH_LANGS or lang != "english":
+            return FilterResult.fail(FilterReason.NON_ENGLISH, f"detected_language={lang!r}")
+
+    # Fallback pattern check (catches mislabelled or undetected cases)
+    combined = f"{title} {description}"
+    french_hits = sum(1 for p in _FRENCH_PATTERNS if p.search(combined))
+    if french_hits >= _FRENCH_THRESHOLD:
+        return FilterResult.fail(FilterReason.NON_ENGLISH, f"{french_hits} French pattern hits")
+
+    german_hits = sum(1 for p in _GERMAN_PATTERNS if p.search(combined))
+    if german_hits >= _GERMAN_THRESHOLD:
+        return FilterResult.fail(FilterReason.NON_ENGLISH, f"{german_hits} German pattern hits")
+
+    return FilterResult.ok()
+
+
+# ---------------------------------------------------------------------------
+# Unpaid detection
+# ---------------------------------------------------------------------------
 _UNPAID_PATTERNS = [
     re.compile(
         r"\b(unpaid|non-paid|volunteer|volunteering|no compensation|equity only|unvergütet)\b",
         re.IGNORECASE,
     ),
 ]
-
-# Hard region locks — these phrases explicitly exclude Nepal
-_REGION_LOCK_PATTERNS = [
-    re.compile(r"\busa\s*only\b|\bunited\s+states\s*only\b", re.IGNORECASE),
-    re.compile(r"\buk\s*only\b|\bunited\s+kingdom\s*only\b", re.IGNORECASE),
-    re.compile(r"\beu\s*only\b|\beurope\s*only\b", re.IGNORECASE),
-    re.compile(r"\bcanada\s*only\b", re.IGNORECASE),
-    re.compile(r"\bgermany\s*only\b|\bdeutschland\s*only\b", re.IGNORECASE),
-    re.compile(r"\blatam\s*only\b|\blatin\s+america\s*only\b", re.IGNORECASE),
-    re.compile(r"\bauthorized\s+to\s+work\s+in\s+the\s+(us|uk|eu|canada)\b", re.IGNORECASE),
-    re.compile(r"\bmust\s+(?:be|reside|live)\s+in\s+(?:the\s+)?(?:us|usa|uk|canada|eu|europe)\b", re.IGNORECASE),
-]
-
-# Regions that also exclude Nepal unless APAC/Asia/Worldwide is present
-_AMERICAS_EU_PATTERNS = re.compile(
-    r"\b(?:argentina|mexico|peru|brazil|colombia|chile|latam|latin america"
-    r"|northern america|france|germany|spain|portugal|netherlands|israel)\b",
-    re.IGNORECASE,
-)
-_APAC_PATTERNS = re.compile(
-    r"\b(?:apac|asia|south asia|nepal|worldwide|global|anywhere|all locations)\b",
-    re.IGNORECASE,
-)
-
-
-# ---------------------------------------------------------------------------
-# Individual filter functions
-# ---------------------------------------------------------------------------
-
-def _check_german(title: str, description: str) -> FilterResult:
-    combined = f"{title} {description}"
-    hits = sum(1 for p in _GERMAN_PATTERNS if p.search(combined))
-    if hits >= _GERMAN_THRESHOLD:
-        return FilterResult.fail(FilterReason.GERMAN_ONLY, f"{hits} German indicators found")
-    return FilterResult.ok()
 
 
 def _check_unpaid(title: str, description: str) -> FilterResult:
@@ -114,44 +143,131 @@ def _check_unpaid(title: str, description: str) -> FilterResult:
     return FilterResult.ok()
 
 
+# ---------------------------------------------------------------------------
+# Region / accessibility check (5c.2d)
+# ---------------------------------------------------------------------------
+
+# Hard country-only strings: single-country remote means Nepal cannot apply
+# These match when the location_raw is ONLY that country (no open qualifier)
+_COUNTRY_ONLY_PATTERNS = [
+    # Single explicit country without qualifier
+    re.compile(r"^(remote\s*[-–]?\s*)?(usa|united states?|us)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(uk|united kingdom|great britain)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(canada)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(switzerland|suisse|schweiz)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(germany|deutschland)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(france|frankreich)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(australia|australie)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(ireland|irland)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(netherlands|niederlande|pays-bas)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–]?\s*)?(spain|spanien|espagne)$", re.IGNORECASE),
+]
+
+# Hard lock phrases in any field — definitely blocks Nepal
+_HARD_LOCK_PATTERNS = [
+    re.compile(r"\busa\s*only\b|\bunited\s+states?\s*only\b", re.IGNORECASE),
+    re.compile(r"\buk\s*only\b|\bunited\s+kingdom\s*only\b", re.IGNORECASE),
+    re.compile(r"\beu\s*only\b|\beurope\s*only\b", re.IGNORECASE),
+    re.compile(r"\bcanada\s*only\b", re.IGNORECASE),
+    re.compile(r"\bgermany\s*only\b|\bdeutschland\s*only\b", re.IGNORECASE),
+    re.compile(r"\blatam\s*only\b|\blatin\s+america\s*only\b", re.IGNORECASE),
+    re.compile(r"\bauthorized\s+to\s+work\s+in\s+the\s+(us|uk|eu|canada)\b", re.IGNORECASE),
+    re.compile(r"\bmust\s+(?:be|reside|live)\s+in\s+(?:the\s+)?(?:us|usa|uk|canada|eu|europe)\b", re.IGNORECASE),
+]
+
+# Ambiguous multi-region qualifiers — may include Nepal: do NOT block, flag for review
+_OPEN_QUALIFIERS = re.compile(
+    r"\b(worldwide|global|anywhere|all locations|apac|asia|south asia|nepal|kathmandu)\b",
+    re.IGNORECASE,
+)
+
+# Exclusive regions that exclude Nepal when listed WITHOUT an open qualifier
+_EXCLUSIVE_REGION_PATTERN = re.compile(
+    r"\b(?:argentina|mexico|peru|brazil|colombia|chile|latam|latin america"
+    r"|northern america|usa|united states|canada|uk|united kingdom"
+    r"|switzerland|france|germany|spain|netherlands|israel|norway|turkey)\b",
+    re.IGNORECASE,
+)
+
+
 def _check_region(
     is_remote: bool,
     location_raw: str,
     remote_restriction: str,
     description: str,
 ) -> FilterResult:
-    loc = (location_raw or "").lower()
+    loc = (location_raw or "").strip()
+    loc_lower = loc.lower()
     restriction = (remote_restriction or "").lower()
     desc_lower = (description or "").lower()
-    combined = f"{loc} {restriction}"
+    combined = f"{loc_lower} {restriction}"
 
-    # Nepal / Kathmandu on-site — always accessible
+    # Nepal on-site — always accessible
     if any(kw in combined for kw in ["nepal", "kathmandu", "lalitpur"]):
         return FilterResult.ok()
 
     # On-site abroad — not accessible
     if not is_remote:
-        return FilterResult.fail(FilterReason.NOT_REMOTE, f"on-site: '{location_raw}'")
+        return FilterResult.fail(FilterReason.NOT_REMOTE, f"on-site: {loc!r}")
 
-    # Explicit hard region locks in location/restriction fields
-    for pat in _REGION_LOCK_PATTERNS:
-        m = pat.search(combined)
+    # Hard lock phrases anywhere
+    for pat in _HARD_LOCK_PATTERNS:
+        m = pat.search(combined) or pat.search(desc_lower)
         if m:
-            return FilterResult.fail(FilterReason.REGION_LOCKED, f"location field: '{m.group()}'")
+            return FilterResult.fail(FilterReason.REGION_LOCKED, f"hard lock: '{m.group()}'")
 
-    # Also check description for authorization language
-    for pat in _REGION_LOCK_PATTERNS:
-        m = pat.search(desc_lower)
-        if m:
-            return FilterResult.fail(FilterReason.REGION_LOCKED, f"description: '{m.group()}'")
+    # Single-country location string (5c.2d: USA, Switzerland, etc.)
+    for pat in _COUNTRY_ONLY_PATTERNS:
+        if pat.match(loc):
+            return FilterResult.fail(FilterReason.REGION_LOCKED, f"single-country location: {loc!r}")
 
-    # Americas/EU listed without any APAC/Asia/Worldwide qualifier
-    if _AMERICAS_EU_PATTERNS.search(combined) and not _APAC_PATTERNS.search(combined):
+    # Exclusive region list without any open qualifier
+    has_open = bool(_OPEN_QUALIFIERS.search(combined))
+    has_exclusive = bool(_EXCLUSIVE_REGION_PATTERN.search(combined))
+    if has_exclusive and not has_open:
         return FilterResult.fail(
             FilterReason.REGION_LOCKED,
-            "Americas/EU regions listed without APAC/Worldwide",
+            "exclusive region list without Nepal/APAC/Worldwide qualifier",
         )
 
+    # Ambiguous: only APAC/Asia/Worldwide mentioned — pass but flag
+    if any(kw in combined for kw in ["apac", "asia"]) and not any(
+        kw in combined for kw in ["nepal", "kathmandu"]
+    ):
+        return FilterResult.review("APAC/Asia mentioned — may or may not include Nepal")
+
+    return FilterResult.ok()
+
+
+# ---------------------------------------------------------------------------
+# Non-technical title check (5c.2e) — blocklist loaded from config
+# ---------------------------------------------------------------------------
+_CV_PROFILE_PATH = Path(__file__).resolve().parent / "cv_profile.json"
+_NON_TECH_BLOCKLIST: List[str] = []
+
+def _load_nontechnical_blocklist(path: Path = _CV_PROFILE_PATH) -> List[str]:
+    """Load non_technical_title_blocklist from cv_profile.json."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            profile = json.load(f)
+        return [kw.lower() for kw in profile.get("non_technical_title_blocklist", [])]
+    except Exception:
+        return []
+
+# Loaded once at import time; can be reloaded in tests
+def _get_blocklist() -> List[str]:
+    global _NON_TECH_BLOCKLIST
+    if not _NON_TECH_BLOCKLIST:
+        _NON_TECH_BLOCKLIST = _load_nontechnical_blocklist()
+    return _NON_TECH_BLOCKLIST
+
+
+def _check_non_technical(title: str) -> FilterResult:
+    """Block jobs whose title contains a non-technical keyword from the config blocklist."""
+    title_lower = (title or "").lower()
+    for kw in _get_blocklist():
+        if re.search(r"\b" + re.escape(kw) + r"\b", title_lower):
+            return FilterResult.fail(FilterReason.NON_TECHNICAL, f"title contains blocklist keyword: {kw!r}")
     return FilterResult.ok()
 
 
@@ -163,24 +279,30 @@ def apply(job: Dict[str, Any]) -> FilterResult:
     """Run all hard filters on a job dict. Returns first failure or PASS.
 
     Args:
-        job: A job record dict with keys: title, description_text, location_raw,
+        job: dict with keys: title, description_text, location_raw,
              remote_restriction, is_remote, detected_language, is_unpaid.
 
     Returns:
-        FilterResult — .passed=True means the job cleared all filters.
+        FilterResult — .passed=True means job cleared all filters.
+                       reason=NEEDS_REVIEW means it passed but is flagged.
     """
     title = job.get("title") or ""
     desc = job.get("description_text") or ""
     location_raw = job.get("location_raw") or ""
     remote_restriction = job.get("remote_restriction") or ""
     is_remote = bool(job.get("is_remote", False))
+    detected_language = job.get("detected_language") or ""
 
-    # Run filters in order of cheapest → most expensive
+    # Cheapest first
     result = _check_unpaid(title, desc)
     if not result.passed:
         return result
 
-    result = _check_german(title, desc)
+    result = _check_language(title, desc, detected_language)
+    if not result.passed:
+        return result
+
+    result = _check_non_technical(title)
     if not result.passed:
         return result
 
@@ -188,28 +310,41 @@ def apply(job: Dict[str, Any]) -> FilterResult:
     if not result.passed:
         return result
 
+    # NEEDS_REVIEW is a pass — return it so it can be stored
+    if result.reason == FilterReason.NEEDS_REVIEW:
+        return result
+
     return FilterResult.ok()
 
 
 def apply_batch(jobs: list[Dict[str, Any]]) -> Dict[str, Any]:
-    """Apply hard filter to a list of jobs. Returns passing jobs + reason-code counts.
+    """Apply hard filter to a list of jobs.
 
     Returns:
         {
-          "passed": [job, ...],
-          "failed": [(job, FilterResult), ...],
-          "reason_counts": {"GERMAN_ONLY": N, "UNPAID": N, ...},
+          "passed": [job, ...],           # includes NEEDS_REVIEW
+          "failed": [(job, FilterResult)],
+          "needs_review": [(job, FilterResult)],
+          "reason_counts": {"NON_ENGLISH": N, ...},
           "pass_rate": 0.73,
         }
     """
     passed = []
+    needs_review = []
     failed = []
-    reason_counts: Dict[str, int] = {r.value: 0 for r in FilterReason if r != FilterReason.PASS}
+    reason_counts: Dict[str, int] = {
+        r.value: 0 for r in FilterReason
+        if r not in (FilterReason.PASS, FilterReason.NEEDS_REVIEW)
+    }
 
     for job in jobs:
         result = apply(job)
         if result.passed:
-            passed.append(job)
+            if result.reason == FilterReason.NEEDS_REVIEW:
+                needs_review.append((job, result))
+                passed.append(job)
+            else:
+                passed.append(job)
         else:
             failed.append((job, result))
             reason_counts[result.reason.value] = reason_counts.get(result.reason.value, 0) + 1
@@ -218,6 +353,7 @@ def apply_batch(jobs: list[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "passed": passed,
         "failed": failed,
+        "needs_review": needs_review,
         "reason_counts": reason_counts,
         "pass_rate": round(len(passed) / total, 3) if total else 0.0,
     }

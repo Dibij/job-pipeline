@@ -191,10 +191,12 @@ After 7.8a:
 
 ## 9. Milestones
 
-| Milestone | Label count | `good_fit` target | Unlocks |
-|-----------|-------------|-------------------|---------|
-| **M1** | ~150 (random stratum required) | -- | Run 7.8a. Report calibration quality and ranking metrics with held-out folds. |
-| **M2** | ~300 | -- | First Laya vs MatchScorer comparison with bootstrap confidence intervals. |
-| **M3** | 500+ | >= 30 | Consider 7.8b decision head fine-tuning. |
+With ~22–60 deduplicated HardFilter survivors from current sources (Arbeitnow & Remotive), targets of 150 and 500 labels cannot be reached without onboarding new data sources.
 
-M3 gates on `min_positive_labels = 30` (default, configurable in `scripts/train_laya.py`).
+| Milestone | Target | Requirements | Unlocks |
+|-----------|--------|--------------|---------|
+| **M1** | All deduplicated survivors labeled (~60–80 jobs) | Random stratum included; labels complete for current stream | Provisional 7.8a calibration re-run; initial ranking report |
+| **M2** | ~150–300 labels | Requires onboarding new job sources (Jobicy, WWR, HN Algolia) | First Laya vs MatchScorer comparison with bootstrap CIs |
+| **M3** | 500+ labels | ≥ 30 `good_fit` positives | Consider 7.8b decision head fine-tuning (stays BLOCKED until then) |
+
+M3 gates strictly on `min_positive_labels = 30` (default, configurable in `scripts/train_laya.py`). Task 7.8b stays BLOCKED.

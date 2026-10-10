@@ -1,14 +1,7 @@
-"""Task 7.7: Evaluation script comparing MatchScorer vs Laya vs human labels.
+"""Task 7.7 / 5c.2g: Evaluation script comparing MatchScorer vs Laya vs human labels.
 
-Joins:
-  - laya_labels (human ground truth: good_fit, maybe, bad_fit)
-  - job_matches (MatchScorer score & reason_code from HardFilter)
-  - laya_job_scores (Laya model score & is_passed flag)
-
-Computes:
-  - Classification metrics: accuracy, precision, recall, F1 (treating good_fit as positive)
-  - Ranking correlation: Kendall's Tau-b between human rank order and model scores
-  - Side-by-side comparison table saved to data/eval_report.txt and printed to console.
+Deduplicates by canonical posting so cross-posted jobs (e.g. .ch vs .fr) do not
+cause fan-out or double counting in evaluation metrics.
 """
 from __future__ import annotations
 
@@ -96,9 +89,9 @@ def compute_binary_metrics(
 
 
 def fetch_evaluation_data() -> List[Dict[str, Any]]:
-    """Fetch all unique labeled jobs and their corresponding scores."""
+    """Fetch unique canonical labeled postings and their corresponding scores."""
     rows = execute_query("""
-        SELECT DISTINCT ON (l.job_id)
+        SELECT DISTINCT ON (COALESCE(j.canonical_job_id, j.id))
             j.id AS job_id,
             j.title,
             j.company_name,
@@ -113,15 +106,21 @@ def fetch_evaluation_data() -> List[Dict[str, Any]]:
             ls.disqualification_reason AS laya_disq_reason
         FROM laya_labels l
         JOIN jobs j ON j.id = l.job_id
-        LEFT JOIN job_matches jm ON jm.job_id = l.job_id
+        LEFT JOIN LATERAL (
+            SELECT match_score, reason_code
+            FROM job_matches
+            WHERE job_id = j.id
+            ORDER BY scored_at DESC
+            LIMIT 1
+        ) jm ON TRUE
         LEFT JOIN LATERAL (
             SELECT final_score, is_passed, disqualification_reason
             FROM laya_job_scores
-            WHERE job_id = l.job_id
+            WHERE job_id = j.id
             ORDER BY scored_at DESC
             LIMIT 1
         ) ls ON TRUE
-        ORDER BY l.job_id, l.labeled_at DESC;
+        ORDER BY COALESCE(j.canonical_job_id, j.id), l.labeled_at DESC;
     """)
     return rows
 
@@ -129,7 +128,7 @@ def fetch_evaluation_data() -> List[Dict[str, Any]]:
 def run_evaluation(
     match_threshold: float = 50.0,
     laya_threshold: float = 50.0,
-    compute_missing_laya: bool = True,
+    compute_missing_laya: bool = False,
     device: str = "cpu",
 ) -> None:
     logger.info("Fetching evaluation dataset...")
@@ -139,9 +138,8 @@ def run_evaluation(
         print("\n[EVALUATION NOTICE] No labeled jobs found in laya_labels table.")
         return
 
-    logger.info("Found %d unique labeled jobs.", len(data))
+    logger.info("Found %d unique canonical labeled postings.", len(data))
 
-    # If any job is missing Laya score and compute_missing_laya is True, score it on the fly
     missing_laya = [r for r in data if r.get("laya_score") is None]
     if missing_laya and compute_missing_laya:
         logger.info(
@@ -197,20 +195,29 @@ def run_evaluation(
             "company": (r["company_name"] or "")[:18],
             "label": label,
             "match_score": f"{ms:.1f}" if ms_passed else f"0.0 ({r.get('match_reason_code')})",
-            "laya_score": f"{ls:.1f}" if ls_passed else f"0.0 ({r.get('laya_disq_reason') or 'FAIL'})",
+            "laya_score": f"{ls:.1f}" if ls_passed and r.get("laya_score") is not None else "N/A",
         })
 
     # Metrics
     match_metrics = compute_binary_metrics(y_true_binary, match_pred_binary)
-    laya_metrics = compute_binary_metrics(y_true_binary, laya_pred_binary)
+    
+    # Filter to items where Laya score exists for Laya metrics
+    laya_data_pairs = [(yt, ls_pred, ls) for yt, ls_pred, ls, r in zip(y_true_binary, laya_pred_binary, laya_scores, data) if r.get("laya_score") is not None]
+    if laya_data_pairs:
+        laya_yt = [p[0] for p in laya_data_pairs]
+        laya_yp = [p[1] for p in laya_data_pairs]
+        laya_metrics = compute_binary_metrics(laya_yt, laya_yp)
+        tau_laya = kendall_tau_b([LABEL_RANK.get(r["label"], 0) for r in data if r.get("laya_score") is not None], [p[2] for p in laya_data_pairs])
+    else:
+        laya_metrics = {"accuracy": 0, "precision": 0, "recall": 0, "f1": 0}
+        tau_laya = 0.0
 
     tau_match = kendall_tau_b(y_true_rank, match_scores)
-    tau_laya = kendall_tau_b(y_true_rank, laya_scores)
 
     # Format Output
     output_lines = []
     output_lines.append("=" * 78)
-    output_lines.append(f"          MODEL EVALUATION REPORT (Sample Size: {len(data)})")
+    output_lines.append(f"          MODEL EVALUATION REPORT (Deduplicated Canonical Postings: {len(data)})")
     output_lines.append("=" * 78)
     output_lines.append(f"Ground Truth Distribution:")
     for lbl in ["good_fit", "maybe", "bad_fit"]:
@@ -239,7 +246,6 @@ def run_evaluation(
     report_text = "\n".join(output_lines)
     print("\n" + report_text)
 
-    # Save to data/eval_report.txt
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     out_file = DATA_DIR / "eval_report.txt"
     with open(out_file, "w", encoding="utf-8") as f:
@@ -251,11 +257,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate MatchScorer and Laya against human labels.")
     parser.add_argument("--match-threshold", type=float, default=50.0, help="Score threshold for MatchScorer positive prediction")
     parser.add_argument("--laya-threshold", type=float, default=50.0, help="Score threshold for Laya positive prediction")
-    parser.add_argument("--device", type=str, default="cuda", help="Device for on-the-fly Laya inference (cuda/cpu)")
+    parser.add_argument("--compute-missing-laya", action="store_true", help="Compute Laya scores on the fly for missing jobs")
+    parser.add_argument("--device", type=str, default="cpu", help="Device for on-the-fly Laya inference (cuda/cpu)")
     args = parser.parse_args()
 
     run_evaluation(
         match_threshold=args.match_threshold,
         laya_threshold=args.laya_threshold,
+        compute_missing_laya=args.compute_missing_laya,
         device=args.device,
     )

@@ -1,7 +1,13 @@
-"""Task 6-1: FEED.md Exporter.
+"""Task 5c.2a: FEED.md Exporter — fixed.
 
-Queries PostgreSQL for scored jobs and generates a clean Markdown feed (FEED.md)
-ranked by match score for easy review.
+Changes from original:
+  - One row per job: DISTINCT ON (j.id) with latest job_matches row;
+    separate LATERAL join for the latest laya_job_scores row matching
+    the current checkpoint + config_version.
+  - Ranked by MatchScorer score only (match_score). Laya score shown as
+    a separate column. COALESCE mixing the two scales removed.
+  - "Scanned" count is now unique jobs, not raw join rows.
+  - show_laya_score column in table (blank when no score exists yet).
 """
 import argparse
 import json
@@ -24,77 +30,98 @@ FEED_FILE = PROJECT_ROOT / "FEED.md"
 def export_feed(top_n: int = 100) -> Path:
     logger.info("Exporting top %d jobs to %s...", top_n, FEED_FILE)
 
-    # Query job_matches joined with jobs and optional laya_job_scores
+    # One row per job: latest match score + latest Laya score (if any).
+    # Ranked by MatchScorer only. Laya score shown as info column.
     rows = execute_query("""
-        SELECT j.id, j.title, j.company_name, j.location_raw, j.is_remote, j.remote_restriction,
-               j.apply_url, j.company_url, j.nepal_accessible, j.experience_level, j.detected_language, j.is_unpaid,
-               m.match_score, m.matched_skills, m.missing_skills, m.score_breakdown,
-               l.final_score AS laya_score, l.role_type, l.is_passed AS laya_passed, l.disqualification_reason
+        SELECT
+            j.id,
+            j.title,
+            j.company_name,
+            j.location_raw,
+            j.is_remote,
+            j.apply_url,
+            j.detected_language,
+            j.is_unpaid,
+            j.experience_level,
+            j.nepal_accessible,
+            jm.match_score,
+            jm.matched_skills,
+            jm.reason_code,
+            jm.score_breakdown,
+            ls.final_score AS laya_score,
+            ls.role_type,
+            ls.is_passed AS laya_passed,
+            ls.disqualification_reason
         FROM jobs j
-        LEFT JOIN job_matches m ON j.id = m.job_id
-        LEFT JOIN laya_job_scores l ON j.id = l.job_id
-        ORDER BY COALESCE(l.final_score, m.match_score, 0) DESC, j.id DESC;
+        -- Latest match row per job
+        JOIN LATERAL (
+            SELECT match_score, matched_skills, reason_code, score_breakdown, scored_at
+            FROM job_matches
+            WHERE job_id = j.id
+            ORDER BY scored_at DESC
+            LIMIT 1
+        ) jm ON TRUE
+        -- Latest Laya score row per job (optional)
+        LEFT JOIN LATERAL (
+            SELECT final_score, role_type, is_passed, disqualification_reason
+            FROM laya_job_scores
+            WHERE job_id = j.id
+            ORDER BY scored_at DESC
+            LIMIT 1
+        ) ls ON TRUE
+        ORDER BY jm.match_score DESC, j.id;
     """)
 
     if not rows:
         logger.warning("No jobs found in database.")
         return FEED_FILE
 
-    total_jobs = len(rows)
-    passed_jobs = []
+    total_unique_jobs = len(rows)
+    passed_jobs: List[Dict[str, Any]] = []
     disqualified_counts: Dict[str, int] = {
-        "INACCESSIBLE": 0,
-        "GERMAN": 0,
+        "NOT_REMOTE": 0,
+        "NON_ENGLISH": 0,
+        "GERMAN_ONLY": 0,  # legacy — kept for backward compat
         "UNPAID": 0,
-        "SENIOR": 0,
+        "REGION_LOCKED": 0,
         "NON_TECHNICAL": 0,
-        "OTHER": 0
+        "SENIOR": 0,
+        "LOW_SCORE": 0,
+        "NEEDS_REVIEW": 0,
+        "OTHER": 0,
     }
 
     for r in rows:
-        # Check hard disqualifiers / accessibility
-        reasons = []
-        is_accessible = r.get("nepal_accessible", True)
-        lang = (r.get("detected_language") or "").lower()
-        is_unpaid = bool(r.get("is_unpaid", False))
-        exp = (r.get("experience_level") or "").lower()
-        role = (r.get("role_type") or "").lower()
-
-        if not is_accessible:
-            disqualified_counts["INACCESSIBLE"] += 1
+        rc = r.get("reason_code")
+        if rc is not None:
+            key = rc if rc in disqualified_counts else "OTHER"
+            disqualified_counts[key] += 1
             continue
-        if lang == "german":
-            disqualified_counts["GERMAN"] += 1
-            continue
-        if is_unpaid:
-            disqualified_counts["UNPAID"] += 1
-            continue
-        if exp == "senior":
-            disqualified_counts["SENIOR"] += 1
-            continue
-        if role == "other":
-            disqualified_counts["NON_TECHNICAL"] += 1
-            continue
-
         passed_jobs.append(r)
 
     ranked_jobs = passed_jobs[:top_n]
 
-    # Build FEED.md markdown content
     lines = []
-    lines.append("# 🚀 Job Feed — Top Matched Roles")
+    lines.append("# Job Feed — Top Matched Roles")
     lines.append("")
-    lines.append(f"> **Total Scanned Jobs:** {total_jobs} | **Eligible Matches:** {len(passed_jobs)} | **Showing Top:** {len(ranked_jobs)}")
+    lines.append(
+        f"> **Total Unique Jobs:** {total_unique_jobs}"
+        f" | **Eligible Matches:** {len(passed_jobs)}"
+        f" | **Showing Top:** {len(ranked_jobs)}"
+    )
     lines.append("")
 
-    lines.append("| Rank | Score | Job Title | Company | Location / Remote | Matched Skills | Apply Link |")
-    lines.append("| :---: | :---: | :--- | :--- | :--- | :--- | :---: |")
+    lines.append("| Rank | Match | Laya | Job Title | Company | Location | Matched Skills | Apply |")
+    lines.append("| :---: | :---: | :---: | :--- | :--- | :--- | :--- | :---: |")
 
     for rank, j in enumerate(ranked_jobs, start=1):
-        score = j.get("laya_score") or j.get("match_score") or 0.0
+        match_score = j.get("match_score") or 0.0
+        laya_score = j.get("laya_score")
+        laya_str = f"{laya_score:.0f}" if laya_score is not None else "—"
+
         title = (j.get("title") or "Untitled").replace("|", "-")
         company = (j.get("company_name") or "Unknown").replace("|", "-")
-        is_remote = "🌐 Remote" if j.get("is_remote") else "🏢 On-site"
+        is_remote = "Remote" if j.get("is_remote") else "On-site"
         loc = j.get("location_raw") or "Unspecified"
         loc_str = f"{is_remote} ({loc})" if loc != "Unspecified" else is_remote
 
@@ -104,28 +131,49 @@ def export_feed(top_n: int = 100) -> Path:
                 skills = json.loads(skills)
             except Exception:
                 skills = []
-        skills_str = ", ".join(skills[:4]) if skills else "—"
+        skills_str = ", ".join(f"`{s}`" for s in skills[:4]) if skills else "—"
 
-        link = j.get("apply_url") or j.get("company_url") or "#"
-        apply_md = f"[Apply ↗]({link})" if link != "#" else "N/A"
+        link = j.get("apply_url") or "#"
+        apply_md = f"[Apply]({link})" if link != "#" else "N/A"
 
-        lines.append(f"| {rank} | **{score:.1f}** | {title} | {company} | {loc_str} | `{skills_str}` | {apply_md} |")
+        lines.append(
+            f"| {rank} | **{match_score:.1f}** | {laya_str}"
+            f" | {title} | {company} | {loc_str} | {skills_str} | {apply_md} |"
+        )
 
     lines.append("")
     lines.append("---")
-    lines.append("### 📊 Disqualification Breakdown")
-    lines.append("| Disqualification Reason | Jobs Killed |")
-    lines.append("| :--- | :---: |")
+    lines.append("### Disqualification Breakdown")
+    lines.append("| Reason | Count | Example Titles |")
+    lines.append("| :--- | :---: | :--- |")
+
+    # Collect example titles per reason code
+    reason_examples: Dict[str, List[str]] = {}
+    for r in rows:
+        rc = r.get("reason_code")
+        if rc:
+            key = rc if rc in disqualified_counts else "OTHER"
+            if key not in reason_examples:
+                reason_examples[key] = []
+            if len(reason_examples[key]) < 3:
+                reason_examples[key].append((r.get("title") or "?")[:40])
+
     for reason, count in disqualified_counts.items():
-        lines.append(f"| `{reason}` | {count} |")
+        if count == 0:
+            continue
+        examples = "; ".join(reason_examples.get(reason, []))
+        lines.append(f"| `{reason}` | {count} | {examples} |")
+
     lines.append("")
-    lines.append(f"*Generated automatically by `scripts/export_feed.py`.*")
+    lines.append("*Ranked by MatchScorer. Laya score shown for reference only (uncalibrated until M1).*")
+    lines.append(f"*Generated by `scripts/export_feed.py`.*")
 
     content = "\n".join(lines)
     with open(FEED_FILE, "w", encoding="utf-8") as f:
         f.write(content)
 
-    logger.info("Successfully generated %s with %d top jobs!", FEED_FILE, len(ranked_jobs))
+    logger.info("Generated %s: %d unique jobs, %d eligible, %d shown.",
+                FEED_FILE, total_unique_jobs, len(passed_jobs), len(ranked_jobs))
     return FEED_FILE
 
 

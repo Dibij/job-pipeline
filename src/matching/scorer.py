@@ -5,12 +5,14 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from src.enrichment.enricher import JobEnricher
+from src.matching.jd_extractor import extract_sections
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROFILE_PATH = Path(__file__).resolve().parent / "cv_profile.json"
 
 # Skill → compiled regex pattern (word-boundary safe)
-# Patterns that shouldn't fire inside larger words get their own re.compile
 SKILL_PATTERNS: Dict[str, re.Pattern] = {
     # Primary skills
     "python":       re.compile(r"\bpython\b", re.IGNORECASE),
@@ -45,13 +47,6 @@ NEPAL_EXCLUDING_PATTERNS = [
     re.compile(r"\blatam\s*only\b|\blatin\s+america\s*only\b", re.IGNORECASE),
 ]
 
-# Listing contains ONLY these without APAC/Asia/Worldwide
-STRICT_REGION_LISTS = [
-    # If the restriction is strictly Americas only (no APAC)
-    re.compile(r"\b(?:northern\s+)?america[n]?\b", re.IGNORECASE),
-    re.compile(r"\blatam\b|\blatin\s+america\b", re.IGNORECASE),
-]
-
 
 def _is_nepal_accessible(is_remote: bool, location_raw: str, remote_restriction: str) -> bool:
     """Determine if role is realistically accessible from Nepal (Kathmandu, UTC+5:45)."""
@@ -59,29 +54,21 @@ def _is_nepal_accessible(is_remote: bool, location_raw: str, remote_restriction:
     restriction = (remote_restriction or "").lower()
     combined = f"{loc} {restriction}"
 
-    # Explicitly mentions Nepal or Kathmandu (on-site or remote)
     if any(kw in combined for kw in ["nepal", "kathmandu", "lalitpur"]):
         return True
 
-    # On-site job not in Nepal → not accessible
     if not is_remote:
         return False
 
-    # Hard exclusions
     for pat in NEPAL_EXCLUDING_PATTERNS:
         if pat.search(combined):
             return False
 
-    # Worldwide / global / APAC friendly
     worldwide_kws = ["worldwide", "anywhere", "global", "all locations", "apac", "south asia", "asia"]
     if any(kw in combined for kw in worldwide_kws):
         return True
 
-    # Strict lists that are Americas/LATAM/Europe only without APAC
-    # e.g. "USA, Canada, Argentina, Mexico, Peru" — no Nepal, no Asia, no Worldwide
-    # Check if restriction is non-empty and doesn't include any Asia-friendly word
     if restriction:
-        # If it lists only specific non-Asian countries, exclude Nepal
         has_apac = any(kw in restriction for kw in ["apac", "asia", "nepal", "worldwide", "global", "anywhere"])
         has_americas_latam = re.search(r"\b(?:argentina|mexico|peru|brazil|colombia|chile|latam|latin america|northern america|usa|canada)\b", restriction, re.IGNORECASE)
         has_europe_only = re.search(r"\b(?:europe|france|germany|spain|portugal|netherlands|israel)\b", restriction, re.IGNORECASE)
@@ -89,7 +76,6 @@ def _is_nepal_accessible(is_remote: bool, location_raw: str, remote_restriction:
         if (has_americas_latam or has_europe_only) and not has_apac:
             return False
 
-    # Remote job, no explicit restriction → assume open
     return True
 
 
@@ -106,19 +92,17 @@ class MatchScorer:
         self.all_skills = {**self.primary_skills, **self.secondary_skills}
         self.weights = self.profile.get("scoring_weights", {})
 
-    def _skill_present(self, skill: str, title: str, desc: str, tags: List[str]) -> bool:
-        """Check if a skill is present with word-boundary regex (no substring false positives)."""
-        # First: exact tag match (most reliable)
+    def _skill_present(self, skill: str, title: str, target_text: str, tags: List[str]) -> bool:
+        """Check if a skill is present in target sections or tags with word-boundary regex."""
         if skill in tags:
             return True
 
         pattern = SKILL_PATTERNS.get(skill)
         if pattern is None:
-            # Fallback: safe word-boundary check for skills without a custom pattern
             safe = re.compile(r"\b" + re.escape(skill) + r"\b", re.IGNORECASE)
-            return bool(safe.search(title) or safe.search(desc))
+            return bool(safe.search(title) or safe.search(target_text))
 
-        return bool(pattern.search(title) or pattern.search(desc))
+        return bool(pattern.search(title) or pattern.search(target_text))
 
     def score_job(self, job: Dict[str, Any]) -> Tuple[float, List[str], List[str], Dict[str, Any]]:
         """Compute match score (0.0 - 100.0), matched skills, missing skills, and score breakdown."""
@@ -127,11 +111,13 @@ class MatchScorer:
         tags = [str(t).lower().strip() for t in (job.get("tags") or [])]
 
         exp_level = (job.get("experience_level") or "unspecified").lower()
+        if exp_level == "unspecified" or not exp_level:
+            exp_level = JobEnricher.detect_seniority(title, desc)
+
         lang = (job.get("detected_language") or "english").lower()
         is_unpaid = bool(job.get("is_unpaid", False))
         is_remote = bool(job.get("is_remote", False))
 
-        # Re-evaluate nepal accessibility with improved logic (don't trust stale DB value alone)
         location_raw = job.get("location_raw") or ""
         remote_restriction = job.get("remote_restriction") or ""
         nepal_accessible = _is_nepal_accessible(is_remote, location_raw, remote_restriction)
@@ -148,10 +134,10 @@ class MatchScorer:
         }
 
         # ── 1. HARD DISQUALIFIERS & HEAVY PENALTIES ───────────────────────
-        if lang == "german":
+        if lang in ("german", "non_english"):
             breakdown["language_adjustment"] = self.weights.get("german_language_penalty", -100)
-            breakdown["reasons"].append("Requires German language")
-            breakdown["flags"].append("GERMAN")
+            breakdown["reasons"].append("Requires non-English language")
+            breakdown["flags"].append("NON_ENGLISH")
 
         if is_unpaid:
             breakdown["unpaid_adjustment"] = self.weights.get("unpaid_penalty", -100)
@@ -171,21 +157,23 @@ class MatchScorer:
             breakdown["seniority_adjustment"] = self.weights.get("junior_intern_bonus", 30)
             breakdown["reasons"].append(f"Entry-friendly role ({exp_level.upper()})")
 
-        # Remote bonus only if actually accessible
         if is_remote and nepal_accessible:
             breakdown["remote_bonus"] = self.weights.get("remote_bonus", 15)
             breakdown["reasons"].append("100% remote, globally open")
 
-        # ── 2. TECH SKILLS MATCHING (word-boundary safe) ──────────────────
+        # ── 2. TECH SKILLS MATCHING (Focus on core sections: requirements/responsibilities) ──
+        sections = extract_sections(desc, title=title)
+        core_text = f"{sections.requirements} {sections.responsibilities} {sections.nice_to_have}".strip()
+        target_text = core_text if len(core_text) > 30 else desc
+
         matched_skills = []
         earned_skill_points = 0.0
 
         for skill, weight in self.all_skills.items():
-            if self._skill_present(skill, title, desc, tags):
+            if self._skill_present(skill, title, target_text, tags):
                 matched_skills.append(skill)
                 earned_skill_points += weight
 
-        # Normalize skill points to a max of 50
         max_possible_points = sum(self.all_skills.values())
         scaled_skill_score = min(
             self.weights.get("tech_stack_max_score", 50),
@@ -206,7 +194,6 @@ class MatchScorer:
         final_score = max(0.0, min(100.0, round(raw_total, 2)))
         breakdown["final_score"] = final_score
 
-        # Missing skills (from job tags that we don't have)
         missing_skills = [
             t for t in tags
             if t not in matched_skills

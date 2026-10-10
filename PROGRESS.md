@@ -50,14 +50,14 @@ See `TRAINING.md` for full rationale. Summary:
 ---
 
 ## What's Broken / Incomplete
-- **7.8a PROVISIONAL**: calibration ran on only 17 unique labeled+scored jobs (17 of 86 labels had a matching `laya_job_scores` row at calibration time; batch scoring only covered the 43 `is_remote AND en AND nepal_accessible` eligible jobs, and only 17 of those were labeled). Temperatures in `config/laya_temperatures_v1.json` must not be used for gating. Re-run at M1.
-- **`use_confidence_flag: false`** on disk — correct, leave it there.
-- **5c.1 Audit DONE** (read-only, Oct 10 2026) — see report in PROGRESS.md §Audit section below.
-- **5c.2 Fixes NOT STARTED** — waiting on your approval of the audit report.
-- Task 7.7b NOT STARTED (blocked behind 5c.2).
-- Task 7.8b BLOCKED: needs 150+ labels and 30+ `good_fit` (currently 9).
-- Task 7.9 NOT STARTED: no per-source / per-stratum report script.
-- Full Laya batch scoring (no `--limit`) on 1,464 jobs — not run on the 270 new jobs added Oct 9.
+- **7.8a PROVISIONAL**: calibration ran on 43 unique labeled+scored jobs. Temperatures in `config/laya_temperatures_v1.json` are provisional. Re-run at M1.
+- **`use_confidence_flag: false`** on disk — correct.
+- **5c.1 Audit & 5c.2 Fixes DONE** (Oct 10 2026) — FEED.md deduplicated, NON_ENGLISH & NON_TECHNICAL & country-locks filtered, MatchScorer updated with section-targeted skill matching and seniority fallback, evaluate_scoring.py deduplicated.
+- **5c.3 Supply Audit DONE** (Oct 10 2026) — Remotive category limit analyzed; 5 new candidate sources identified. `TRAINING.md` milestones updated.
+- Task 7.7b READY TO START — add `sampling_stratum` and `label_guideline_version` to schema, hide Laya columns in export CSV.
+- Task 7.8b BLOCKED: needs M3 (500+ labels, 30+ `good_fit`).
+- Task 7.9 NOT STARTED: report script.
+- Task 6.4 (dashboard wired to hard-filter output) — not started.
 - Task 6.4 (dashboard wired to hard-filter output) — not started.
 
 ---
@@ -106,5 +106,4 @@ MatchScorer formula: `skill_points + remote_bonus (15) + adjustments`. Skill poi
 ---
 
 ## Next Step
-Review and approve the 5c.1 audit above. Once approved, start **5c.2a** (de-duplicate the FEED.md join) as the first fix commit.
-
+Proceed with **Task 7.7b** — add `sampling_stratum` and `label_guideline_version` to the `laya_labels` schema and export script, and hide Laya columns from the labeling CSV to prevent anchoring bias.

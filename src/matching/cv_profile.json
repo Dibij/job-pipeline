@@ -11,6 +11,19 @@
     "allow_unpaid": false,
     "require_remote_accessible": true
   },
+  "non_technical_title_blocklist": [
+    "linguist",
+    "copywriter",
+    "writer",
+    "voice actor",
+    "account executive",
+    "content reviewer",
+    "technicien",
+    "maintenance",
+    "sales representative",
+    "marketing lead",
+    "growth marketing"
+  ],
   "skills": {
     "primary": [
       {"name": "python", "weight": 10},
