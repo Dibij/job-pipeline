@@ -1,13 +1,22 @@
-"""Task 7.7 / 5c.2g: Evaluation script comparing MatchScorer vs Laya vs human labels.
+"""Task 7.7 / 6e: Evaluation script comparing MatchScorer vs Laya decision model vs human labels.
 
-Deduplicates by canonical posting so cross-posted jobs (e.g. .ch vs .fr) do not
-cause fan-out or double counting in evaluation metrics.
+Metrics protocol follows TRAINING.md §7:
+  - Population: labeled postings that pass hard filters (reason_code IS NULL) by default.
+  - Primary metric: recall@20
+  - Ranking metrics: precision@10, precision@20, recall@10, recall@20, PR-AUC with bootstrap 95% CIs.
+  - Never reports raw accuracy (dominated by bad_fit majority).
+  - Reports sample size (n) and positive count (pos) alongside every metric.
+  - Small-sample caveat displayed when pos < 30.
+  - Feed precision: label breakdown of top 10 postings in FEED.md.
+  - Terminology: 'decision model' for Laya.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import math
+import random
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -36,10 +45,10 @@ def kendall_tau_b(x: List[float], y: List[float]) -> float:
     if n < 2:
         return 0.0
 
-    p = 0  # concordant
-    q = 0  # discordant
-    tx = 0 # ties in x only
-    ty = 0 # ties in y only
+    p = 0   # concordant
+    q = 0   # discordant
+    tx = 0  # ties in x only
+    ty = 0  # ties in y only
 
     for i in range(n):
         for j in range(i + 1, n):
@@ -63,34 +72,107 @@ def kendall_tau_b(x: List[float], y: List[float]) -> float:
     return (p - q) / denom
 
 
-def compute_binary_metrics(
+def compute_ranking_metrics(
     y_true: List[bool],
-    y_pred: List[bool],
+    scores: List[float],
+    k_list: Tuple[int, ...] = (10, 20),
 ) -> Dict[str, float]:
-    """Calculate Precision, Recall, F1, and Accuracy for binary decisions."""
-    tp = sum(1 for yt, yp in zip(y_true, y_pred) if yt and yp)
-    fp = sum(1 for yt, yp in zip(y_true, y_pred) if not yt and yp)
-    fn = sum(1 for yt, yp in zip(y_true, y_pred) if yt and not yp)
-    tn = sum(1 for yt, yp in zip(y_true, y_pred) if not yt and not yp)
+    """Compute precision@k, recall@k, and PR-AUC over ranked scores."""
+    n = len(y_true)
+    n_pos = sum(1 for y in y_true if y)
+    if n == 0:
+        return {}
 
-    total = len(y_true)
-    accuracy = (tp + tn) / total if total > 0 else 0.0
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    # Sort descending by score
+    sorted_pairs = sorted(zip(scores, y_true), key=lambda p: p[0], reverse=True)
+    sorted_y = [p[1] for p in sorted_pairs]
 
-    return {
-        "tp": tp, "fp": fp, "fn": fn, "tn": tn,
-        "accuracy": round(accuracy, 3),
-        "precision": round(precision, 3),
-        "recall": round(recall, 3),
-        "f1": round(f1, 3),
-    }
+    metrics: Dict[str, float] = {}
+    for k in k_list:
+        k_eff = min(k, n)
+        top_k = sorted_y[:k_eff]
+        prec = (sum(1 for y in top_k if y) / k_eff) if k_eff > 0 else 0.0
+        rec = (sum(1 for y in top_k if y) / n_pos) if n_pos > 0 else 0.0
+        metrics[f"precision@{k}"] = round(prec, 4)
+        metrics[f"recall@{k}"] = round(rec, 4)
+
+    # PR-AUC via trapezoidal integration over PR curve
+    cum_tp = 0
+    rec_points = [0.0]
+    prec_points = [1.0]
+    for i, y in enumerate(sorted_y, start=1):
+        if y:
+            cum_tp += 1
+        r = (cum_tp / n_pos) if n_pos > 0 else 0.0
+        p = cum_tp / i
+        rec_points.append(r)
+        prec_points.append(p)
+
+    auc = 0.0
+    for i in range(1, len(rec_points)):
+        dx = rec_points[i] - rec_points[i - 1]
+        dy = (prec_points[i] + prec_points[i - 1]) / 2.0
+        auc += dx * dy
+
+    metrics["pr_auc"] = round(auc, 4)
+    metrics["n"] = n
+    metrics["n_pos"] = n_pos
+    return metrics
 
 
-def fetch_evaluation_data() -> List[Dict[str, Any]]:
-    """Fetch unique canonical labeled postings and their corresponding scores."""
-    rows = execute_query("""
+def bootstrap_ranking_metrics(
+    y_true: List[bool],
+    scores: List[float],
+    n_bootstraps: int = 1000,
+    seed: int = 42,
+) -> Tuple[Dict[str, Tuple[float, float, float]], int, int]:
+    """Compute 95% bootstrap confidence intervals for ranking metrics."""
+    rng = random.Random(seed)
+    n = len(y_true)
+    base = compute_ranking_metrics(y_true, scores)
+    if n < 2 or base.get("n_pos", 0) == 0:
+        return (
+            {k: (v, v, v) for k, v in base.items() if k not in ("n", "n_pos")},
+            base.get("n", n),
+            base.get("n_pos", 0),
+        )
+
+    boot_res: Dict[str, List[float]] = {k: [] for k in base if k not in ("n", "n_pos")}
+    indices = list(range(n))
+
+    for _ in range(n_bootstraps):
+        sample_idx = [rng.choice(indices) for _ in range(n)]
+        sample_y = [y_true[i] for i in sample_idx]
+        if sum(1 for y in sample_y if y) == 0:
+            continue
+        sample_s = [scores[i] for i in sample_idx]
+        m = compute_ranking_metrics(sample_y, sample_s)
+        for k in boot_res:
+            boot_res[k].append(m[k])
+
+    cis: Dict[str, Tuple[float, float, float]] = {}
+    for k in boot_res:
+        vals = sorted(boot_res[k])
+        if vals:
+            low_idx = int(0.025 * len(vals))
+            high_idx = int(0.975 * len(vals))
+            cis[k] = (base[k], vals[low_idx], vals[high_idx])
+        else:
+            cis[k] = (base[k], base[k], base[k])
+
+    return cis, int(base["n"]), int(base["n_pos"])
+
+
+def fetch_evaluation_data(population: str = "survivors") -> List[Dict[str, Any]]:
+    """Fetch unique canonical labeled postings and their scores.
+
+    Args:
+        population: 'survivors' (default) filters to postings passing hard filter;
+                    'all' includes all labeled postings.
+    """
+    where_clause = "WHERE jm.reason_code IS NULL" if population == "survivors" else ""
+
+    sql = f"""
         SELECT DISTINCT ON (COALESCE(j.canonical_job_id, j.id))
             j.id AS job_id,
             j.title,
@@ -120,22 +202,53 @@ def fetch_evaluation_data() -> List[Dict[str, Any]]:
             ORDER BY scored_at DESC
             LIMIT 1
         ) ls ON TRUE
+        {where_clause}
         ORDER BY COALESCE(j.canonical_job_id, j.id), l.labeled_at DESC;
-    """)
-    return rows
+    """
+    return execute_query(sql)
+
+
+def fetch_feed_top_10() -> List[Dict[str, Any]]:
+    """Fetch top 10 jobs currently displayed in FEED.md with their human labels."""
+    sql = """
+        SELECT
+            j.id,
+            j.title,
+            j.company_name,
+            jm.match_score,
+            l.label
+        FROM jobs j
+        JOIN LATERAL (
+            SELECT match_score, reason_code
+            FROM job_matches
+            WHERE job_id = j.id
+            ORDER BY scored_at DESC
+            LIMIT 1
+        ) jm ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT label
+            FROM laya_labels
+            WHERE job_id = j.id
+            ORDER BY labeled_at DESC
+            LIMIT 1
+        ) l ON TRUE
+        WHERE j.canonical_job_id IS NULL AND jm.reason_code IS NULL
+        ORDER BY jm.match_score DESC, j.id
+        LIMIT 10;
+    """
+    return execute_query(sql)
 
 
 def run_evaluation(
-    match_threshold: float = 50.0,
-    laya_threshold: float = 50.0,
+    population: str = "survivors",
     compute_missing_laya: bool = False,
     device: str = "cpu",
 ) -> None:
-    logger.info("Fetching evaluation dataset...")
-    data = fetch_evaluation_data()
+    logger.info("Fetching evaluation dataset (population: %s)...", population)
+    data = fetch_evaluation_data(population=population)
 
     if not data:
-        print("\n[EVALUATION NOTICE] No labeled jobs found in laya_labels table.")
+        print(f"\n[EVALUATION NOTICE] No labeled jobs found in population '{population}'.")
         return
 
     logger.info("Found %d unique canonical labeled postings.", len(data))
@@ -161,89 +274,110 @@ def run_evaluation(
             r["laya_passed"] = res.is_passed
             r["laya_disq_reason"] = res.disqualification_reason
 
-    # Prepare ground truth and prediction arrays
-    y_true_binary = []  # True for good_fit, False for bad_fit (maybe counted as False)
-    y_true_rank = []    # 0, 1, 2
+    # Prepare ground truth and prediction arrays (binary view: good_fit vs not)
+    y_true_binary = [r["label"] == "good_fit" for r in data]
+    y_true_rank = [LABEL_RANK.get(r["label"], 0) for r in data]
 
-    match_scores = []
-    match_pred_binary = []
+    match_scores = [
+        float(r["match_score"]) if r.get("match_score") is not None else 0.0
+        for r in data
+    ]
 
-    laya_scores = []
-    laya_pred_binary = []
-
-    report_rows = []
-
-    for r in data:
-        label = r["label"]
-        y_true_binary.append(label == "good_fit")
-        y_true_rank.append(LABEL_RANK.get(label, 0))
-
-        # MatchScorer: passed filter (no reason_code) and score >= threshold
-        ms = float(r["match_score"]) if r.get("match_score") is not None else 0.0
-        ms_passed = r.get("match_reason_code") is None
-        match_scores.append(ms if ms_passed else 0.0)
-        match_pred_binary.append(ms_passed and ms >= match_threshold)
-
-        # Laya: is_passed and score >= threshold
-        ls = float(r["laya_score"]) if r.get("laya_score") is not None else 0.0
-        ls_passed = bool(r.get("laya_passed", True))
-        laya_scores.append(ls if ls_passed else 0.0)
-        laya_pred_binary.append(ls_passed and ls >= laya_threshold)
-
-        report_rows.append({
-            "title": (r["title"] or "")[:35],
-            "company": (r["company_name"] or "")[:18],
-            "label": label,
-            "match_score": f"{ms:.1f}" if ms_passed else f"0.0 ({r.get('match_reason_code')})",
-            "laya_score": f"{ls:.1f}" if ls_passed and r.get("laya_score") is not None else "N/A",
-        })
-
-    # Metrics
-    match_metrics = compute_binary_metrics(y_true_binary, match_pred_binary)
-    
-    # Filter to items where Laya score exists for Laya metrics
-    laya_data_pairs = [(yt, ls_pred, ls) for yt, ls_pred, ls, r in zip(y_true_binary, laya_pred_binary, laya_scores, data) if r.get("laya_score") is not None]
-    if laya_data_pairs:
-        laya_yt = [p[0] for p in laya_data_pairs]
-        laya_yp = [p[1] for p in laya_data_pairs]
-        laya_metrics = compute_binary_metrics(laya_yt, laya_yp)
-        tau_laya = kendall_tau_b([LABEL_RANK.get(r["label"], 0) for r in data if r.get("laya_score") is not None], [p[2] for p in laya_data_pairs])
-    else:
-        laya_metrics = {"accuracy": 0, "precision": 0, "recall": 0, "f1": 0}
-        tau_laya = 0.0
-
+    # MatchScorer bootstrap metrics
+    match_cis, n_match, pos_match = bootstrap_ranking_metrics(y_true_binary, match_scores)
     tau_match = kendall_tau_b(y_true_rank, match_scores)
 
+    # Decision model (Laya) metrics over postings with Laya score
+    laya_items = [r for r in data if r.get("laya_score") is not None]
+    if laya_items:
+        laya_y_true = [r["label"] == "good_fit" for r in laya_items]
+        laya_scores = [float(r["laya_score"]) for r in laya_items]
+        laya_cis, n_laya, pos_laya = bootstrap_ranking_metrics(laya_y_true, laya_scores)
+        tau_laya = kendall_tau_b(
+            [LABEL_RANK.get(r["label"], 0) for r in laya_items],
+            laya_scores,
+        )
+    else:
+        laya_cis, n_laya, pos_laya = {}, 0, 0
+        tau_laya = 0.0
+
+    # Top 10 FEED.md Precision
+    feed_10 = fetch_feed_top_10()
+    feed_label_counts = Counter(r.get("label") or "unlabeled" for r in feed_10)
+
     # Format Output
-    output_lines = []
-    output_lines.append("=" * 78)
-    output_lines.append(f"          MODEL EVALUATION REPORT (Deduplicated Canonical Postings: {len(data)})")
-    output_lines.append("=" * 78)
-    output_lines.append(f"Ground Truth Distribution:")
+    lines = []
+    lines.append("=" * 82)
+    lines.append(f"          MODEL EVALUATION REPORT (Population: {population.upper()})")
+    lines.append("=" * 82)
+    lines.append(f"Canonical Postings Evaluated: {len(data)}")
+    lines.append("Ground Truth Distribution:")
     for lbl in ["good_fit", "maybe", "bad_fit"]:
         c = sum(1 for r in data if r["label"] == lbl)
-        output_lines.append(f"  - {lbl:<10}: {c} ({c / len(data) * 100:.1f}%)")
-    output_lines.append("-" * 78)
+        lines.append(f"  - {lbl:<10}: {c} ({c / len(data) * 100:.1f}%)")
+    lines.append("-" * 82)
 
-    output_lines.append(f"{'METRIC':<25} | {'MatchScorer (Baseline)':<22} | {'Laya (LLM Head)':<22}")
-    output_lines.append("-" * 78)
-    output_lines.append(f"{'Accuracy':<25} | {match_metrics['accuracy']:<22} | {laya_metrics['accuracy']:<22}")
-    output_lines.append(f"{'Precision (good_fit)':<25} | {match_metrics['precision']:<22} | {laya_metrics['precision']:<22}")
-    output_lines.append(f"{'Recall (good_fit)':<25} | {match_metrics['recall']:<22} | {laya_metrics['recall']:<22}")
-    output_lines.append(f"{'F1 Score':<25} | {match_metrics['f1']:<22} | {laya_metrics['f1']:<22}")
-    output_lines.append(f"{'Kendall Tau-b (Ranking)':<25} | {tau_match:<22.3f} | {tau_laya:<22.3f}")
-    output_lines.append("-" * 78)
-
-    output_lines.append("\nPER-JOB BREAKDOWN:")
-    output_lines.append(f"{'Job Title':<35} | {'Company':<18} | {'Human':<9} | {'MatchScorer':<14} | {'Laya'}")
-    output_lines.append("-" * 95)
-    for row in report_rows:
-        output_lines.append(
-            f"{row['title']:<35} | {row['company']:<18} | {row['label']:<9} | {row['match_score']:<14} | {row['laya_score']}"
+    # Small-sample caveat
+    if pos_match < 30:
+        lines.append(
+            f"[!] CAVEAT: Total positive labels (good_fit) = {pos_match} (< 30).\n"
+            f"    Per TRAINING.md §7, all metrics are INDICATIVE ONLY with small sample caveat."
         )
-    output_lines.append("=" * 95)
+        lines.append("-" * 82)
 
-    report_text = "\n".join(output_lines)
+    lines.append(f"{'METRIC':<22} | {'MatchScorer (Baseline)':<28} | {'Laya (Decision Model)':<28}")
+    lines.append("-" * 82)
+
+    for metric_name in ["recall@20", "recall@10", "precision@10", "precision@20", "pr_auc"]:
+        m_val, m_lo, m_hi = match_cis.get(metric_name, (0.0, 0.0, 0.0))
+        m_str = f"{m_val:.3f} [{m_lo:.3f}-{m_hi:.3f}]"
+
+        if laya_cis and metric_name in laya_cis:
+            l_val, l_lo, l_hi = laya_cis[metric_name]
+            l_str = f"{l_val:.3f} [{l_lo:.3f}-{l_hi:.3f}]"
+        else:
+            l_str = "N/A (unscored)"
+
+        label_display = metric_name + (" *" if metric_name == "recall@20" else "")
+        lines.append(f"{label_display:<22} | {m_str:<28} | {l_str:<28}")
+
+    lines.append(
+        f"{'Sample size (n, pos)':<22} | {f'n={n_match}, pos={pos_match}':<28} | {f'n={n_laya}, pos={pos_laya}':<28}"
+    )
+    lines.append(
+        f"{'Kendall Tau-b':<22} | {f'{tau_match:.3f}':<28} | {f'{tau_laya:.3f}':<28}"
+    )
+    lines.append("-" * 82)
+    lines.append("* Primary evaluation metric per TRAINING.md §7.2.")
+    lines.append("")
+
+    # Feed Precision Section
+    lines.append("FEED.md PRECISION (Top 10 Ranked Matches):")
+    lines.append(f"  - good_fit : {feed_label_counts.get('good_fit', 0)} / 10")
+    lines.append(f"  - maybe    : {feed_label_counts.get('maybe', 0)} / 10")
+    lines.append(f"  - bad_fit  : {feed_label_counts.get('bad_fit', 0)} / 10")
+    lines.append(f"  - unlabeled: {feed_label_counts.get('unlabeled', 0)} / 10")
+    labeled_top_10 = 10 - feed_label_counts.get("unlabeled", 0)
+    if labeled_top_10 > 0:
+        prec_good = feed_label_counts.get("good_fit", 0) / labeled_top_10
+        prec_good_maybe = (feed_label_counts.get("good_fit", 0) + feed_label_counts.get("maybe", 0)) / labeled_top_10
+        lines.append(f"  Feed Precision among labeled: good_fit={prec_good:.1%}, good_fit+maybe={prec_good_maybe:.1%}")
+    lines.append("-" * 82)
+
+    # Per-job listing
+    lines.append("\nPER-JOB BREAKDOWN IN EVALUATION SET:")
+    lines.append(f"{'Job Title':<38} | {'Company':<18} | {'Label':<9} | {'Match':<7} | {'Laya'}")
+    lines.append("-" * 85)
+    for r in data:
+        t = (r["title"] or "")[:38]
+        c = (r["company_name"] or "")[:18]
+        lbl = r["label"]
+        ms = float(r["match_score"]) if r.get("match_score") is not None else 0.0
+        ls = f"{float(r['laya_score']):.1f}" if r.get("laya_score") is not None else "N/A"
+        lines.append(f"{t:<38} | {c:<18} | {lbl:<9} | {ms:<7.1f} | {ls}")
+    lines.append("=" * 85)
+
+    report_text = "\n".join(lines)
     print("\n" + report_text)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -254,16 +388,30 @@ def run_evaluation(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Evaluate MatchScorer and Laya against human labels.")
-    parser.add_argument("--match-threshold", type=float, default=50.0, help="Score threshold for MatchScorer positive prediction")
-    parser.add_argument("--laya-threshold", type=float, default=50.0, help="Score threshold for Laya positive prediction")
-    parser.add_argument("--compute-missing-laya", action="store_true", help="Compute Laya scores on the fly for missing jobs")
-    parser.add_argument("--device", type=str, default="cpu", help="Device for on-the-fly Laya inference (cuda/cpu)")
+    from collections import Counter
+
+    parser = argparse.ArgumentParser(description="Evaluate MatchScorer and Laya decision model against human labels.")
+    parser.add_argument(
+        "--population",
+        choices=["survivors", "all"],
+        default="survivors",
+        help="Evaluation population: 'survivors' (hard-filter survivors, default) or 'all' (all labeled postings).",
+    )
+    parser.add_argument(
+        "--compute-missing-laya",
+        action="store_true",
+        help="Compute Laya decision model scores on the fly for unscored jobs.",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        help="Device for on-the-fly Laya inference (cuda/cpu).",
+    )
     args = parser.parse_args()
 
     run_evaluation(
-        match_threshold=args.match_threshold,
-        laya_threshold=args.laya_threshold,
+        population=args.population,
         compute_missing_laya=args.compute_missing_laya,
         device=args.device,
     )

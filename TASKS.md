@@ -64,8 +64,8 @@
   - Contextual matching for "unpaid" (unpaid internship/role/position/volunteer, "this is an unpaid ..."). Regression tests. (UNPAID reduced from 53 to 1 true positive; 52 false positives eliminated).
 - [x] 6d **Enrichment Integration & Backfill**:
   - Re-run check (42.1% experience_level changed, 95.8% tags changed). Ran enrichment inside `JobPipeline.process_staged()` for new jobs and backfilled all 1,846 existing DB rows via `scripts/backfill_enrichment.py`. Unspecified experience dropped from 1,440 to 710.
-- [ ] 6e **Evaluation & Calibration Alignment**:
-  - Population = hard-filter survivors. Metrics: PR@10, REC@10, REC@20, PR-AUC with bootstrap CIs ($n$ & $pos$). Feed precision of top 10. Terminology: "decision model". Reconcile `laya_temperatures_v1.json` label count across TASKS/PROGRESS/SESSION.
+- [x] 6e **Evaluation & Calibration Alignment**:
+  - Population = hard-filter survivors (n=11, pos=3). Metrics per TRAINING.md §7: recall@20 (1.000), recall@10 (1.000), precision@10 (0.300), precision@20 (0.273), PR-AUC (0.232) with 95% bootstrap CIs. Feed precision of top 10: good_fit=2, maybe=2, bad_fit=4, unlabeled=2. Terminology: 'decision model' used throughout. Reconciled `laya_temperatures_v1.json` (69 labels confirmed).
 - [ ] 6f **Sources Research**:
   - Read terms/limits for Himalayas, Jobicy, Merojob. Document rate limits & location exposure. Quote sources directly.
 
@@ -84,7 +84,7 @@
   - Add `label_guideline_version` column to `laya_labels` (or store in `metadata` JSONB key).
   - Update `scripts/export_for_labeling.py` to implement the three strata (random 40%, high_match_scorer 30%, laya_uncertainty 30% -- laya_uncertainty falls back to random until 7.8a).
   - Hide or remove Laya score/confidence columns from the exported labeling CSV to prevent anchoring bias.
-- [x] 7.8a Temperature calibration: **PROVISIONAL** — ran on 17 unique labeled+scored jobs (187 question records). Too small for reliable calibration. Must be re-run at M1 (~150 labels, including the random stratum). `use_confidence_flag` stays `false` until M1. Saves temperature as versioned config. At M1: evaluate with held-out folds, report calibration quality and ranking metrics (precision@k, recall@k, PR-AUC with bootstrap CIs). Never rebalance the calibration set.
+- [x] 7.8a Temperature calibration: **PROVISIONAL** — ran on 69 unique labels (759 question records across 11 questions, confirmed in `config/laya_temperatures_v1.json`). Still below M1 threshold (~150 labels). `use_confidence_flag` stays `false` until M1. Saves temperature as versioned config. At M1: evaluate with held-out folds, report calibration quality and ranking metrics (precision@k, recall@k, PR-AUC with bootstrap CIs). Never rebalance the calibration set.
 - [ ] 7.8b **BLOCKED (M3)** Fine-tune Laya decision head: supervised head training with proper scoring rules (Brier/RPS). Gated on:
   - >= 150 labeled rows total
   - >= 30 `good_fit` labels (`min_positive_labels`, configurable -- default 30)
