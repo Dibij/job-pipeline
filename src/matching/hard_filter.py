@@ -33,6 +33,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
 
+from src.enrichment.enricher import JobEnricher
+
 
 class FilterReason(str, Enum):
     NON_ENGLISH = "NON_ENGLISH"
@@ -191,51 +193,20 @@ _EXCLUSIVE_REGION_PATTERN = re.compile(
 
 
 def _check_region(
+    title: str,
     is_remote: bool,
     location_raw: str,
     remote_restriction: str,
     description: str,
+    accessibility: Optional[str] = None,
 ) -> FilterResult:
-    loc = (location_raw or "").strip()
-    loc_lower = loc.lower()
-    restriction = (remote_restriction or "").lower()
-    desc_lower = (description or "").lower()
-    combined = f"{loc_lower} {restriction}"
-
-    # Nepal on-site — always accessible
-    if any(kw in combined for kw in ["nepal", "kathmandu", "lalitpur"]):
-        return FilterResult.ok()
-
-    # On-site abroad — not accessible
-    if not is_remote:
-        return FilterResult.fail(FilterReason.NOT_REMOTE, f"on-site: {loc!r}")
-
-    # Hard lock phrases anywhere
-    for pat in _HARD_LOCK_PATTERNS:
-        m = pat.search(combined) or pat.search(desc_lower)
-        if m:
-            return FilterResult.fail(FilterReason.REGION_LOCKED, f"hard lock: '{m.group()}'")
-
-    # Single-country location string (5c.2d: USA, Switzerland, etc.)
-    for pat in _COUNTRY_ONLY_PATTERNS:
-        if pat.match(loc):
-            return FilterResult.fail(FilterReason.REGION_LOCKED, f"single-country location: {loc!r}")
-
-    # Exclusive region list without any open qualifier
-    has_open = bool(_OPEN_QUALIFIERS.search(combined))
-    has_exclusive = bool(_EXCLUSIVE_REGION_PATTERN.search(combined))
-    if has_exclusive and not has_open:
-        return FilterResult.fail(
-            FilterReason.REGION_LOCKED,
-            "exclusive region list without Nepal/APAC/Worldwide qualifier",
-        )
-
-    # Ambiguous: only APAC/Asia/Worldwide mentioned — pass but flag
-    if any(kw in combined for kw in ["apac", "asia"]) and not any(
-        kw in combined for kw in ["nepal", "kathmandu"]
-    ):
-        return FilterResult.review("APAC/Asia mentioned — may or may not include Nepal")
-
+    acc = accessibility or JobEnricher.detect_accessibility_3state(title, is_remote, location_raw, remote_restriction)
+    if acc == "BLOCKED":
+        if not is_remote:
+            return FilterResult.fail(FilterReason.NOT_REMOTE, f"on-site: {location_raw!r}")
+        return FilterResult.fail(FilterReason.REGION_LOCKED, f"blocked location: {location_raw!r}")
+    elif acc == "UNKNOWN":
+        return FilterResult.review(f"location not stated / unknown: {location_raw!r}")
     return FilterResult.ok()
 
 
@@ -306,7 +277,8 @@ def apply(job: Dict[str, Any]) -> FilterResult:
     if not result.passed:
         return result
 
-    result = _check_region(is_remote, location_raw, remote_restriction, desc)
+    accessibility = job.get("accessibility")
+    result = _check_region(title, is_remote, location_raw, remote_restriction, desc, accessibility=accessibility)
     if not result.passed:
         return result
 

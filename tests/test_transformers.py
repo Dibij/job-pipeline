@@ -72,3 +72,50 @@ def test_transformer_dispatcher():
 
     with pytest.raises(ValueError, match="No transformer registered"):
         transform_raw_listing("unknown_source", {})
+
+
+# ---------------------------------------------------------------------------
+# 6a Regression tests: remote_restriction defaults (Bug: was "Worldwide")
+# ---------------------------------------------------------------------------
+
+def test_arbeitnow_remote_restriction_is_unspecified():
+    """Arbeitnow does not expose a restriction field — must store 'unspecified', never 'Worldwide'."""
+    job = transform_arbeitnow({"slug": "s1", "title": "Dev", "company_name": "C", "remote": True})
+    assert job.remote_restriction == "unspecified", (
+        f"Expected 'unspecified', got {job.remote_restriction!r}. "
+        "Defaulting to 'Worldwide' incorrectly marks all Arbeitnow jobs as Nepal-accessible."
+    )
+
+
+def test_arbeitnow_non_remote_restriction_is_unspecified():
+    """Arbeitnow non-remote job also has no restriction field."""
+    job = transform_arbeitnow({"slug": "s2", "title": "Dev", "company_name": "C", "remote": False})
+    assert job.remote_restriction == "unspecified"
+
+
+def test_remotive_empty_location_is_unspecified():
+    """Remotive job with no candidate_required_location must store 'unspecified', never 'Worldwide'."""
+    job = transform_remotive({"id": 1, "title": "Dev", "company_name": "C", "candidate_required_location": ""})
+    assert job.remote_restriction == "unspecified", (
+        f"Expected 'unspecified', got {job.remote_restriction!r}. "
+        "Source said nothing about location — 'Worldwide' is a false assumption."
+    )
+
+
+def test_remotive_none_location_is_unspecified():
+    """Remotive job with missing candidate_required_location key must store 'unspecified'."""
+    job = transform_remotive({"id": 2, "title": "Dev", "company_name": "C"})
+    assert job.remote_restriction == "unspecified"
+
+
+def test_remotive_explicit_worldwide_preserved():
+    """When Remotive explicitly says 'Worldwide', preserve it (this makes the job ACCESSIBLE)."""
+    job = transform_remotive({"id": 3, "title": "Dev", "company_name": "C", "candidate_required_location": "Worldwide"})
+    assert job.remote_restriction == "Worldwide"
+
+
+def test_remotive_explicit_usa_preserved():
+    """When Remotive explicitly says 'USA', preserve it (this will be BLOCKED)."""
+    job = transform_remotive({"id": 4, "title": "Dev", "company_name": "C", "candidate_required_location": "USA"})
+    assert job.remote_restriction == "USA"
+

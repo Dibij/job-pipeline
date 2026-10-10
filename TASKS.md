@@ -51,6 +51,24 @@
 - [x] 6.3 Package pipeline runner into a scheduled daily script.
 - [ ] 6.4 Wire the web dashboard (`tools/app.py`) to use the new hard-filter output.
 
+## Phase 6 Refinements: Accessibility, Thresholds & Evaluation
+- [x] 6a **Accessibility Architecture** (highest priority):
+  - Add migration 006: `accessibility` column (`ACCESSIBLE`, `BLOCKED`, `UNKNOWN`). Retain `nepal_accessible` until verified.
+  - Normalization fix: never default `remote_restriction` to "Worldwide" or "Remote". Store source value or "unspecified".
+  - 3-state `accessibility` logic: `accessible` (explicit worldwide/global/Nepal), `blocked` (exclusive lists, title region codes EMEA/NA/EU/US/LATAM, city-level locations), `unknown` (all others, including APAC/Asia).
+  - Re-normalize all jobs from `raw_job_listings`.
+  - `HardFilter` disqualifies only `blocked`. `FEED.md` groups `accessible` first and `unknown` in separate section ("location not stated").
+- [ ] 6b **Feed Threshold**:
+  - Require matched skills OR technical title signal (`cv_profile.json` -> `technical_title_signals`). Remote bonus alone does not qualify. Drop placeholder titles ("template", "test").
+- [ ] 6c **UNPAID False Positives**:
+  - Contextual matching for "unpaid" (unpaid internship/role/position/volunteer, "this is an unpaid ..."). Regression tests.
+- [ ] 6d **Enrichment Integration & Backfill**:
+  - Re-run check, run enrichment in normalization pipeline for new jobs, backfill existing DB rows.
+- [ ] 6e **Evaluation & Calibration Alignment**:
+  - Population = hard-filter survivors. Metrics: PR@10, REC@10, REC@20, PR-AUC with bootstrap CIs ($n$ & $pos$). Feed precision of top 10. Terminology: "decision model". Reconcile `laya_temperatures_v1.json` label count across TASKS/PROGRESS/SESSION.
+- [ ] 6f **Sources Research**:
+  - Read terms/limits for Himalayas, Jobicy, Merojob. Document rate limits & location exposure. Quote sources directly.
+
 ## Phase 7: Laya Scoring
 - [x] 7.1 Spike: run Laya locally on one hard-coded example and print raw output. Record hardware, speed, and token limit in PROGRESS.md.
 - [x] 7.2 JD section extraction: `src/matching/jd_extractor.py`. Heading + keyword rules, graceful fallback. 24 tests.

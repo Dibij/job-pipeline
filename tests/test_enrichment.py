@@ -91,3 +91,68 @@ def test_extract_tech_tags():
     assert "react" in tags
     assert "next.js" in tags
     assert "postgresql" in tags
+
+
+# ---------------------------------------------------------------------------
+# 6a Regression tests: detect_accessibility_3state
+# ---------------------------------------------------------------------------
+
+def test_accessibility_worldwide_explicit():
+    """Remotive job that explicitly says 'Worldwide' → ACCESSIBLE."""
+    assert JobEnricher.detect_accessibility_3state("Backend Dev", True, "", "Worldwide") == "ACCESSIBLE"
+
+
+def test_accessibility_unspecified_restriction_is_unknown():
+    """Arbeitnow remote job with no restriction info → UNKNOWN (not ACCESSIBLE)."""
+    assert JobEnricher.detect_accessibility_3state("Backend Dev", True, "Remote", "unspecified") == "UNKNOWN"
+
+
+def test_accessibility_empty_restriction_is_unknown():
+    """Both location and restriction empty → UNKNOWN."""
+    assert JobEnricher.detect_accessibility_3state("Backend Dev", True, "", "unspecified") == "UNKNOWN"
+
+
+def test_accessibility_nepal_in_location():
+    """Nepal mentioned in location_raw → ACCESSIBLE."""
+    assert JobEnricher.detect_accessibility_3state("Dev", True, "Nepal or worldwide", "") == "ACCESSIBLE"
+
+
+def test_accessibility_usa_country_only_blocked():
+    """Single-country restriction 'USA' → BLOCKED."""
+    assert JobEnricher.detect_accessibility_3state("Backend Dev", True, "", "USA") == "BLOCKED"
+
+
+def test_accessibility_switzerland_blocked():
+    """Switzerland-only restriction → BLOCKED."""
+    assert JobEnricher.detect_accessibility_3state("Dev", True, "", "Switzerland") == "BLOCKED"
+
+
+def test_accessibility_emea_in_title_blocked():
+    """EMEA region code in title → BLOCKED."""
+    assert JobEnricher.detect_accessibility_3state("Backend Dev - EMEA", True, "", "unspecified") == "BLOCKED"
+
+
+def test_accessibility_us_in_title_blocked():
+    """US region code in title → BLOCKED."""
+    assert JobEnricher.detect_accessibility_3state("Senior Dev (US)", True, "Remote", "unspecified") == "BLOCKED"
+
+
+def test_accessibility_onsite_berlin_blocked():
+    """On-site role in Berlin → BLOCKED."""
+    assert JobEnricher.detect_accessibility_3state("Dev", False, "Berlin, Germany", "") == "BLOCKED"
+
+
+def test_accessibility_apac_is_unknown():
+    """APAC is ambiguous — may or may not include Nepal → UNKNOWN."""
+    assert JobEnricher.detect_accessibility_3state("Dev", True, "", "APAC") == "UNKNOWN"
+
+
+def test_accessibility_asia_is_unknown():
+    """'Asia' is ambiguous → UNKNOWN (not ACCESSIBLE)."""
+    assert JobEnricher.detect_accessibility_3state("Dev", True, "Asia", "unspecified") == "UNKNOWN"
+
+
+def test_accessibility_remote_generic_is_unknown():
+    """Generic 'Remote' with no restriction info → UNKNOWN."""
+    assert JobEnricher.detect_accessibility_3state("Dev", True, "Remote", "unspecified") == "UNKNOWN"
+

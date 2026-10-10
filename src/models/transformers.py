@@ -58,7 +58,7 @@ def transform_arbeitnow(payload: Dict[str, Any]) -> NormalizedJob:
         company_name=payload.get("company_name", "Unknown Company"),
         location_raw=payload.get("location"),
         is_remote=bool(payload.get("remote", False)),
-        remote_restriction="Worldwide" if payload.get("remote") else None,
+        remote_restriction="unspecified",  # Arbeitnow does not expose a restriction field
         job_type=job_type_str,
         description_text=plain_desc,
         description_html=raw_desc,
@@ -80,7 +80,7 @@ def transform_remotive(payload: Dict[str, Any]) -> NormalizedJob:
 
     location = payload.get("candidate_required_location") or ""
     is_remote = True  # All Remotive jobs are remote
-    remote_restriction = location.strip() if location else "Worldwide"
+    remote_restriction = location.strip() if location else "unspecified"  # source says nothing → unspecified
 
     return NormalizedJob(
         source="remotive",

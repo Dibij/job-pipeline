@@ -115,20 +115,85 @@ class JobEnricher:
         return any(re.search(pat, combined, re.IGNORECASE) for pat in UNPAID_PATTERNS)
 
     @staticmethod
+    def detect_accessibility_3state(
+        title: str, is_remote: bool, location_raw: str, remote_restriction: str
+    ) -> str:
+        """Classify accessibility into 3 states: ACCESSIBLE, BLOCKED, or UNKNOWN.
+
+        Rules:
+          - ACCESSIBLE: explicit positive evidence (worldwide, anywhere, global,
+            work from anywhere, all time zones, Nepal, Kathmandu, Lalitpur, or location
+            string including Nepal).
+          - BLOCKED: country/region lists excluding Nepal, region codes in title
+            (EMEA, NA, EU, US, USA, LATAM), city-level locations (Berlin, Munich, Koln, Paris, etc.),
+            or on-site abroad.
+          - UNKNOWN: everything else, including APAC, Asia, South Asia (without explicit Nepal/worldwide),
+            and generic/unspecified locations.
+        """
+        title_upper = (title or "").upper()
+        loc = (location_raw or "").strip()
+        restr = (remote_restriction or "").strip()
+        if restr.lower() in ("worldwide", "remote", "unspecified"):
+            combined = loc.lower()
+            if restr.lower() == "worldwide":
+                combined += " worldwide"
+        else:
+            combined = f"{loc} {restr}".lower()
+
+        # 1. Region codes in title -> BLOCKED
+        title_region_codes = ["EMEA", "NA", "EU", "US", "USA", "LATAM"]
+        for code in title_region_codes:
+            if re.search(rf"\b{code}\b", title_upper):
+                return "BLOCKED"
+
+        # 2. Nepal explicit mention -> ACCESSIBLE
+        if any(term in combined for term in ["nepal", "kathmandu", "lalitpur"]):
+            return "ACCESSIBLE"
+
+        # 3. Explicit positive evidence -> ACCESSIBLE
+        positive_terms = [
+            "worldwide", "anywhere", "global", "work from anywhere",
+            "all time zones", "all timezones", "everywhere"
+        ]
+        if any(term in combined for term in positive_terms):
+            return "ACCESSIBLE"
+
+        # 4. On-site abroad -> BLOCKED
+        if not is_remote:
+            return "BLOCKED"
+
+        # 5. Exclusive country/region lists or city-level locations -> BLOCKED
+        blocked_locations = [
+            "usa", "united states", "us", "canada", "switzerland", "schweiz", "suisse",
+            "germany", "deutschland", "france", "frankreich", "uk", "united kingdom",
+            "australia", "ireland", "netherlands", "spain", "espagne", "poland", "japan",
+            "turkey", "vietnam", "mexico", "norway", "israel", "brazil", "argentina",
+            "americas", "europe", "latam", "latin america", "northern america",
+            "berlin", "munich", "münchen", "köln", "cologne", "hamburg", "bonn",
+            "bielefeld", "paris", "la chaux-de-fonds", "mendrisio", "homeoffice"
+        ]
+
+        for term in blocked_locations:
+            if re.search(rf"\b{re.escape(term)}\b", combined):
+                if not any(p in combined for p in positive_terms):
+                    return "BLOCKED"
+
+        # 6. UNKNOWN for everything else (including APAC, Asia, empty/unspecified)
+        return "UNKNOWN"
+
+    @staticmethod
     def detect_nepal_accessible(
         is_remote: bool, location_raw: str, remote_restriction: str
     ) -> bool:
-        """Check if role is realistically accessible from Nepal."""
+        """Check if role is realistically accessible from Nepal (legacy boolean)."""
         loc_str = f"{location_raw or ''} {remote_restriction or ''}".lower()
 
-        # If on-site in Nepal
         if any(term in loc_str for term in ["nepal", "kathmandu", "lalitpur"]):
             return True
 
         if not is_remote:
             return False
 
-        # If remote with strict exclusionary locks
         restricted_regions = [
             "us only", "usa only", "united states only",
             "eu only", "europe only", "uk only", "united kingdom only",
@@ -138,7 +203,6 @@ class JobEnricher:
         if any(re.search(rf"\b{re.escape(reg)}\b", loc_str) for reg in restricted_regions):
             return False
 
-        # Open worldwide / remote friendly
         worldwide_terms = [
             "worldwide", "anywhere", "global", "all locations",
             "apac", "asia", "south asia"
@@ -146,7 +210,6 @@ class JobEnricher:
         if any(term in loc_str for term in worldwide_terms):
             return True
 
-        # If remote is true and no negative restriction found, assume open
         return True
 
     @staticmethod
@@ -184,5 +247,6 @@ class JobEnricher:
             "experience_level": cls.detect_seniority(title, desc),
             "is_unpaid": cls.detect_unpaid(title, desc),
             "nepal_accessible": cls.detect_nepal_accessible(is_remote, loc, restriction),
+            "accessibility": cls.detect_accessibility_3state(title, is_remote, loc, restriction),
             "tags": cls.extract_tech_tags(title, desc, existing_tags),
         }

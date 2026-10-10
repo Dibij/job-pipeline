@@ -17,7 +17,8 @@ class NormalizedJob(BaseModel):
     company_url: Optional[str] = None
     location_raw: Optional[str] = None
     is_remote: bool = False
-    remote_restriction: Optional[str] = None
+    remote_restriction: Optional[str] = "unspecified"
+    accessibility: Optional[str] = "UNKNOWN"
     job_type: Optional[str] = None
     experience_level: Optional[str] = "unspecified"
     description_text: str

@@ -1,48 +1,52 @@
-# 🚀 Job Feed — Top Matched Roles
+# Job Feed — Top Matched Roles
 
-> **Total Scanned Jobs:** 1512 | **Eligible Matches:** 29 | **Showing Top:** 29
+> **Total Unique Postings:** 1845 | **Verified Accessible:** 1 | **Location Not Stated / Unknown:** 23
 
-| Rank | Score | Job Title | Company | Location / Remote | Matched Skills | Apply Link |
-| :---: | :---: | :--- | :--- | :--- | :--- | :---: |
-| 1 | **67.6** | AI Response Evaluator | iMerit Technology | 🌐 Remote (France, Japan, Turkey, Vietnam, Mexico, Norway) | `—` | [Apply ↗](https://remotive.com/remote-jobs/artificial-intelligence/ai-response-evaluator-2091126) |
-| 2 | **60.9** | Content Reviewer - United States | TELUS Digital | 🌐 Remote (USA) | `ai/ml` | [Apply ↗](https://remotive.com/remote-jobs/all-others/content-reviewer-united-states-2091144) |
-| 3 | **59.4** | Freelance Writer | IAPWE | 🌐 Remote (Worldwide) | `rest-api` | [Apply ↗](https://remotive.com/remote-jobs/writing/freelance-writer-1185979) |
-| 4 | **54.1** | Linguist - Shona - UI Technical / Marketing - Remote | LILT (Production) | 🌐 Remote (Remote) | `ai/ml` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/lilt-production/linguist-shona-ui-technical-marketing-remote-109403) |
-| 5 | **54.1** | Linguist - Wolof - UI Technical / Marketing - Remote | LILT (Production) | 🌐 Remote (Remote) | `ai/ml` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/lilt-production/linguist-wolof-ui-technical-marketing-remote-364477) |
-| 6 | **53.2** | Linguist - Oromo - UI Technical / Marketing - Remote | LILT (Production) | 🌐 Remote (Remote) | `ai/ml` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/lilt-production/linguist-oromo-ui-technical-marketing-remote-228585) |
-| 7 | **52.6** | AI Response Evaluator | iMerit Technology | 🌐 Remote (France, Japan, Turkey, Vietnam, Mexico, Norway) | `—` | [Apply ↗](https://remotive.com/remote-jobs/artificial-intelligence/ai-response-evaluator-2091126) |
-| 8 | **52.2** | Voice Actor: CX Agent Voice Cloning (Swiss German) | Weekday 1 | 🌐 Remote (Switzerland) | `ai/ml` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/weekday-1/remote-voice-actor-cx-agent-voice-cloning-swiss-german-switzerland-438891) |
-| 9 | **52.2** | Forward Deployed Engineer - EMEA | gitlab | 🌐 Remote (Remote) | `typescript, postgresql, rest-api, ai/ml` | [Apply ↗](https://www.arbeitnow.com/jobs/companies/gitlab/remote-forward-deployed-engineer-emea-407864) |
-| 10 | **52.1** | Forward Deployed Engineer - EMEA | gitlab | 🌐 Remote (Remote) | `typescript, postgresql, rest-api, ai/ml` | [Apply ↗](https://www.arbeitnow.com/jobs/companies/gitlab/remote-forward-deployed-engineer-emea-407864) |
-| 11 | **52.0** | Linguist - Malagasy - UI Technical / Marketing - Remote | LILT (Production) | 🌐 Remote (Remote) | `ai/ml` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/lilt-production/linguist-malagasy-ui-technical-marketing-remote-353908) |
-| 12 | **51.7** | Frontend Web Application Developer | KoboToolbox | 🌐 Remote (USA, Canada, Argentina, Mexico, Peru) | `—` | [Apply ↗](https://remotive.com/remote-jobs/design/frontend-web-application-developer-2091141) |
-| 13 | **50.9** | Account Executive France | Peripass | 🌐 Remote (Remote job) | `—` | [Apply ↗](https://www.arbeitnow.fr/jobs/companies/peripass/remote-account-executive-france-paris-205180) |
-| 14 | **50.9** | Freelance Copywriter | Coalition Technologies | 🌐 Remote (Worldwide) | `—` | [Apply ↗](https://remotive.com/remote-jobs/writing/freelance-copywriter-1749306) |
-| 15 | **50.7** | Account Executive France | Peripass | 🌐 Remote (Remote job) | `—` | [Apply ↗](https://www.arbeitnow.fr/jobs/companies/peripass/remote-account-executive-france-paris-205180) |
-| 16 | **50.6** | Linguist - Mongolian - UI Technical / Marketing - Remote | LILT (Production) | 🌐 Remote (Remote) | `ai/ml` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/lilt-production/linguist-mongolian-ui-technical-marketing-remote-165068) |
-| 17 | **50.5** | Linguist - Mongolian - UI Technical / Marketing - Remote | LILT (Production) | 🌐 Remote (Remote) | `ai/ml` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/lilt-production/linguist-mongolian-ui-technical-marketing-remote-165068) |
-| 18 | **49.9** | Network Operation Engineer | Share | 🌐 Remote (Remote) | `python, rest-api, ai/ml, llm` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/share/remote-network-operation-engineer-411432) |
-| 19 | **49.9** | Network Operation Engineer | Share | 🌐 Remote (Remote) | `python, rest-api, ai/ml, llm` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/share/remote-network-operation-engineer-411432) |
-| 20 | **49.0** | Freelance Copywriter | Coalition Technologies | 🌐 Remote (Worldwide) | `—` | [Apply ↗](https://remotive.com/remote-jobs/writing/freelance-copywriter-1749306) |
-| 21 | **48.6** | Remote Office Assistant | Coalition Technologies | 🌐 Remote (Worldwide) | `git` | [Apply ↗](https://remotive.com/remote-jobs/marketing/remote-office-assistant-1680495) |
-| 22 | **48.6** | Remote Office Assistant | Coalition Technologies | 🌐 Remote (Worldwide) | `git` | [Apply ↗](https://remotive.com/remote-jobs/marketing/remote-office-assistant-1680495) |
-| 23 | **48.6** | Remote Office Assistant | Coalition Technologies | 🌐 Remote (Worldwide) | `git` | [Apply ↗](https://remotive.com/remote-jobs/marketing/remote-office-assistant-1680495) |
-| 24 | **47.0** | Technicien de maintenance d'instruments de mesure (H/F) | PRECIA MOLEN | 🌐 Remote (Poste à distance) | `—` | [Apply ↗](https://www.arbeitnow.fr/jobs/companies/precia-molen/remote-technicien-de-maintenance-dinstruments-de-mesure-h-f-la-chapelle-saint-aubin-243885) |
-| 25 | **40.9** | Content Reviewer - United States | TELUS Digital | 🌐 Remote (USA) | `ai/ml` | [Apply ↗](https://remotive.com/remote-jobs/all-others/content-reviewer-united-states-2091144) |
-| 26 | **37.3** | Voice Actor: CX Agent Voice Cloning (Swiss German) | Weekday 1 | 🌐 Remote (Switzerland) | `ai/ml` | [Apply ↗](https://www.arbeitnow.ch/jobs/companies/weekday-1/remote-voice-actor-cx-agent-voice-cloning-swiss-german-switzerland-438891) |
-| 27 | **36.9** | Technicien de maintenance d'instruments de mesure (H/F) | PRECIA MOLEN | 🌐 Remote (Poste à distance) | `—` | [Apply ↗](https://www.arbeitnow.fr/jobs/companies/precia-molen/remote-technicien-de-maintenance-dinstruments-de-mesure-h-f-la-chapelle-saint-aubin-243885) |
-| 28 | **36.9** | Technicien de maintenance d'instruments de mesure (H/F) | PRECIA MOLEN | 🌐 Remote (Poste à distance) | `—` | [Apply ↗](https://www.arbeitnow.fr/jobs/companies/precia-molen/remote-technicien-de-maintenance-dinstruments-de-mesure-h-f-la-chapelle-saint-aubin-243885) |
-| 29 | **36.6** | Frontend Web Application Developer | KoboToolbox | 🌐 Remote (USA, Canada, Argentina, Mexico, Peru) | `—` | [Apply ↗](https://remotive.com/remote-jobs/design/frontend-web-application-developer-2091141) |
+## 🌐 Verified Accessible Jobs
+| Rank | Match | Laya | Job Title | Company | Location | Matched Skills | Apply |
+| :---: | :---: | :---: | :--- | :--- | :--- | :--- | :---: |
+| 1 | **19.8** | 49 | Remote Office Assistant | Coalition Technologies | Remote (Worldwide) | `git` | [Apply](https://remotive.com/remote-jobs/marketing/remote-office-assistant-1680495) |
+
+## ❓ Location Not Stated / Unknown
+> *These jobs pass hard filters but have no explicit worldwide/Nepal qualification. Review location before applying.*
+
+| Rank | Match | Laya | Job Title | Company | Location | Matched Skills | Apply |
+| :---: | :---: | :---: | :--- | :--- | :--- | :--- | :---: |
+| 1 | **65.0** | — | Technical Customer Support Specialist | Happyrobot.ai | Remote (Remote) | `python`, `react`, `typescript`, `node.js` | [Apply](https://www.arbeitnow.ch/jobs/companies/happyrobotai/remote-technical-customer-support-specialist-54073) |
+| 2 | **51.9** | — | Applied AI Engineer | ElevenLabs | Remote (Remote) | `python`, `ai/ml`, `llm`, `sql` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-applied-ai-engineer-404690) |
+| 3 | **50.7** | 50 | Network Operation Engineer | Share | Remote (Remote) | `python`, `ai/ml`, `llm`, `git` | [Apply](https://www.arbeitnow.ch/jobs/companies/share/remote-network-operation-engineer-411432) |
+| 4 | **36.4** | — | Machine Learning Scientist | Nucs AI | Remote (Remote job) | `python`, `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/nucs-ai/remote-machine-learning-scientist-berlin-216070) |
+| 5 | **32.9** | — | Marketing Data Scientist | ElevenLabs | Remote (Remote) | `python`, `sql` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-marketing-data-scientist-133130) |
+| 6 | **32.9** | — | Data Scientist - Product Analytics | ElevenLabs | Remote (Remote) | `python`, `sql` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-data-scientist-product-analytics-364885) |
+| 7 | **30.5** | — | Software Engineer, Clinical AI Devices | DeepHealth | Remote (Remote job) | `ai/ml`, `docker` | [Apply](https://www.arbeitnow.fr/jobs/companies/deephealth/remote-software-engineer-clinical-ai-devices-paris-321935) |
+| 8 | **25.7** | — | Software Engineer, Product (Full-Stack: Angular, Kotlin, MongoDB) | Vestlane | Remote (Berlin) | `typescript` | [Apply](https://www.arbeitnow.com/jobs/companies/vestlane/software-engineer-product-full-stack-angular-kotlin-mongodb-berlin-365981) |
+| 9 | **23.3** | — | iOS Developer (Radiotech) | Gismart | Remote (Remote) | `rest-api` | [Apply](https://www.arbeitnow.ch/jobs/companies/gismart/remote-ios-developer-radiotech-406158) |
+| 10 | **15.0** | — | Content Editor | Higgsfield | Remote (Remote) | — | [Apply](https://www.arbeitnow.ch/jobs/companies/higgsfield/remote-content-editor-407861) |
+| 11 | **15.0** | — | SAP DRC Consultant (m/f/d) Roll-out UAE (Ref.Nr.: 47948) | Wavestone Germany AG | Remote (Munich) | — | [Apply](https://www.arbeitnow.com/jobs/companies/wavestone-germany-ag/sap-drc-consultant-roll-out-uae-refnr-47948-munich-361347) |
+| 12 | **15.0** | — | Impact Producer | ElevenLabs | Remote (Remote) | — | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-impact-producer-82619) |
+| 13 | **15.0** | — | Video / Content Creator (mit Hund), Mini Job von zu Hause | BodyFokus GmbH | Remote (Köln) | — | [Apply](https://www.arbeitnow.com/jobs/companies/bodyfokus-gmbh/video-content-creator-mit-hund-mini-job-von-zu-hause-koln-431467) |
+| 14 | **15.0** | — | In-House Content Creator (Freelance) | Paintgun | Remote (Berlin) | — | [Apply](https://www.arbeitnow.com/jobs/companies/paintgun/in-house-content-creator-freelance-berlin-325016) |
+| 15 | **15.0** | — | Value Strategist | ElevenLabs | Remote (Remote) | — | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-value-strategist-347405) |
+| 16 | **15.0** | — | Freelancer - Group Fitness Instructor (m/w/d) | PureGym AG | Remote (Homeoffice) | — | [Apply](https://www.arbeitnow.ch/jobs/companies/puregym-ag/remote-freelancer-group-fitness-instructor-la-chaux-de-fonds-96975) |
+| 17 | **15.0** | — | Full-stack Engineer - Creative Agents | ElevenLabs | Remote (Remote) | — | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-full-stack-engineer-creative-agents-292788) |
+| 18 | **15.0** | — | Non-Eng Template | ElevenLabs | Remote (Remote) | — | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-non-eng-template-442587) |
+| 19 | **15.0** | — | Motion Designer (DanceBit) | Gismart | Remote (Remote) | — | [Apply](https://www.arbeitnow.ch/jobs/companies/gismart/remote-motion-designer-dancebit-169389) |
+| 20 | **15.0** | — | Video Editor:in | ROCC Film | Remote (Berlin) | — | [Apply](https://www.arbeitnow.com/jobs/companies/rocc-film/video-editorin-berlin-350139) |
+| 21 | **15.0** | — | Accounts Payable Specialist (Poland) | ElevenLabs | Remote (Remote) | — | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-accounts-payable-specialist-poland-134822) |
+| 22 | **15.0** | — | Spinning Disk Confocal Specialist – Advanced Life Science Systems, Central Europe | EVIDENT Europe GmbH | Remote (Hamburg) | — | [Apply](https://www.arbeitnow.com/jobs/companies/evident-europe-gmbh/spinning-disk-confocal-specialist-advanced-life-science-systems-central-europe-hamburg-343137) |
+| 23 | **15.0** | — | Full-Stack Engineer (Backend Leaning) - Creative Agents | ElevenLabs | Remote (Remote) | — | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-full-stack-engineer-backend-leaning-creative-agents-323217) |
 
 ---
 ### 📊 Disqualification Breakdown
-| Disqualification Reason | Jobs Killed |
-| :--- | :---: |
-| `INACCESSIBLE` | 1412 |
-| `GERMAN` | 9 |
-| `UNPAID` | 15 |
-| `SENIOR` | 40 |
-| `NON_TECHNICAL` | 7 |
-| `OTHER` | 0 |
+| Reason | Count | Example Titles |
+| :--- | :---: | :--- |
+| `NOT_REMOTE` | 1103 | People & Operations Associate; Head of Engineering; Senior Engineer, Autonomy and Motion Pla |
+| `NON_ENGLISH` | 513 | Technicien de maintenance d'instruments ; Full Stack Developer - Data Factory (f/m; Senior HR People & Talent Partner (m/w/d |
+| `UNPAID` | 53 | Data & AI Engineer Intern (6 months); Senior Software Developer – Platform & I; Senior PR Manager |
+| `REGION_LOCKED` | 16 | Senior React Full-stack Developer; Software Engineer / AI Code Trainer (Pyt; Senior Forward Deployed Engineer - NA |
+| `NON_TECHNICAL` | 96 | Account Executive – Full-Cycle, New Busi; Commercial Account Executive, Growth | R; Account Executive |
+| `SENIOR` | 37 | Creative Marketing Manager (DanceBit); Customer Success Manager - 1 Year Matern; Senior Software Engineer, Quality |
+| `LOW_SCORE` | 3 | Security Engineer - GRC; Insurance Risk & Strategy; Analytics and pricing expert - Insurance |
 
-*Generated automatically by `scripts/export_feed.py`.*
+*Ranked by MatchScorer. Laya score shown for reference only (uncalibrated until M1).*
+*Generated by `scripts/export_feed.py`.*
