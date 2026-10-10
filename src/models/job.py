@@ -19,6 +19,9 @@ class NormalizedJob(BaseModel):
     is_remote: bool = False
     remote_restriction: Optional[str] = "unspecified"
     accessibility: Optional[str] = "UNKNOWN"
+    detected_language: Optional[str] = "english"
+    is_unpaid: bool = False
+    nepal_accessible: bool = False
     job_type: Optional[str] = None
     experience_level: Optional[str] = "unspecified"
     description_text: str

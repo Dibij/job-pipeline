@@ -20,13 +20,15 @@ class JobRepository:
                 location_raw, is_remote, remote_restriction, accessibility, job_type,
                 experience_level, description_text, description_html,
                 apply_url, salary_min, salary_max, salary_currency,
-                tags, posted_at, expires_at, fingerprint_hash
+                tags, posted_at, expires_at, fingerprint_hash,
+                detected_language, is_unpaid, nepal_accessible
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s, %s
+                %s, %s, %s, %s,
+                %s, %s, %s
             )
             ON CONFLICT (fingerprint_hash) DO UPDATE SET
                 title = EXCLUDED.title,
@@ -37,6 +39,10 @@ class JobRepository:
                 remote_restriction = COALESCE(EXCLUDED.remote_restriction, jobs.remote_restriction),
                 accessibility = EXCLUDED.accessibility,
                 job_type = COALESCE(EXCLUDED.job_type, jobs.job_type),
+                experience_level = EXCLUDED.experience_level,
+                detected_language = EXCLUDED.detected_language,
+                is_unpaid = EXCLUDED.is_unpaid,
+                nepal_accessible = EXCLUDED.nepal_accessible,
                 description_text = EXCLUDED.description_text,
                 description_html = COALESCE(EXCLUDED.description_html, jobs.description_html),
                 apply_url = EXCLUDED.apply_url,
@@ -70,6 +76,9 @@ class JobRepository:
             job.posted_at,
             job.expires_at,
             job.fingerprint_hash,
+            job.detected_language,
+            job.is_unpaid,
+            job.nepal_accessible,
         )
 
         with get_connection(autocommit=False) as conn:

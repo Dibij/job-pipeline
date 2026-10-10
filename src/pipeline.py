@@ -5,6 +5,7 @@ from typing import Dict, Any
 from src.db.repository import JobRepository
 from src.extractors import ArbeitnowExtractor, RemotiveExtractor
 from src.models import transform_raw_listing
+from src.enrichment.enricher import JobEnricher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -60,6 +61,15 @@ class JobPipeline:
             payload = item["payload"]
             try:
                 norm_job = transform_raw_listing(source, payload)
+                # Task 6d: Run enrichment inside normalization pipeline
+                enrichment = JobEnricher.enrich_job(norm_job.model_dump())
+                norm_job.experience_level = enrichment["experience_level"]
+                norm_job.detected_language = enrichment["detected_language"]
+                norm_job.is_unpaid = enrichment["is_unpaid"]
+                norm_job.nepal_accessible = enrichment["nepal_accessible"]
+                norm_job.accessibility = enrichment["accessibility"]
+                norm_job.tags = enrichment["tags"]
+
                 normalized_jobs.append(norm_job)
                 processed_ids.append(raw_id)
             except Exception as exc:

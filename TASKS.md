@@ -62,8 +62,8 @@
   - Require matched skills OR technical title signal (`cv_profile.json` -> `technical_title_signals`). Remote bonus alone does not qualify. Drop placeholder titles ("template", "test"). (Dropped 20 non-technical/placeholder roles; kept roles like "Full-stack Engineer - Creative Agents").
 - [x] 6c **UNPAID False Positives**:
   - Contextual matching for "unpaid" (unpaid internship/role/position/volunteer, "this is an unpaid ..."). Regression tests. (UNPAID reduced from 53 to 1 true positive; 52 false positives eliminated).
-- [ ] 6d **Enrichment Integration & Backfill**:
-  - Re-run check, run enrichment in normalization pipeline for new jobs, backfill existing DB rows.
+- [x] 6d **Enrichment Integration & Backfill**:
+  - Re-run check (42.1% experience_level changed, 95.8% tags changed). Ran enrichment inside `JobPipeline.process_staged()` for new jobs and backfilled all 1,846 existing DB rows via `scripts/backfill_enrichment.py`. Unspecified experience dropped from 1,440 to 710.
 - [ ] 6e **Evaluation & Calibration Alignment**:
   - Population = hard-filter survivors. Metrics: PR@10, REC@10, REC@20, PR-AUC with bootstrap CIs ($n$ & $pos$). Feed precision of top 10. Terminology: "decision model". Reconcile `laya_temperatures_v1.json` label count across TASKS/PROGRESS/SESSION.
 - [ ] 6f **Sources Research**:
