@@ -68,6 +68,48 @@ def test_detect_unpaid():
     assert JobEnricher.detect_unpaid("Junior Developer", "Competitive salary.") is False
 
 
+# ---------------------------------------------------------------------------
+# 6c Regression tests: Contextual UNPAID detection (Credit Wellness fix)
+# ---------------------------------------------------------------------------
+
+def test_credit_wellness_not_unpaid():
+    """Credit Wellness sales training ('Week 0: Unpaid Week 1: $100') must NOT be flagged unpaid."""
+    cw_title = "Inside Sales Contractor"
+    cw_desc = (
+        "Commission with Guaranteed Minimums: You will receive commissions or guaranteed minimums, "
+        "whichever amount benefits you most. Week 0: Unpaid Week 1: $100 guaranteed minimum "
+        "Week 2: $150 guaranteed minimum Week 3: $200 guaranteed minimum"
+    )
+    assert JobEnricher.detect_unpaid(cw_title, cw_desc) is False, (
+        "Credit Wellness was incorrectly disqualified as UNPAID due to bare 'unpaid' keyword."
+    )
+
+
+def test_real_unpaid_indiekidz_detected():
+    """IndieKidz GmbH real unpaid internship must be detected."""
+    title = "(Unpaid) Mandatory Internship : Software Test (QA) Automation Engineer"
+    desc = "We are seeking a motivated intern. This is an unpaid mandatory internship for enrolled students."
+    assert JobEnricher.detect_unpaid(title, desc) is True
+
+
+def test_paid_volunteer_time_off_not_unpaid():
+    """Perks mentioning 'paid volunteer time off' or 'volunteering day' must NOT be flagged unpaid."""
+    title = "Senior Software Engineer, Prime"
+    desc = "Competitive salary, 401(k), parental leave, and paid volunteer time off. 2 volunteering days per year."
+    assert JobEnricher.detect_unpaid(title, desc) is False
+
+
+def test_equity_only_detected():
+    """Equity-only roles must be detected as unpaid."""
+    assert JobEnricher.detect_unpaid("Founding Engineer", "This is an equity only co-founder role.") is True
+
+
+def test_unpaid_position_phrase_detected():
+    """Explicit phrases like 'this role is unpaid' must be detected."""
+    assert JobEnricher.detect_unpaid("Frontend Intern", "Please note that this position is unpaid.") is True
+
+
+
 def test_detect_nepal_accessible():
     """Verify geo-restriction checks."""
     # Worldwide remote

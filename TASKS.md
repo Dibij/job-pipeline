@@ -60,8 +60,8 @@
   - `HardFilter` disqualifies only `blocked`. `FEED.md` groups `accessible` first and `unknown` in separate section ("location not stated").
 - [x] 6b **Feed Threshold**:
   - Require matched skills OR technical title signal (`cv_profile.json` -> `technical_title_signals`). Remote bonus alone does not qualify. Drop placeholder titles ("template", "test"). (Dropped 20 non-technical/placeholder roles; kept roles like "Full-stack Engineer - Creative Agents").
-- [ ] 6c **UNPAID False Positives**:
-  - Contextual matching for "unpaid" (unpaid internship/role/position/volunteer, "this is an unpaid ..."). Regression tests.
+- [x] 6c **UNPAID False Positives**:
+  - Contextual matching for "unpaid" (unpaid internship/role/position/volunteer, "this is an unpaid ..."). Regression tests. (UNPAID reduced from 53 to 1 true positive; 52 false positives eliminated).
 - [ ] 6d **Enrichment Integration & Backfill**:
   - Re-run check, run enrichment in normalization pipeline for new jobs, backfill existing DB rows.
 - [ ] 6e **Evaluation & Calibration Alignment**:

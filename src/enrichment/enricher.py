@@ -24,7 +24,14 @@ INTERN_TITLE_PATTERNS = [
 ]
 
 UNPAID_PATTERNS = [
-    r"\b(unpaid|non-paid|volunteer|volunteering|no compensation|equity only|unverg\u00fctet)\b"
+    r"\b(?:unpaid|non-paid|unverg\u00fctet)\s+(?:internship|intern|position|role|job|opportunity|work|contract)\b",
+    r"\b(?:this\s+(?:is\s+an?|role\s+is|position\s+is|internship\s+is))\s+(?:unpaid|non-paid|unverg\u00fctet)\b",
+    r"\b(?:position|role|internship|job)\s+is\s+(?:unpaid|non-paid|unverg\u00fctet)\b",
+    r"\bunpaid\s+volunteer\b",
+    r"\b(?:no\s+compensation|equity\s+only)\b",
+    r"^\s*\(?unpaid\)?\b",
+    r"\bvolunteer\s+(?:developer|engineer|programmer|intern|position|role)\b",
+    r"^\s*\(?volunteer\)?\s+\w+",
 ]
 
 TECH_KEYWORDS_MAP = {

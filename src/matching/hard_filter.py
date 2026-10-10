@@ -129,10 +129,14 @@ def _check_language(title: str, description: str, detected_language: str) -> Fil
 # Unpaid detection
 # ---------------------------------------------------------------------------
 _UNPAID_PATTERNS = [
-    re.compile(
-        r"\b(unpaid|non-paid|volunteer|volunteering|no compensation|equity only|unvergütet)\b",
-        re.IGNORECASE,
-    ),
+    re.compile(r"\b(?:unpaid|non-paid|unvergütet)\s+(?:internship|intern|position|role|job|opportunity|work|contract)\b", re.IGNORECASE),
+    re.compile(r"\b(?:this\s+(?:is\s+an?|role\s+is|position\s+is|internship\s+is))\s+(?:unpaid|non-paid|unvergütet)\b", re.IGNORECASE),
+    re.compile(r"\b(?:position|role|internship|job)\s+is\s+(?:unpaid|non-paid|unvergütet)\b", re.IGNORECASE),
+    re.compile(r"\bunpaid\s+volunteer\b", re.IGNORECASE),
+    re.compile(r"\b(?:no\s+compensation|equity\s+only)\b", re.IGNORECASE),
+    re.compile(r"^\s*\(?unpaid\)?\b", re.IGNORECASE),
+    re.compile(r"\bvolunteer\s+(?:developer|engineer|programmer|intern|position|role)\b", re.IGNORECASE),
+    re.compile(r"^\s*\(?volunteer\)?\s+\w+", re.IGNORECASE),
 ]
 
 
