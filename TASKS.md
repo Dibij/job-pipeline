@@ -30,6 +30,21 @@
 - [x] 5b.2 Fix seniority detection: prefer title over body, use word boundaries, treat body-only hits as weak evidence. Regression tests. Re-run enrichment, show before/after counts.
 - [x] 5b.3 Split hard filters from scoring. Extract German/unpaid/region-locked disqualifiers from `MatchScorer` into a `HardFilter` module with reason codes. Scoring runs only on passing jobs. Update tests, keep all passing, show before/after top-20 ranking.
 
+## Phase 5c: Pipeline Hygiene (do before 7.7b)
+- [/] 5c.1 **AUDIT (read-only)** — find all feed/labeling hygiene issues before fixing anything. Report:
+  - Duplicate appearance root causes (FEED.md repeats same job multiple times).
+  - Filter holes: non-English non-German languages (French from arbeitnow.fr), country-locked locations (USA/Switzerland/etc. without Nepal), non-technical titles (linguist, copywriter, voice actor, account executive, etc.).
+  - Scorer breakdown for top 10 jobs: why a zero-matched-skills job can rank high.
+  - Supply: per-source unique jobs, passing jobs, unlabeled passing jobs, new per daily run.
+  - Label hygiene: duplicate labels (same URL or company+title), labeled-but-not-hard-filter-survivors, labeled-but-no-Laya-score; explain why 7.8a saw only 17 labels.
+- [ ] 5c.2 **FIXES** (one per commit, regression tests, suite stays green — only after 5c.1 approved):
+  - **5c.2a** De-duplicate FEED.md output: query uses `DISTINCT ON (job_id)` taking the latest score row per job. Test: FEED.md has no repeated job_id.
+  - **5c.2b** Language filter: extend HardFilter beyond German to flag any non-English detected_language (French, etc.) with reason code `NON_ENGLISH`. Test: French arbeitnow.fr jobs are disqualified.
+  - **5c.2c** Accessibility check: detect country-locked location strings (USA, Canada, Switzerland, etc. without Nepal/worldwide/global) and set `nepal_accessible=False` or add `REGION_LOCKED` reason code. Test: "Remote (USA)", "Remote (Switzerland)" are blocked.
+  - **5c.2d** Non-technical title filter: add title-based keyword blocklist (linguist, copywriter, writer, voice actor, account executive, content reviewer, office assistant, technicien, maintenance) to HardFilter with reason code `NON_TECHNICAL`. Test: all 22 flagged titles in audit are disqualified.
+  - **5c.2e** Scorer weight fix: `skill_points` must dominate; a job with zero matched skills must score < remote_bonus alone. Review `score_breakdown` weights in MatchScorer. Test: zero-skill jobs rank below jobs with >= 1 matched skill.
+  - Show before/after FEED.md top-20 after all fixes.
+
 ## Phase 6: Output & Automation
 - [x] 6.1 Implement `FEED.md` exporter: ranked table of jobs that passed hard filters, with score, title, company, location/remote, matched skills, and apply link. Include a section showing filter reason-code counts.
 - [x] 6.2 Build interactive CLI query tool for reviewing top matches.
@@ -51,7 +66,7 @@
   - Add `label_guideline_version` column to `laya_labels` (or store in `metadata` JSONB key).
   - Update `scripts/export_for_labeling.py` to implement the three strata (random 40%, high_match_scorer 30%, laya_uncertainty 30% -- laya_uncertainty falls back to random until 7.8a).
   - Hide or remove Laya score/confidence columns from the exported labeling CSV to prevent anchoring bias.
-- [x] 7.8a Temperature calibration: fit a temperature on labeled data to fix Laya's uncalibrated confidence. Evaluate before/after on held-out folds (repeated stratified grouped k-fold). Save temperature as versioned config. Report calibration quality and ranking metrics (precision@k, recall@k, PR-AUC with bootstrap CIs). Use natural-distribution data -- never rebalance the calibration set.
+- [x] 7.8a Temperature calibration: **PROVISIONAL** — ran on 17 unique labeled+scored jobs (187 question records). Too small for reliable calibration. Must be re-run at M1 (~150 labels, including the random stratum). `use_confidence_flag` stays `false` until M1. Saves temperature as versioned config. At M1: evaluate with held-out folds, report calibration quality and ranking metrics (precision@k, recall@k, PR-AUC with bootstrap CIs). Never rebalance the calibration set.
 - [ ] 7.8b **BLOCKED (M3)** Fine-tune Laya decision head: supervised head training with proper scoring rules (Brier/RPS). Gated on:
   - >= 150 labeled rows total
   - >= 30 `good_fit` labels (`min_positive_labels`, configurable -- default 30)

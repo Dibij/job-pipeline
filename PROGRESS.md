@@ -50,14 +50,61 @@ See `TRAINING.md` for full rationale. Summary:
 ---
 
 ## What's Broken / Incomplete
-- Task 7.7b NOT STARTED: `laya_labels` table missing `sampling_stratum` and `label_guideline_version`; export CSV still shows Laya columns.
-- Task 7.8a NOT RUN yet with the fixed calibrate script (needs re-run after Oct 9 fix).
+- **7.8a PROVISIONAL**: calibration ran on only 17 unique labeled+scored jobs (17 of 86 labels had a matching `laya_job_scores` row at calibration time; batch scoring only covered the 43 `is_remote AND en AND nepal_accessible` eligible jobs, and only 17 of those were labeled). Temperatures in `config/laya_temperatures_v1.json` must not be used for gating. Re-run at M1.
+- **`use_confidence_flag: false`** on disk — correct, leave it there.
+- **5c.1 Audit DONE** (read-only, Oct 10 2026) — see report in PROGRESS.md §Audit section below.
+- **5c.2 Fixes NOT STARTED** — waiting on your approval of the audit report.
+- Task 7.7b NOT STARTED (blocked behind 5c.2).
 - Task 7.8b BLOCKED: needs 150+ labels and 30+ `good_fit` (currently 9).
 - Task 7.9 NOT STARTED: no per-source / per-stratum report script.
-- Full Laya batch scoring (`score_jobs.py` without `--limit`) on 1,194 jobs -- pending.
-- Task 6.4 (dashboard wired to hard-filter output) -- not started.
+- Full Laya batch scoring (no `--limit`) on 1,464 jobs — not run on the 270 new jobs added Oct 9.
+- Task 6.4 (dashboard wired to hard-filter output) — not started.
+
+---
+
+## 5c.1 Audit Results (Oct 10 2026)
+
+### 1. Duplicates
+- **jobs table**: 1,464 rows, all with unique `external_id`, `apply_url`, and `fingerprint_hash`. No duplicate job rows.
+- **job_matches**: 1,464 rows, one per job (no fan-out). `laya_job_scores`: 91 rows covering 43 distinct jobs (up to ~2 score rows per job from the 91/43 ratio — Laya multi-question storage).
+- **Root cause of FEED.md repeats**: `export_feed.py` does a plain `LEFT JOIN job_matches m ON j.id = m.job_id` and `LEFT JOIN laya_job_scores l ON j.id = l.job_id` **without DISTINCT**, producing a cross-product when a job has multiple `laya_job_scores` rows. iMerit (2 laya rows × 1 match row = 2 feed rows), Coalition Office Assistant (3 laya rows = 3 feed rows), LILT Mongolian (2 laya rows across 2 job rows from .ch vs .fr = 2 rows), PRECIA MOLEN (4 distinct job rows with different fingerprints from .fr non-remote vs .ch remote URLs).
+- **Label duplicates**: 17 company+title pairs labeled twice (same job exported from two sources with slightly different fingerprints, or same batch exported twice). E.g. iMerit, Coalition, LILT Mongolian, PRECIA MOLEN, TELUS Digital all duplicated.
+
+### 2. Filter Holes (83 jobs currently passing HardFilter)
+22 of 83 passing jobs have at least one issue:
+
+| Issue type | Count | Examples |
+|-----------|-------|---------|
+| **NON_TECH_TITLE** | 18 | Linguist (6×), Account Executive (6×), Freelance Writer/Copywriter, Voice Actor, Office Assistant, Content Reviewer, Technicien maintenance |
+| **COUNTRY_LOCK** (location without Nepal) | 6 | "Europe, USA, Canada, APAC" (Lemon.io), "USA" (TELUS), "Switzerland" (Voice Actor), "USA, Canada, USA timezones" (Mitre Media) |
+| Both flags | 2 | Voice Actor Swiss German, TELUS Content Reviewer |
+
+Key gaps in HardFilter: (a) no non-technical title check at all, (b) only `detected_language='german'` blocked — French (`arbeitnow.fr`) passes, (c) `nepal_accessible` flag is set by enrichment but the location string check misses "Switzerland" and compound lists like "Europe, USA, Canada, APAC".
+
+### 3. Scorer Breakdown
+The top-scoring job in today's snapshot is "Technical Customer Support Specialist" (Happyrobot.ai, score 65.0) with 7 matched skills — that's correct. The FEED.md showed "AI Response Evaluator" at 67.6 because the feed query was joining without DISTINCT, and one laya_job_scores row for it had a higher `final_score` (Laya score) than the MatchScorer score for another job. After deduplication, the top-10 MatchScorer results all have matched skills.
+
+MatchScorer formula: `skill_points + remote_bonus (15) + adjustments`. Skill points = sum of per-skill weights. A zero-skill job gets 0 + 15 = 15 from remote bonus alone; the current FEED.md shows two zero-skill jobs at 0.0 and 15.0, which is reasonable. The 67.6 in old FEED.md came from Laya's `final_score` (Laya scoring scale, not MatchScorer scale) bleeding into the feed sort due to the join fan-out.
+
+### 4. Supply
+| Source | Total jobs | Passing HardFilter | Unlabeled+Passing |
+|--------|-----------|-------------------|-------------------|
+| arbeitnow | 1,445 | 72 | 25 |
+| remotive | 19 | 11 | 0 |
+| **Total** | **1,464** | **83** | **25** |
+
+- Only 1 scoring run captured (Oct 9, all 1,464 jobs scored in one batch). Cannot estimate per-daily-run yield yet.
+- 25 unlabeled passing jobs available right now. At ~20 labels/session, M1 (150 labels) needs 64 more → ~3–4 labeling sessions assuming daily fetches add ~10–15 new passing jobs each.
+- `raw_job_listings` has 1,599 rows (135 more than `jobs` — those were fetched but failed normalization or deduplication). FEED.md "1512 scanned" figure came from a previous run when `raw_job_listings` had 1,512 rows; the export_feed total reflects `len(rows)` from the join query, not the raw table count.
+
+### 5. Label Hygiene
+- **86 labels total**; 17 company+title pairs are duplicated (one job cross-posted on .ch and .fr Arbeitnow, labeled twice from different batches).
+- **58 of 86** labeled jobs are current HardFilter survivors (reason_code = NULL).
+- **43 of 86** have a Laya score in `laya_job_scores`.
+- **Why calibration saw only 17**: Laya batch scoring (7.6-FULL) ran on the 43 jobs meeting the strict eligibility filter at scoring time (`is_remote AND detected_language='en' AND nepal_accessible=true`). At that time only 17 of those 43 had human labels → those 17 fed calibration. The remaining 69 labeled jobs had no Laya score (either not eligible or labeled after batch scoring ran).
 
 ---
 
 ## Next Step
-**Task 7.7b** -- add `sampling_stratum` and `label_guideline_version` to the labeling schema and hide Laya columns from the export CSV. This unblocks clean stratified labeling towards M1 (150 labels).
+Review and approve the 5c.1 audit above. Once approved, start **5c.2a** (de-duplicate the FEED.md join) as the first fix commit.
+
