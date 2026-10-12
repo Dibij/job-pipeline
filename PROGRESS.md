@@ -109,5 +109,74 @@ MatchScorer formula: `skill_points + remote_bonus (15) + adjustments`. Skill poi
 
 ---
 
+- **6e EVALUATION DONE** (Oct 11 2026) — evaluate_scoring.py rewritten per TRAINING.md §7. Survivors (n=11, pos=3): recall@20=1.000, precision@10=0.300, PR-AUC=0.232. All labeled (n=69, pos=6): recall@20=0.667. Committed 3b51817.
+
+---
+
+## 6f Sources Research (Oct 11 2026)
+
+### Himalayas
+Source read: `https://himalayas.app/api` (fetched 2026-10-10, page says "Current as of Oct 10, 2026")
+
+**Rate limit** (quoted from FAQ): *"The API is rate limited. Exceeding the limit returns a 429 Too Many Requests response. Data is cached every 24 hours, so polling more than once per day provides no benefit. Contact hi@himalayas.app for higher limits."* No numeric requests-per-minute published.
+
+**Page size**: *"As of 24th March 2025, we have reduced the maximum limit to 20 jobs per request to improve performance and reliability."* Max `limit=20` per request; use cursor pagination.
+
+**Location fields** on each job:
+- `locationRestrictions` (optional array): *"Country where candidates must be located, there can be more than one"*
+- `timezoneRestrictions` (optional array): *"Time zone (UTC) where candidates must be located, there can be more than one"*
+
+**Attribution**: *"If you display Himalayas job data on your own website or application, include a visible link back to himalayas.app and mention that the data is sourced from Himalayas."* Also: *"Please do not submit Himalayas jobs to third-party websites, including but not limited to Jooble, Neuvoo, Google Jobs, or LinkedIn Jobs."*
+
+**Proposed accessibility mapping for `locationRestrictions` / `timezoneRestrictions`:**
+
+| API value | Mapping | Rationale |
+|---|---|---|
+| `locationRestrictions` absent / null | `UNKNOWN` | No geo restriction stated |
+| Contains "Worldwide", "Global", "Anywhere" | `ACCESSIBLE` | Explicit no-restriction signal |
+| Contains "Nepal" | `ACCESSIBLE` | Explicit mention |
+| Contains only APAC / Asia (no Nepal) | `UNKNOWN` | Region might include Nepal; cannot confirm |
+| Contains only specific countries excluding Nepal (e.g. "USA", "Germany") | `BLOCKED` | Confirmed exclusion |
+| `timezoneRestrictions` absent / null | no change | Defer to `locationRestrictions` |
+| `timezoneRestrictions` includes UTC+5:30 or UTC+5:45 | `ACCESSIBLE` (upgrade) | Nepal time zone explicitly OK |
+| `timezoneRestrictions` includes only UTC-5 to UTC+2 ranges | `BLOCKED` | Nepal (UTC+5:45) outside window |
+
+---
+
+### Jobicy
+Source read: `https://jobicy.com/api/v2/remote-jobs` (live JSON response, fetched 2026-10-11). Docs page `https://jobi.cy/apidocs` returned 403.
+
+**Friendly notice** in API response (verbatim): *"Thanks for using Jobicy API! Please ensure Jobicy is clearly credited with a direct link to the source, and all application buttons redirect to the original job URL provided in this feed. That's all! You might be building something amazing, we wish you the best of luck!"*
+
+**Rate limit**: No numeric limit published in the JSON response or accessible docs. Fair use implied; 429 returned on excess. (Source: web search cross-check + observed API response structure.)
+
+**Key fields**:
+- `jobGeo`: single string geo restriction per job (e.g. `"USA"`, `"Worldwide"`, `"Australia"`)
+- `count` param: max 50 jobs per request (default 20 per observed `jobCount` in response)
+- No authentication required
+
+**Proposed accessibility mapping for `jobGeo`:**
+
+| `jobGeo` value | Mapping |
+|---|---|
+| `"Anywhere"`, `"Worldwide"`, `"Global"`, `""` (empty) | `ACCESSIBLE` |
+| `"Nepal"` | `ACCESSIBLE` |
+| `"APAC"`, `"Asia"` | `UNKNOWN` |
+| Single country NOT Nepal (e.g. `"USA"`, `"Australia"`) | `BLOCKED` |
+| Multi-country list not containing Nepal | `BLOCKED` |
+
+---
+
+### Merojob
+Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `robots.txt` previously confirmed: empty `Disallow`, `ai-train=no`.
+
+**Scraping prohibition** (verbatim from Section 3.E "License to use the Site"): *"Data scraping, automated bots, or other tools for collecting or mining personal or professional data"* are explicitly listed under "this license does not allow". No public API exists.
+
+**Governing law**: *"These terms and conditions are governed by and construed in accordance with the laws of the Federal Democratic Republic of Nepal. You agree, as we do, to submit to the exclusive jurisdiction of the courts in Kathmandu."* (Section 3.T)
+
+**Conclusion**: Merojob cannot be scraped. No extractor should be built. `robots.txt` `ai-train=no` means job description text **must never be used for fine-tuning** even if somehow accessed. Record this as a hard rule in TRAINING.md.
+
+---
+
 ## Next Step
 Proceed with **Task 7.7b** — add `sampling_stratum` and `label_guideline_version` to the `laya_labels` schema and export script, and hide Laya columns from the labeling CSV to prevent anchoring bias.

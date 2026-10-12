@@ -66,8 +66,10 @@
   - Re-run check (42.1% experience_level changed, 95.8% tags changed). Ran enrichment inside `JobPipeline.process_staged()` for new jobs and backfilled all 1,846 existing DB rows via `scripts/backfill_enrichment.py`. Unspecified experience dropped from 1,440 to 710.
 - [x] 6e **Evaluation & Calibration Alignment**:
   - Population = hard-filter survivors (n=11, pos=3). Metrics per TRAINING.md §7: recall@20 (1.000), recall@10 (1.000), precision@10 (0.300), precision@20 (0.273), PR-AUC (0.232) with 95% bootstrap CIs. Feed precision of top 10: good_fit=2, maybe=2, bad_fit=4, unlabeled=2. Terminology: 'decision model' used throughout. Reconciled `laya_temperatures_v1.json` (69 labels confirmed).
-- [ ] 6f **Sources Research**:
-  - Read terms/limits for Himalayas, Jobicy, Merojob. Document rate limits & location exposure. Quote sources directly.
+- [x] 6f **Sources Research** (Oct 11 2026) — See PROGRESS.md §6f for full quoted findings.
+  - **Himalayas**: Free public JSON API. Rate limit: 429 returned if exceeded; no numeric limit published. Data cached every 24 h; polling more often provides no benefit. Max 20 jobs/request. `locationRestrictions` and `timezoneRestrictions` fields on each job. Attribution required (link back + mention Himalayas). Source: `https://himalayas.app/api` (FAQ section, fetched 2026-10-10).
+  - **Jobicy**: Free public API (no key). `jobGeo` field per job. No numeric rate limit published; 429 returned on excess; fair-use only. `count` param (up to 50). Source: API JSON response header + friendly notice in `https://jobicy.com/api/v2/remote-jobs`.
+  - **Merojob**: Nepal-focused job board. Terms explicitly prohibit "Data scraping, automated bots, or other tools for collecting or mining personal or professional data." No public API. `robots.txt` empty Disallow but `ai-train=no`. **Never use Merojob text for fine-tuning.** Source: `https://merojob.com/terms-and-conditions/` (section 3.E, fetched 2026-10-11).
 
 ## Phase 7: Laya Scoring
 - [x] 7.1 Spike: run Laya locally on one hard-coded example and print raw output. Record hardware, speed, and token limit in PROGRESS.md.
