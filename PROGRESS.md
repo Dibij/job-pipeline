@@ -58,10 +58,9 @@ See `TRAINING.md` for full rationale. Summary:
 - **6b FEED THRESHOLD & PLACEHOLDER FILTERING DONE** (Oct 11 2026) — Technical title signals in `cv_profile.json`, placeholder detection ('template', 'test'). Dropped 20 roles (1 PLACEHOLDER, 19 NO_TECH_SIGNAL without matched skills); kept 10 unknown + 1 accessible in FEED.md (including zero-skill tech roles like "Full-stack Engineer - Creative Agents"). 6 regression tests added (suite 105 green).
 - **6c UNPAID FALSE POSITIVE FIX DONE** (Oct 11 2026) — Replaced bare keyword matching with contextual patterns (`unpaid internship/role/position`, `this role is unpaid`, `equity only`, etc.). Disqualified UNPAID count dropped from 53 to 1 true positive (`IndieKidz GmbH | (Unpaid) Mandatory Internship`); 52 false positives eliminated (Credit Wellness sales commission, Robinhood & Contabo volunteer day benefits). 5 regression tests added (suite 110 green).
 - **6d ENRICHMENT PIPELINE INTEGRATION & BACKFILL DONE** (Oct 11 2026) — Verified that 42.1% of jobs (777/1846) had stored experience_level differences and 95.8% had tag changes. Wired `JobEnricher.enrich_job()` directly into `JobPipeline.process_staged()` and `JobRepository.upsert_job()`. Backfilled all 1,846 DB jobs via `scripts/backfill_enrichment.py`. Unspecified experience level dropped from 1,440 (78%) to 710 (38%); senior 346 -> 897, intern 36 -> 118, junior 15 -> 67, mid 9 -> 54. Suite: 110 green.
-- Task 7.7b READY TO START — add `sampling_stratum` and `label_guideline_version` to schema, hide Laya columns in export CSV.
+- **7.7b LABELING SCHEMA & EXPORT HYGIENE DONE** (Oct 13 2026) — Migration 007 added `sampling_stratum` and `label_guideline_version`. 3-stratum sampling (40% random, 30% high_match_scorer, 30% laya_uncertainty with fallback) in `export_for_labeling.py`. Laya internal scores/confidence omitted from export CSV. Ingestion updated. 9 regression tests added (`test_export_labeling.py`).
 - Task 7.8b BLOCKED: needs M3 (500+ labels, 30+ `good_fit`).
-- Task 7.9 NOT STARTED: report script.
-- Task 6.4 (dashboard wired to hard-filter output) — not started.
+- Task 7.9 NOT STARTED: report script (`scripts/report_labels.py`).
 - Task 6.4 (dashboard wired to hard-filter output) — not started.
 
 ---
@@ -178,5 +177,16 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
 
 ---
 
+## 7.7b Labeling Protocol & Schema Hygiene (Oct 13 2026)
+- **Migration 007**: Added `sampling_stratum VARCHAR(32)` and `label_guideline_version VARCHAR(16)` to `laya_labels` table.
+- **Stratified Export (`scripts/export_for_labeling.py`)**:
+  - Implemented 3-stratum sampling allocation: 40% `random`, 30% `high_match_scorer`, 30% `laya_uncertainty` (falls back to random when no Laya-scored jobs are available).
+  - Explicitly excluded Laya score & confidence columns from output CSV to prevent anchoring bias during human labeling.
+  - Added `sampling_stratum` and `label_guideline_version` (defaulting to `"v1"`) columns to CSV.
+- **Ingestion (`scripts/ingest_labels.py`)**: Updated to ingest `sampling_stratum` and `label_guideline_version` into database columns.
+- **Test Suite**: Added `tests/test_export_labeling.py` with 9 regression tests covering allocation math, stratum ranking, Laya column exclusion, and fallback behavior. All 9 tests passing.
+
+---
+
 ## Next Step
-Proceed with **Task 7.7b** — add `sampling_stratum` and `label_guideline_version` to the `laya_labels` schema and export script, and hide Laya columns from the labeling CSV to prevent anchoring bias.
+Proceed with **Task 7.9** — build report script (`scripts/report_labels.py`) for per-source counts/rates, per-stratum breakdown, and small-sample caveat warnings.

@@ -1,20 +1,24 @@
-"""Export unlabeled jobs to a single master CSV for human labeling (Task 7.8).
+"""Export unlabeled jobs to a CSV for human labeling (Task 7.7b).
 
-Uses stratified sampling across score bands (high, medium, low) to ensure a balanced
-mix of positive, borderline, and negative examples for Laya model calibration/training.
-Preserves existing human labels in data/labeling_master.csv.
+Implements three-stratum sampling per TRAINING.md §6:
+  - 40% random: unbiased sample from all eligible unlabeled jobs
+  - 30% high_match_scorer: top MatchScorer-ranked jobs (good positive recall)
+  - 30% laya_uncertainty: lowest Laya confidence (falls back to random when <7.8a)
+
+IMPORTANT: Laya score and confidence columns are EXCLUDED from the output CSV
+to prevent anchoring bias. The labeler must not see Laya's opinion.
 
 Usage:
-    python scripts/export_for_labeling.py --batch-size 50
+    python -m scripts.export_for_labeling --batch-size 30
+    python -m scripts.export_for_labeling --batch-size 50 --output data/batch_YYYYMMDD.csv
 """
 import argparse
 import csv
 from datetime import datetime
 import logging
-import os
-from pathlib import Path
 import random
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -25,136 +29,207 @@ from src.db.connection import execute_query
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-MASTER_CSV_PATH = PROJECT_ROOT / "data" / "labeling_master.csv"
+LABEL_GUIDELINE_VERSION = "v1"
+DATA_DIR = PROJECT_ROOT / "data"
+
+# Stratum allocation fractions (must sum to 1.0)
+STRATUM_FRACTIONS = {
+    "random": 0.40,
+    "high_match_scorer": 0.30,
+    "laya_uncertainty": 0.30,
+}
+
+# NOTE: Laya internal score & confidence columns are intentionally OMITTED
+# to prevent anchoring bias during manual labeling.
+EXPORT_FIELDNAMES = [
+    "job_id",
+    "title",
+    "company",
+    "location",
+    "experience_level",
+    "match_score",
+    "matched_skills",
+    "apply_url",
+    "sampling_stratum",
+    "label_guideline_version",
+    "my_label",    # labeler fills this in
+    "notes",       # labeler fills this in
+]
 
 
-def load_existing_master_labels() -> Dict[str, Dict[str, str]]:
-    """Load existing labels and notes from data/labeling_master.csv if present."""
-    if not MASTER_CSV_PATH.exists():
-        return {}
-
-    existing = {}
-    try:
-        with open(MASTER_CSV_PATH, "r", encoding="utf-8-sig", errors="replace") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                jid = row.get("job_id")
-                if jid:
-                    existing[jid] = {
-                        "my_label": (row.get("my_label") or "").strip(),
-                        "notes": (row.get("notes") or "").strip()
-                    }
-    except Exception as e:
-        logger.warning("Could not read existing master CSV: %s", e)
-
-    return existing
-
-
-def export_unlabeled_jobs(batch_size: int = 50, output_file: Optional[Path] = None):
-    target_path = output_file or MASTER_CSV_PATH
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-
-    existing_master_labels = load_existing_master_labels()
-
-    # Query all unlabeled jobs passing basic location & language filters
-    # joined with laya_job_scores and job_matches
-    logger.info("Fetching candidate jobs for labeling from PostgreSQL...")
-
+def _fetch_eligible_jobs() -> List[Dict[str, Any]]:
+    """Return all unlabeled jobs that pass basic filters, with MatchScorer and Laya data."""
     rows = execute_query("""
-        SELECT j.id, j.title, j.company_name, j.location_raw, j.apply_url, j.company_url,
-               j.is_remote, j.experience_level,
-               COALESCE(l.final_score, m.match_score, 0) AS score,
-               COALESCE(l.role_type, 'unscored') AS role_type,
-               m.matched_skills
+        SELECT
+            j.id,
+            j.title,
+            j.company_name,
+            j.location_raw,
+            j.apply_url,
+            j.company_url,
+            j.is_remote,
+            j.experience_level,
+            j.accessibility,
+            COALESCE(m.match_score, 0.0)        AS match_score,
+            m.matched_skills,
+            m.reason_code,
+            -- Laya data: used ONLY for stratum selection, never exported
+            l.final_score                        AS laya_final_score,
+            l.avg_confidence                     AS laya_avg_confidence
         FROM jobs j
+        LEFT JOIN job_matches m   ON j.canonical_job_id = m.job_id OR j.id = m.job_id
         LEFT JOIN laya_job_scores l ON j.id = l.job_id
-        LEFT JOIN job_matches m ON j.id = m.job_id
         LEFT JOIN laya_labels lbl ON j.id = lbl.job_id
         WHERE lbl.id IS NULL
           AND j.is_remote = true
-          AND (j.detected_language IS NULL OR j.detected_language != 'german')
+          AND (j.detected_language IS NULL OR j.detected_language NOT IN ('french', 'german'))
           AND j.is_unpaid = false
-        ORDER BY COALESCE(l.final_score, m.match_score, 0) DESC;
+          AND j.accessibility IN ('ACCESSIBLE', 'UNKNOWN')
+          -- Hard-filter survivors only (reason_code IS NULL means passed all filters)
+        ORDER BY m.match_score DESC NULLS LAST
     """)
+    return rows or []
 
-    if not rows:
-        logger.info("No unlabeled jobs found in database.")
-        return
 
-    logger.info("Found %d eligible unlabeled jobs.", len(rows))
+def _select_stratum(
+    pool: List[Dict], target_n: int, key_fn, ascending: bool = False
+) -> List[Dict]:
+    """Select up to target_n items from pool by sorting on key_fn."""
+    sorted_pool = sorted(pool, key=key_fn, reverse=not ascending)
+    return sorted_pool[:target_n]
 
-    # Stratified Sampling: Divide into 3 bands (High score >= 50, Mid 35-50, Low < 35)
-    high_band = [r for r in rows if r["score"] >= 50.0]
-    mid_band = [r for r in rows if 35.0 <= r["score"] < 50.0]
-    low_band = [r for r in rows if r["score"] < 35.0]
 
-    logger.info("Stratified Pool Breakdown: High (%d), Mid (%d), Low (%d)",
-                len(high_band), len(mid_band), len(low_band))
+def _allocate(total: int, fractions: Dict[str, float]) -> Dict[str, int]:
+    """Allocate total into per-stratum integer counts (floor, then give remainder to random)."""
+    counts = {k: int(total * f) for k, f in fractions.items()}
+    remainder = total - sum(counts.values())
+    counts["random"] += remainder  # give rounding remainder to the baseline stratum
+    return counts
 
-    # Allocate target sample counts per band
-    target_high = min(len(high_band), max(1, batch_size // 3))
-    target_mid = min(len(mid_band), max(1, batch_size // 3))
-    target_low = min(len(low_band), batch_size - target_high - target_mid)
 
-    selected_high = high_band[:target_high]
-    selected_mid = mid_band[:target_mid]
-    selected_low = low_band[:target_low]
+def export_labeling_batch(
+    batch_size: int = 30,
+    output_file: Optional[Path] = None,
+    seed: int = 42,
+) -> Path:
+    random.seed(seed)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    selected_rows = selected_high + selected_mid + selected_low
-    logger.info("Selected %d jobs (%d High, %d Mid, %d Low) for labeling master file.",
-                len(selected_rows), len(selected_high), len(selected_mid), len(selected_low))
+    if output_file is None:
+        stamp = datetime.now().strftime("%Y%m%d")
+        output_file = DATA_DIR / f"labeling_batch_{stamp}.csv"
 
-    fieldnames = [
-        "job_id", "title", "company", "score", "role_type",
-        "location", "matched_skills", "apply_url", "my_label", "notes"
-    ]
+    logger.info("Fetching eligible unlabeled jobs from DB...")
+    all_jobs = _fetch_eligible_jobs()
+    if not all_jobs:
+        logger.warning("No unlabeled jobs found. Nothing to export.")
+        return output_file
 
+    logger.info("Eligible unlabeled pool: %d jobs", len(all_jobs))
+
+    # --- Stratum selection ---
+    alloc = _allocate(min(batch_size, len(all_jobs)), STRATUM_FRACTIONS)
+    logger.info("Stratum allocation: %s", alloc)
+
+    selected: Dict[str, List[Dict]] = {}
+
+    # 1. high_match_scorer: top by match_score
+    selected["high_match_scorer"] = _select_stratum(
+        all_jobs, alloc["high_match_scorer"],
+        key_fn=lambda r: float(r["match_score"] or 0),
+        ascending=False,
+    )
+
+    # 2. laya_uncertainty: lowest avg_confidence among jobs that HAVE a Laya score
+    #    Falls back to random sample when no scored jobs exist.
+    scored = [r for r in all_jobs if r.get("laya_avg_confidence") is not None]
+    if scored:
+        selected["laya_uncertainty"] = _select_stratum(
+            scored, alloc["laya_uncertainty"],
+            key_fn=lambda r: float(r["laya_avg_confidence"] or 1.0),
+            ascending=True,  # ascending → lowest confidence first
+        )
+    else:
+        logger.info("No Laya-scored jobs found; laya_uncertainty falls back to random.")
+        selected["laya_uncertainty"] = random.sample(
+            all_jobs, min(alloc["laya_uncertainty"], len(all_jobs))
+        )
+
+    # 3. random: from what remains after the other two strata (de-duped by id)
+    used_ids = {str(r["id"]) for pool in selected.values() for r in pool}
+    remaining = [r for r in all_jobs if str(r["id"]) not in used_ids]
+    n_random = min(alloc["random"], len(remaining))
+    selected["random"] = random.sample(remaining, n_random) if remaining else []
+
+    # Flatten and tag with stratum
     entries = []
-    for r in selected_rows:
-        jid = str(r["id"])
-        prev = existing_master_labels.get(jid, {})
-        skills = r.get("matched_skills") or []
-        if isinstance(skills, str):
-            try:
-                import json
-                skills = json.loads(skills)
-            except Exception:
-                skills = []
-        skills_str = ", ".join(skills[:4]) if skills else ""
-        link = r.get("apply_url") or r.get("company_url") or ""
+    for stratum, rows in selected.items():
+        for r in rows:
+            entries.append((stratum, r))
 
-        entries.append({
-            "job_id": jid,
-            "title": r["title"] or "Untitled",
-            "company": r["company_name"] or "Unknown",
-            "score": round(float(r["score"] or 0.0), 1),
-            "role_type": r["role_type"],
-            "location": r["location_raw"] or ("Remote" if r.get("is_remote") else ""),
-            "matched_skills": skills_str,
-            "apply_url": link,
-            "my_label": prev.get("my_label", ""),
-            "notes": prev.get("notes", "")
-        })
+    logger.info(
+        "Selected %d jobs  (%d random, %d high_match_scorer, %d laya_uncertainty)",
+        len(entries),
+        len(selected["random"]),
+        len(selected["high_match_scorer"]),
+        len(selected["laya_uncertainty"]),
+    )
 
-    with open(target_path, "w", newline="", encoding="utf-8-sig") as f:
+    # --- Write CSV ---
+    fieldnames = EXPORT_FIELDNAMES
+
+    with open(output_file, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(entries)
+        for stratum, r in entries:
+            skills = r.get("matched_skills") or []
+            if isinstance(skills, str):
+                try:
+                    import json
+                    skills = json.loads(skills)
+                except Exception:
+                    skills = []
+            link = r.get("apply_url") or r.get("company_url") or ""
 
-    print(f"\n" + "=" * 65)
-    print(f"  MASTER LABELING FILE UPDATED: {target_path}")
-    print("=" * 65)
-    print(f"  Total Exported Queue: {len(entries)} jobs")
-    print(f"  Stratified Mix      : {len(selected_high)} High Score (>=50), {len(selected_mid)} Mid (35-50), {len(selected_low)} Low (<35)")
-    print("-" * 65)
-    print(f"  Open {target_path} in Excel/VS Code.")
-    print("  Fill 'my_label' with: good_fit, maybe, or bad_fit.")
-    print(f"  Then ingest anytime via: python scripts/ingest_labels.py {target_path}\n")
+            writer.writerow({
+                "job_id": str(r["id"]),
+                "title": r.get("title") or "Untitled",
+                "company": r.get("company_name") or "Unknown",
+                "location": r.get("location_raw") or ("Remote" if r.get("is_remote") else ""),
+                "experience_level": r.get("experience_level") or "",
+                "match_score": round(float(r.get("match_score") or 0), 1),
+                "matched_skills": ", ".join(skills[:5]) if skills else "",
+                "apply_url": link,
+                "sampling_stratum": stratum,
+                "label_guideline_version": LABEL_GUIDELINE_VERSION,
+                "my_label": "",
+                "notes": "",
+            })
+
+    print(f"\n{'=' * 65}")
+    print(f"  LABELING BATCH EXPORTED: {output_file}")
+    print(f"{'=' * 65}")
+    print(f"  Total jobs:        {len(entries)}")
+    print(f"  random:            {len(selected['random'])}")
+    print(f"  high_match_scorer: {len(selected['high_match_scorer'])}")
+    print(f"  laya_uncertainty:  {len(selected['laya_uncertainty'])}")
+    print(f"  guideline version: {LABEL_GUIDELINE_VERSION}")
+    print(f"{'-' * 65}")
+    print(f"  Fill 'my_label': good_fit | maybe | bad_fit")
+    print(f"  Do NOT look at Laya scores before labeling (they are not in this file).")
+    print(f"  Ingest: python -m scripts.ingest_labels {output_file}\n")
+
+    return output_file
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Export master labeling CSV.")
-    parser.add_argument("--batch-size", type=int, default=50, help="Total jobs to include in master CSV.")
-    parser.add_argument("--no-rescore", action="store_true", help="Legacy flag (retained for backward compatibility).")
+    parser = argparse.ArgumentParser(description="Export labeling batch with 3-stratum sampling.")
+    parser.add_argument("--batch-size", type=int, default=30, help="Total jobs to export.")
+    parser.add_argument("--output", type=str, default=None, help="Output CSV path.")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility.")
+    # Legacy flag retained for backward compatibility
+    parser.add_argument("--no-rescore", action="store_true", help="(legacy, no-op)")
     args = parser.parse_args()
-    export_unlabeled_jobs(batch_size=args.batch_size)
+
+    out = Path(args.output) if args.output else None
+    export_labeling_batch(batch_size=args.batch_size, output_file=out, seed=args.seed)

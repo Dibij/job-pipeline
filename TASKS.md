@@ -81,11 +81,11 @@
 - [x] 7.7 Labeling protocol: export batches from the DB, label manually, ingest. Scaffolding complete (`export_for_labeling.py`, `ingest_labels.py`). 86 labels ingested. Protocol updated -- see TRAINING.md §6 for full rules (strata, hygiene, Laya answer hiding).
 
 ## Phase 7 -- Training Workstream (src/training/, scripts/, TRAINING.md)
-- [ ] 7.7b **NOT STARTED** Schema & export hygiene changes:
-  - Add `sampling_stratum` column to `laya_labels` (or store in `metadata` JSONB key).
-  - Add `label_guideline_version` column to `laya_labels` (or store in `metadata` JSONB key).
-  - Update `scripts/export_for_labeling.py` to implement the three strata (random 40%, high_match_scorer 30%, laya_uncertainty 30% -- laya_uncertainty falls back to random until 7.8a).
-  - Hide or remove Laya score/confidence columns from the exported labeling CSV to prevent anchoring bias.
+- [x] 7.7b **Schema & export hygiene changes** (Oct 13 2026):
+  - Added migration `007_labeling_schema.sql` adding `sampling_stratum` and `label_guideline_version` to `laya_labels`.
+  - Updated `scripts/export_for_labeling.py`: implemented 3-stratum sampling (40% random, 30% high_match_scorer, 30% laya_uncertainty with fallback), excluded Laya score & confidence columns from output CSV to eliminate anchoring bias, and included `sampling_stratum` and `label_guideline_version` in output columns.
+  - Updated `scripts/ingest_labels.py`: ingests `sampling_stratum` and `label_guideline_version` into `laya_labels` columns.
+  - Added unit test suite `tests/test_export_labeling.py` (9 tests passing).
 - [x] 7.8a Temperature calibration: **PROVISIONAL** — ran on 69 unique labels (759 question records across 11 questions, confirmed in `config/laya_temperatures_v1.json`). Still below M1 threshold (~150 labels). `use_confidence_flag` stays `false` until M1. Saves temperature as versioned config. At M1: evaluate with held-out folds, report calibration quality and ranking metrics (precision@k, recall@k, PR-AUC with bootstrap CIs). Never rebalance the calibration set.
 - [ ] 7.8b **BLOCKED (M3)** Fine-tune Laya decision head: supervised head training with proper scoring rules (Brier/RPS). Gated on:
   - >= 150 labeled rows total

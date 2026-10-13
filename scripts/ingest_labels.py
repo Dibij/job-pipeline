@@ -1,7 +1,8 @@
-"""Ingest human-labeled jobs into PostgreSQL database (Task 7.8).
+"""Ingest human-labeled jobs into PostgreSQL database (Task 7.7b).
 
 Reads and validates labeling CSVs.
 Inserts valid labels into `laya_labels` table without overwriting prior records.
+Stores sampling_stratum and label_guideline_version from the CSV (added in 7.7b).
 """
 import argparse
 import csv
@@ -20,6 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 VALID_LABELS = {"good_fit", "maybe", "bad_fit"}
+VALID_STRATA = {"random", "high_match_scorer", "laya_uncertainty", ""}
 
 
 def ingest_labels_from_csv(csv_path: Path):
@@ -44,13 +46,14 @@ def ingest_labels_from_csv(csv_path: Path):
         except UnicodeDecodeError:
             continue
 
-
     with get_connection(autocommit=False) as conn:
         with conn.cursor() as cur:
             for row in rows:
                 raw_id = row.get("job_id", "").strip()
                 raw_label = row.get("my_label", "").strip().lower()
                 notes = row.get("notes", "").strip()
+                stratum = (row.get("sampling_stratum") or "").strip()
+                guideline_ver = (row.get("label_guideline_version") or "").strip()
 
                 if not raw_label:
                     skipped_empty += 1
@@ -69,21 +72,31 @@ def ingest_labels_from_csv(csv_path: Path):
                     skipped_invalid += 1
                     continue
 
-                # Store metadata from other columns
+                # Store non-sensitive metadata (no Laya scores in new exports,
+                # but keep backward compat if old CSV had them).
                 meta = {
                     "source_csv": csv_path.name,
                     "title": row.get("title", ""),
                     "company": row.get("company", ""),
+                    # Legacy fields from old CSVs — may be absent
                     "laya_score": row.get("laya_score"),
-                    "avg_confidence": row.get("avg_confidence")
+                    "avg_confidence": row.get("avg_confidence"),
                 }
 
                 try:
                     cur.execute("""
-                        INSERT INTO laya_labels (job_id, label, notes, metadata)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO laya_labels
+                            (job_id, label, notes, metadata, sampling_stratum, label_guideline_version)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         ON CONFLICT (job_id, labeled_at) DO NOTHING;
-                    """, (str(job_uuid), raw_label, notes, json.dumps(meta)))
+                    """, (
+                        str(job_uuid),
+                        raw_label,
+                        notes,
+                        json.dumps(meta),
+                        stratum or None,
+                        guideline_ver or None,
+                    ))
                     inserted += 1
                 except Exception as e:
                     logger.error("Failed to insert label for %s: %s", raw_id, e)
@@ -91,10 +104,11 @@ def ingest_labels_from_csv(csv_path: Path):
 
     logger.info("=" * 50)
     logger.info("INGESTION SUMMARY:")
-    logger.info("  Inserted Labels:    %d", inserted)
+    logger.info("  Inserted Labels:     %d", inserted)
     logger.info("  Skipped (unlabeled): %d", skipped_empty)
     logger.info("  Skipped (invalid):   %d", skipped_invalid)
     logger.info("=" * 50)
+
 
 
 if __name__ == "__main__":
