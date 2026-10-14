@@ -15,6 +15,7 @@ Usage:
 import argparse
 import csv
 from datetime import datetime
+import json
 import logging
 import random
 import sys
@@ -75,20 +76,41 @@ def _fetch_eligible_jobs() -> List[Dict[str, Any]]:
             m.reason_code,
             -- Laya data: used ONLY for stratum selection, never exported
             l.final_score                        AS laya_final_score,
-            l.avg_confidence                     AS laya_avg_confidence
+            l.per_question_data                  AS laya_per_question_data
         FROM jobs j
         LEFT JOIN job_matches m   ON j.canonical_job_id = m.job_id OR j.id = m.job_id
         LEFT JOIN laya_job_scores l ON j.id = l.job_id
         LEFT JOIN laya_labels lbl ON j.id = lbl.job_id
         WHERE lbl.id IS NULL
+          AND j.canonical_job_id IS NULL
           AND j.is_remote = true
           AND (j.detected_language IS NULL OR j.detected_language NOT IN ('french', 'german'))
           AND j.is_unpaid = false
           AND j.accessibility IN ('ACCESSIBLE', 'UNKNOWN')
-          -- Hard-filter survivors only (reason_code IS NULL means passed all filters)
         ORDER BY m.match_score DESC NULLS LAST
     """)
-    return rows or []
+    if not rows:
+        return []
+
+    # Calculate average confidence per job from per_question_data
+    for r in rows:
+        per_q = r.get("laya_per_question_data")
+        if isinstance(per_q, str):
+            try:
+                per_q = json.loads(per_q)
+            except Exception:
+                per_q = None
+        if isinstance(per_q, dict) and per_q:
+            confs = [
+                float(v["confidence"])
+                for v in per_q.values()
+                if isinstance(v, dict) and v.get("confidence") is not None
+            ]
+            r["laya_avg_confidence"] = sum(confs) / len(confs) if confs else None
+        else:
+            r["laya_avg_confidence"] = None
+
+    return rows
 
 
 def _select_stratum(
