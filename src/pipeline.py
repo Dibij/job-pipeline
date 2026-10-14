@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from src.db.repository import JobRepository
-from src.extractors import ArbeitnowExtractor, RemotiveExtractor
+from src.extractors import ArbeitnowExtractor, RemotiveExtractor, HimalayasExtractor
 from src.models import transform_raw_listing
 from src.enrichment.enricher import JobEnricher
 
@@ -41,6 +41,16 @@ class JobPipeline:
         except Exception as exc:
             logger.error("Remotive extractor failed: %s", exc)
             stats["remotive"] = {"error": str(exc)}
+
+        # 3. Himalayas
+        try:
+            himalayas = HimalayasExtractor(delay_seconds=2.0)
+            items = himalayas.fetch_raw(limit=50, max_pages=1)
+            res = himalayas.stage_raw(items)
+            stats["himalayas"] = res
+        except Exception as exc:
+            logger.error("Himalayas extractor failed: %s", exc)
+            stats["himalayas"] = {"error": str(exc)}
 
         return stats
 

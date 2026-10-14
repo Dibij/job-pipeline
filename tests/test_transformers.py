@@ -119,3 +119,36 @@ def test_remotive_explicit_usa_preserved():
     job = transform_remotive({"id": 4, "title": "Dev", "company_name": "C", "candidate_required_location": "USA"})
     assert job.remote_restriction == "USA"
 
+
+def test_himalayas_transformation():
+    """Verify Himalayas raw item transforms into NormalizedJob accurately."""
+    from src.models.transformers import transform_himalayas
+
+    raw_payload = {
+        "guid": "https://himalayas.app/companies/acme/jobs/backend-engineer",
+        "title": "Senior Backend Engineer",
+        "companyName": "Acme Global",
+        "companyLogo": "https://example.com/logo.png",
+        "locationRestrictions": ["Worldwide"],
+        "employmentType": "Full Time",
+        "pubDate": 1727730000,
+        "applicationLink": "https://example.com/apply",
+        "categories": ["Engineering", "Python"],
+        "seniority": ["Senior"],
+        "description": "<p>We are building global distributed systems.</p>",
+    }
+
+    job = transform_himalayas(raw_payload)
+    assert job.source == "himalayas"
+    assert job.external_id == "https://himalayas.app/companies/acme/jobs/backend-engineer"
+    assert job.title == "Senior Backend Engineer"
+    assert job.company_name == "Acme Global"
+    assert job.is_remote is True
+    assert job.remote_restriction == "Worldwide"
+    assert job.description_text == "We are building global distributed systems."
+    assert "Engineering" in job.tags
+    assert "Python" in job.tags
+    assert "Senior" in job.tags
+    assert job.fingerprint_hash is not None
+
+

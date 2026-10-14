@@ -1,7 +1,7 @@
 """Transformers converting source-specific raw payloads into NormalizedJob models."""
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from bs4 import BeautifulSoup
 
 from src.models.job import NormalizedJob
@@ -100,6 +100,59 @@ def transform_remotive(payload: Dict[str, Any]) -> NormalizedJob:
     )
 
 
+def transform_himalayas(payload: Dict[str, Any]) -> NormalizedJob:
+    """Transform Himalayas raw item into NormalizedJob."""
+    raw_desc = payload.get("description", "")
+    plain_desc = strip_html(raw_desc) or payload.get("excerpt") or payload.get("title", "")
+
+    posted_at = parse_timestamp(payload.get("pubDate"))
+    
+    # Process tags from categories and seniority
+    tags: List[str] = []
+    cats = payload.get("categories") or []
+    if isinstance(cats, list):
+        tags.extend([str(c).strip() for c in cats if c])
+    elif isinstance(cats, str):
+        tags.append(cats.strip())
+
+    sens = payload.get("seniority") or []
+    if isinstance(sens, list):
+        tags.extend([str(s).strip() for s in sens if s])
+    elif isinstance(sens, str):
+        tags.append(sens.strip())
+
+    # Remote & Location
+    loc_restrictions = payload.get("locationRestrictions") or []
+    if isinstance(loc_restrictions, list) and loc_restrictions:
+        loc_str = ", ".join(str(l).strip() for l in loc_restrictions if l)
+        remote_restr = loc_str
+    elif isinstance(loc_restrictions, str) and loc_restrictions.strip():
+        loc_str = loc_restrictions.strip()
+        remote_restr = loc_str
+    else:
+        loc_str = "Remote"
+        remote_restr = "unspecified"
+
+    external_id = str(payload.get("guid") or payload.get("applicationLink") or "").strip()
+
+    return NormalizedJob(
+        source="himalayas",
+        external_id=external_id,
+        title=payload.get("title", "Untitled Position"),
+        company_name=payload.get("companyName", "Unknown Company"),
+        company_url=payload.get("companyLogo"),
+        location_raw=loc_str,
+        is_remote=True,
+        remote_restriction=remote_restr,
+        job_type=payload.get("employmentType"),
+        description_text=plain_desc,
+        description_html=raw_desc,
+        apply_url=payload.get("applicationLink") or payload.get("guid") or "",
+        tags=tags,
+        posted_at=posted_at,
+    )
+
+
 def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
@@ -107,5 +160,8 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         return transform_arbeitnow(payload)
     elif source_lower == "remotive":
         return transform_remotive(payload)
+    elif source_lower == "himalayas":
+        return transform_himalayas(payload)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
+

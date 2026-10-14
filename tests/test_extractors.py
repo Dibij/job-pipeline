@@ -137,3 +137,42 @@ def test_remotive_fetch_mocked():
         assert len(jobs) == 2
         assert jobs[0]["id"] == 101
         assert jobs[1]["title"] == "React Frontend"
+
+
+def test_himalayas_extract_external_id():
+    """Verify HimalayasExtractor properly extracts guid or applicationLink."""
+    from src.extractors.himalayas import HimalayasExtractor
+
+    extractor = HimalayasExtractor(delay_seconds=0)
+
+    item1 = {"guid": "https://himalayas.app/jobs/123", "applicationLink": "https://example.com/apply"}
+    assert extractor.extract_external_id(item1) == "https://himalayas.app/jobs/123"
+
+    item2 = {"applicationLink": "https://example.com/apply-only"}
+    assert extractor.extract_external_id(item2) == "https://example.com/apply-only"
+
+    item3 = {}
+    assert extractor.extract_external_id(item3) == ""
+
+
+def test_himalayas_fetch_mocked():
+    """Verify HimalayasExtractor correctly parses jobs with pagination."""
+    from src.extractors.himalayas import HimalayasExtractor
+
+    extractor = HimalayasExtractor(delay_seconds=0)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "jobs": [
+            {"guid": "g1", "title": "Backend Python", "companyName": "Acme"},
+            {"guid": "g2", "title": "DevOps Engineer", "companyName": "Beta"},
+        ]
+    }
+
+    with patch.object(extractor.session, "get", return_value=mock_resp):
+        jobs = extractor.fetch_raw(limit=2, max_pages=1)
+        assert len(jobs) == 2
+        assert jobs[0]["guid"] == "g1"
+        assert jobs[1]["companyName"] == "Beta"
+
