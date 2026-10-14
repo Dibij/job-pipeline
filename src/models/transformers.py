@@ -250,6 +250,56 @@ def transform_remoteok(payload: Dict[str, Any]) -> NormalizedJob:
     )
 
 
+def transform_jobicy(payload: Dict[str, Any]) -> NormalizedJob:
+    """Transform Jobicy raw item into NormalizedJob."""
+    raw_desc = payload.get("jobDescription", "")
+    plain_desc = strip_html(raw_desc) or payload.get("jobExcerpt") or payload.get("jobTitle", "")
+
+    posted_at = parse_timestamp(payload.get("pubDate"))
+
+    # Tags from jobIndustry
+    tags: List[str] = []
+    industries = payload.get("jobIndustry") or []
+    if isinstance(industries, list):
+        tags.extend([str(i).strip() for i in industries if i])
+    elif isinstance(industries, str):
+        tags.append(industries.strip())
+
+    # jobGeo is a comma-separated location restriction string
+    geo = (payload.get("jobGeo") or "").strip()
+    if not geo:
+        location_raw = "Remote"
+        remote_restriction = "unspecified"
+    elif geo.lower() in ("worldwide", "anywhere"):
+        location_raw = geo
+        remote_restriction = geo
+    else:
+        location_raw = geo
+        remote_restriction = geo
+
+    job_types = payload.get("jobType") or []
+    job_type = job_types[0] if isinstance(job_types, list) and job_types else None
+
+    external_id = str(payload.get("id") or payload.get("jobSlug") or "").strip()
+
+    return NormalizedJob(
+        source="jobicy",
+        external_id=external_id,
+        title=payload.get("jobTitle", "Untitled Position"),
+        company_name=payload.get("companyName", "Unknown Company"),
+        company_url=payload.get("companyLogo"),
+        location_raw=location_raw,
+        is_remote=True,  # All Jobicy listings are remote
+        remote_restriction=remote_restriction,
+        job_type=job_type,
+        description_text=plain_desc,
+        description_html=raw_desc,
+        apply_url=payload.get("url") or "",
+        tags=tags,
+        posted_at=posted_at,
+    )
+
+
 def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
@@ -263,8 +313,11 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         return transform_weworkremotely(payload)
     elif source_lower == "remoteok":
         return transform_remoteok(payload)
+    elif source_lower == "jobicy":
+        return transform_jobicy(payload)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
+
 
 
 

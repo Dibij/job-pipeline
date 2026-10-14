@@ -242,3 +242,34 @@ def test_remoteok_transformation_worldwide():
     job = transform_remoteok(raw_payload)
     assert job.remote_restriction == "Worldwide"
     assert job.location_raw == "Worldwide"
+
+def test_jobicy_transformation():
+    """Verify Jobicy raw item transforms into NormalizedJob accurately."""
+    from src.models.transformers import transform_jobicy
+
+    raw_payload = {
+        "id": 153225,
+        "url": "https://jobicy.com/jobs/153225-senior-sales-engineer-2",
+        "jobSlug": "153225-senior-sales-engineer-2",
+        "jobTitle": "Senior Sales Engineer",
+        "companyName": "RevenueCat",
+        "companyLogo": "https://example.com/logo.jpg",
+        "jobIndustry": ["Sales"],
+        "jobType": ["Full-Time"],
+        "jobGeo": "Canada,  Europe,  USA",
+        "jobLevel": "Senior",
+        "pubDate": "2026-10-14T03:29:54+00:00",
+        "jobDescription": "<p>Sell great products.</p>",
+    }
+
+    job = transform_jobicy(raw_payload)
+    assert job.source == "jobicy"
+    assert job.external_id == "153225"
+    assert job.title == "Senior Sales Engineer"
+    assert job.company_name == "RevenueCat"
+    assert job.is_remote is True
+    assert job.remote_restriction == "Canada,  Europe,  USA"
+    assert job.description_text == "Sell great products."
+    assert "Sales" in job.tags
+    assert job.posted_at is not None
+    assert job.fingerprint_hash is not None

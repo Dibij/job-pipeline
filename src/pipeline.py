@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from src.db.repository import JobRepository
-from src.extractors import ArbeitnowExtractor, RemotiveExtractor, HimalayasExtractor, WWRExtractor, RemoteOKExtractor
+from src.extractors import ArbeitnowExtractor, RemotiveExtractor, HimalayasExtractor, WWRExtractor, RemoteOKExtractor, JobicyExtractor
 from src.models import transform_raw_listing
 from src.enrichment.enricher import JobEnricher
 
@@ -71,6 +71,16 @@ class JobPipeline:
         except Exception as exc:
             logger.error("Remote OK extractor failed: %s", exc)
             stats["remoteok"] = {"error": str(exc)}
+
+        # 6. Jobicy
+        try:
+            jobicy = JobicyExtractor(delay_seconds=2.0)
+            items = jobicy.fetch_raw(count=50, max_pages=1)
+            res = jobicy.stage_raw(items)
+            stats["jobicy"] = res
+        except Exception as exc:
+            logger.error("Jobicy extractor failed: %s", exc)
+            stats["jobicy"] = {"error": str(exc)}
 
         return stats
 

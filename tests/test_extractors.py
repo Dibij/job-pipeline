@@ -273,3 +273,40 @@ def test_remoteok_fetch_mocked():
         assert len(jobs) == 2
         assert jobs[0]["id"] == "101"
         assert jobs[1]["position"] == "React Dev"
+
+def test_jobicy_extract_external_id():
+    """Verify JobicyExtractor properly extracts id or jobSlug."""
+    from src.extractors.jobicy import JobicyExtractor
+
+    extractor = JobicyExtractor(delay_seconds=0)
+
+    item1 = {"id": 153225, "jobSlug": "153225-senior-sales-engineer"}
+    assert extractor.extract_external_id(item1) == "153225"
+
+    item2 = {"jobSlug": "99999-dev-role"}
+    assert extractor.extract_external_id(item2) == "99999-dev-role"
+
+    item3 = {}
+    assert extractor.extract_external_id(item3) == ""
+
+
+def test_jobicy_fetch_mocked():
+    """Verify JobicyExtractor correctly parses API response."""
+    from src.extractors.jobicy import JobicyExtractor
+
+    extractor = JobicyExtractor(delay_seconds=0)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "jobs": [
+            {"id": 1, "jobTitle": "Backend Dev", "companyName": "Acme", "jobGeo": "Worldwide"},
+            {"id": 2, "jobTitle": "Frontend Dev", "companyName": "Beta", "jobGeo": "USA"},
+        ]
+    }
+
+    with patch.object(extractor.session, "get", return_value=mock_resp):
+        jobs = extractor.fetch_raw(count=2, max_pages=1)
+        assert len(jobs) == 2
+        assert jobs[0]["jobTitle"] == "Backend Dev"
+        assert jobs[1]["jobGeo"] == "USA"
