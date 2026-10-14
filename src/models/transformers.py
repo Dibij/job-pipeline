@@ -209,6 +209,47 @@ def transform_weworkremotely(payload: Dict[str, Any]) -> NormalizedJob:
     )
 
 
+def transform_remoteok(payload: Dict[str, Any]) -> NormalizedJob:
+    """Transform Remote OK raw item into NormalizedJob."""
+    raw_desc = payload.get("description", "")
+    plain_desc = strip_html(raw_desc) or payload.get("position", "")
+
+    posted_at = parse_timestamp(payload.get("date") or payload.get("epoch"))
+
+    tags = payload.get("tags") or []
+    if isinstance(tags, str):
+        tags = [tags]
+
+    location = (payload.get("location") or "").strip()
+    if not location or location.lower() == "remote":
+        location_raw = "Remote"
+        remote_restriction = "unspecified"
+    elif location.lower() in ("worldwide", "anywhere"):
+        location_raw = location
+        remote_restriction = location
+    else:
+        location_raw = location
+        remote_restriction = location
+
+    external_id = str(payload.get("id") or payload.get("slug") or "").strip()
+
+    return NormalizedJob(
+        source="remoteok",
+        external_id=external_id,
+        title=payload.get("position", "Untitled Position"),
+        company_name=payload.get("company", "Unknown Company"),
+        company_url=payload.get("company_logo") or payload.get("logo"),
+        location_raw=location_raw,
+        is_remote=True,  # All Remote OK jobs are remote
+        remote_restriction=remote_restriction,
+        description_text=plain_desc,
+        description_html=raw_desc,
+        apply_url=payload.get("apply_url") or payload.get("url") or "",
+        tags=[str(t).strip() for t in tags if t],
+        posted_at=posted_at,
+    )
+
+
 def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
@@ -220,7 +261,10 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         return transform_himalayas(payload)
     elif source_lower == "weworkremotely":
         return transform_weworkremotely(payload)
+    elif source_lower == "remoteok":
+        return transform_remoteok(payload)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
+
 
 

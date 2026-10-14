@@ -237,3 +237,39 @@ def test_wwr_fetch_mocked():
         assert jobs[1]["region"] == "USA Only"
 
 
+
+def test_remoteok_extract_external_id():
+    """Verify RemoteOKExtractor properly extracts id or slug."""
+    from src.extractors.remoteok import RemoteOKExtractor
+
+    extractor = RemoteOKExtractor(delay_seconds=0)
+
+    item1 = {"id": "123456", "slug": "remote-dev-acme-123456"}
+    assert extractor.extract_external_id(item1) == "123456"
+
+    item2 = {"slug": "remote-dev-beta-789"}
+    assert extractor.extract_external_id(item2) == "remote-dev-beta-789"
+
+    item3 = {}
+    assert extractor.extract_external_id(item3) == ""
+
+
+def test_remoteok_fetch_mocked():
+    """Verify RemoteOKExtractor skips legal notice and returns jobs."""
+    from src.extractors.remoteok import RemoteOKExtractor
+
+    extractor = RemoteOKExtractor(delay_seconds=0)
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = [
+        {"last_updated": "2026-10-13", "legal": "See terms"},
+        {"id": "101", "position": "Python Dev", "company": "Acme", "location": "Remote"},
+        {"id": "102", "position": "React Dev", "company": "Beta", "location": "Worldwide"},
+    ]
+
+    with patch.object(extractor.session, "get", return_value=mock_resp):
+        jobs = extractor.fetch_raw()
+        assert len(jobs) == 2
+        assert jobs[0]["id"] == "101"
+        assert jobs[1]["position"] == "React Dev"

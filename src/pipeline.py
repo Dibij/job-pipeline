@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from src.db.repository import JobRepository
-from src.extractors import ArbeitnowExtractor, RemotiveExtractor, HimalayasExtractor, WWRExtractor
+from src.extractors import ArbeitnowExtractor, RemotiveExtractor, HimalayasExtractor, WWRExtractor, RemoteOKExtractor
 from src.models import transform_raw_listing
 from src.enrichment.enricher import JobEnricher
 
@@ -61,6 +61,16 @@ class JobPipeline:
         except Exception as exc:
             logger.error("WWR extractor failed: %s", exc)
             stats["weworkremotely"] = {"error": str(exc)}
+
+        # 5. Remote OK
+        try:
+            remoteok = RemoteOKExtractor(delay_seconds=2.0)
+            items = remoteok.fetch_raw()
+            res = remoteok.stage_raw(items)
+            stats["remoteok"] = res
+        except Exception as exc:
+            logger.error("Remote OK extractor failed: %s", exc)
+            stats["remoteok"] = {"error": str(exc)}
 
         return stats
 

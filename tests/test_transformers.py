@@ -196,3 +196,49 @@ def test_wwr_transformation_usa_only():
     assert job.remote_restriction == "USA Only"
     assert job.company_name == "Acme"
     assert job.title == "Backend Engineer"
+
+def test_remoteok_transformation():
+    """Verify Remote OK raw item transforms into NormalizedJob accurately."""
+    from src.models.transformers import transform_remoteok
+
+    raw_payload = {
+        "id": "1137510",
+        "slug": "remote-principal-pm-thyme-care-1137510",
+        "position": "Principal Product Manager",
+        "company": "Thyme Care",
+        "company_logo": "https://example.com/logo.png",
+        "location": "Remote",
+        "date": "2026-10-13T08:00:11+00:00",
+        "tags": ["product manager", "senior"],
+        "description": "<p>Build great products.</p>",
+        "apply_url": "https://remoteok.com/apply/1137510",
+        "url": "https://remoteok.com/jobs/1137510",
+    }
+
+    job = transform_remoteok(raw_payload)
+    assert job.source == "remoteok"
+    assert job.external_id == "1137510"
+    assert job.title == "Principal Product Manager"
+    assert job.company_name == "Thyme Care"
+    assert job.is_remote is True
+    assert job.remote_restriction == "unspecified"
+    assert job.description_text == "Build great products."
+    assert "product manager" in job.tags
+    assert job.fingerprint_hash is not None
+
+
+def test_remoteok_transformation_worldwide():
+    """Verify Remote OK job with 'Worldwide' location sets restriction correctly."""
+    from src.models.transformers import transform_remoteok
+
+    raw_payload = {
+        "id": "999",
+        "position": "DevOps Engineer",
+        "company": "GlobalCo",
+        "location": "Worldwide",
+        "description": "<p>Deploy all the things.</p>",
+    }
+
+    job = transform_remoteok(raw_payload)
+    assert job.remote_restriction == "Worldwide"
+    assert job.location_raw == "Worldwide"
