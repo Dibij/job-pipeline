@@ -152,3 +152,47 @@ def test_himalayas_transformation():
     assert job.fingerprint_hash is not None
 
 
+
+def test_wwr_transformation():
+    """Verify WWR RSS item transforms into NormalizedJob accurately."""
+    from src.models.transformers import transform_weworkremotely
+
+    raw_payload = {
+        "title": "Tailscale: Brand Designer",
+        "region": "Anywhere in the World",
+        "category": "Sales and Marketing",
+        "type": "Full-Time",
+        "pubDate": "Wed, 14 Oct 2026 07:31:00 +0000",
+        "guid": "https://weworkremotely.com/remote-jobs/tailscale-brand-designer-1",
+        "link": "https://weworkremotely.com/remote-jobs/tailscale-brand-designer-1",
+        "description": "<p>Design brand stuff.</p>",
+    }
+
+    job = transform_weworkremotely(raw_payload)
+    assert job.source == "weworkremotely"
+    assert job.title == "Brand Designer"
+    assert job.company_name == "Tailscale"
+    assert job.is_remote is True
+    assert job.remote_restriction == "Anywhere in the World"
+    assert job.location_raw == "Anywhere in the World"
+    assert job.description_text == "Design brand stuff."
+    assert job.posted_at is not None
+    assert job.posted_at.year == 2026
+    assert job.fingerprint_hash is not None
+
+
+def test_wwr_transformation_usa_only():
+    """Verify WWR job with 'USA Only' region sets restriction correctly."""
+    from src.models.transformers import transform_weworkremotely
+
+    raw_payload = {
+        "title": "Acme: Backend Engineer",
+        "region": "USA Only",
+        "guid": "https://weworkremotely.com/remote-jobs/acme-backend",
+        "description": "<p>US-based role.</p>",
+    }
+
+    job = transform_weworkremotely(raw_payload)
+    assert job.remote_restriction == "USA Only"
+    assert job.company_name == "Acme"
+    assert job.title == "Backend Engineer"

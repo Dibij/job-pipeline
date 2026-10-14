@@ -176,3 +176,64 @@ def test_himalayas_fetch_mocked():
         assert jobs[0]["guid"] == "g1"
         assert jobs[1]["companyName"] == "Beta"
 
+
+def test_wwr_extract_external_id():
+    """Verify WWRExtractor properly extracts guid or link."""
+    from src.extractors.weworkremotely import WWRExtractor
+
+    extractor = WWRExtractor(delay_seconds=0)
+
+    item1 = {"guid": "https://weworkremotely.com/jobs/123", "link": "https://weworkremotely.com/jobs/123"}
+    assert extractor.extract_external_id(item1) == "https://weworkremotely.com/jobs/123"
+
+    item2 = {"link": "https://weworkremotely.com/jobs/456"}
+    assert extractor.extract_external_id(item2) == "https://weworkremotely.com/jobs/456"
+
+    item3 = {}
+    assert extractor.extract_external_id(item3) == ""
+
+
+def test_wwr_fetch_mocked():
+    """Verify WWRExtractor correctly parses RSS XML response."""
+    from src.extractors.weworkremotely import WWRExtractor
+
+    extractor = WWRExtractor(delay_seconds=0)
+
+    rss_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title>Acme Corp: Backend Engineer</title>
+          <region>Anywhere in the World</region>
+          <category>Programming</category>
+          <type>Full-Time</type>
+          <pubDate>Mon, 13 Oct 2026 12:00:00 +0000</pubDate>
+          <guid>https://weworkremotely.com/remote-jobs/acme-backend</guid>
+          <link>https://weworkremotely.com/remote-jobs/acme-backend</link>
+          <description>&lt;p&gt;Build things.&lt;/p&gt;</description>
+        </item>
+        <item>
+          <title>Beta Inc: Frontend Dev</title>
+          <region>USA Only</region>
+          <category>Programming</category>
+          <type>Full-Time</type>
+          <pubDate>Sun, 12 Oct 2026 10:00:00 +0000</pubDate>
+          <guid>https://weworkremotely.com/remote-jobs/beta-frontend</guid>
+          <link>https://weworkremotely.com/remote-jobs/beta-frontend</link>
+          <description>&lt;p&gt;React stuff.&lt;/p&gt;</description>
+        </item>
+      </channel>
+    </rss>"""
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = rss_xml
+
+    with patch.object(extractor.session, "get", return_value=mock_resp):
+        jobs = extractor.fetch_raw()
+        assert len(jobs) == 2
+        assert jobs[0]["title"] == "Acme Corp: Backend Engineer"
+        assert jobs[0]["region"] == "Anywhere in the World"
+        assert jobs[1]["region"] == "USA Only"
+
+

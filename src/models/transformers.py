@@ -1,4 +1,5 @@
 """Transformers converting source-specific raw payloads into NormalizedJob models."""
+import email.utils
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -33,6 +34,11 @@ def parse_timestamp(dt_val: Any) -> Optional[datetime]:
         try:
             return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
         except ValueError:
+            pass
+        # Try RFC 2822 format (used by RSS feeds, e.g. "Wed, 14 Oct 2026 07:31:00 +0000")
+        try:
+            return email.utils.parsedate_to_datetime(dt_str)
+        except (ValueError, TypeError):
             pass
 
     return None
@@ -153,6 +159,56 @@ def transform_himalayas(payload: Dict[str, Any]) -> NormalizedJob:
     )
 
 
+def transform_weworkremotely(payload: Dict[str, Any]) -> NormalizedJob:
+    """Transform We Work Remotely RSS item into NormalizedJob."""
+    raw_desc = payload.get("description", "")
+    plain_desc = strip_html(raw_desc)
+
+    # WWR titles are "Company: Job Title"
+    raw_title = payload.get("title", "Untitled Position")
+    if ": " in raw_title:
+        company_name, title = raw_title.split(": ", 1)
+    else:
+        company_name = "Unknown Company"
+        title = raw_title
+
+    posted_at = parse_timestamp(payload.get("pubDate"))
+
+    # Region represents location restriction
+    region = (payload.get("region") or "").strip()
+    if not region:
+        remote_restriction = "unspecified"
+        location_raw = "Remote"
+    else:
+        remote_restriction = region
+        location_raw = region
+
+    # Tags from category and type
+    tags: List[str] = []
+    cat = payload.get("category")
+    if cat:
+        tags.append(str(cat).strip())
+    jtype = payload.get("type")
+
+    external_id = str(payload.get("guid") or payload.get("link") or "").strip()
+
+    return NormalizedJob(
+        source="weworkremotely",
+        external_id=external_id,
+        title=title.strip(),
+        company_name=company_name.strip(),
+        location_raw=location_raw,
+        is_remote=True,  # All WWR jobs are remote
+        remote_restriction=remote_restriction,
+        job_type=jtype,
+        description_text=plain_desc or title,
+        description_html=raw_desc,
+        apply_url=payload.get("link") or payload.get("guid") or "",
+        tags=tags,
+        posted_at=posted_at,
+    )
+
+
 def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
@@ -162,6 +218,9 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         return transform_remotive(payload)
     elif source_lower == "himalayas":
         return transform_himalayas(payload)
+    elif source_lower == "weworkremotely":
+        return transform_weworkremotely(payload)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
+
 
