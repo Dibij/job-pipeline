@@ -1,6 +1,6 @@
 """Job enrichment engine: detects seniority, language, unpaid status, and Nepal accessibility."""
 import re
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Tuple
 
 GERMAN_INDICATORS = [
     r"\(m/w/d\)",
@@ -220,6 +220,91 @@ class JobEnricher:
         return True
 
     @staticmethod
+    def detect_reachability(
+        title: str,
+        description: str,
+        location_raw: str,
+        remote_restriction: str,
+        is_remote: bool,
+    ) -> Tuple[str, str]:
+        """Determine reachable_from_nepal ('accessible', 'unknown', 'blocked') and reason.
+
+        Rules:
+          - blocked: clear text such as "US citizens only", ITAR, security clearance,
+            work authorization requirements, location lists that exclude Nepal (e.g.
+            "anywhere in Europe and the US East Coast", "Europe only", "EU residents"),
+            timezone windows that need overlap in GMT-5 to GMT+1 only, title region codes
+            (EMEA, NA, EU, US, LATAM), and onsite abroad.
+          - accessible: text clearly says worldwide / anywhere / global /
+            "can be executed globally", or location includes Nepal / South Asia.
+          - unknown: everything else (default; never default to accessible).
+        """
+        title_upper = (title or "").upper()
+        loc = (location_raw or "").strip()
+        restr = (remote_restriction or "").strip()
+        desc = (description or "").lower()
+        combined_loc = f"{loc} {restr}".lower()
+
+        # 1. Legal / Clearance / Citizen Requirements (in title, desc, or location)
+        if re.search(r"\bITAR\b", f"{title} {description}", re.I):
+            return ("blocked", "itar_requirement")
+        if re.search(r"\b(?:security\s+clearance|active\s+clearance|secret\s+clearance|ts/sci|polygraph)\b", desc, re.I):
+            return ("blocked", "security_clearance_required")
+        if re.search(r"\b(?:u\.?s\.?\s+citizens?\s+(?:only|or\s+permanent\s+residents?)|u\.?s\.?\s+citizenship\s+required|us\s+citizens?\s+only)\b", desc, re.I):
+            return ("blocked", "us_citizen_only")
+        if re.search(r"\bto\s+conform\s+to\s+u\.?s\.?\s+government\s+export\s+regulations,\s+applicant\s+must\s+be\s+a\s+u\.?s\.?\s+citizen\b", desc, re.I):
+            return ("blocked", "us_citizen_only")
+        if re.search(r"\b(?:work\s+authorization\s+required\s+for|(?:must\s+have|requires?)\s+(?:valid\s+)?work\s+authorization\s+in|(?:authorized|eligible)\s+to\s+work\s+in\s+(?:the\s+)?(?:u\.?s\.?|united\s+states|canada|uk|germany|europe|eu))\b", desc, re.I):
+            return ("blocked", "work_authorization_required")
+
+        # 2. Regional restrictions excluding Nepal in description
+        if re.search(r"anywhere\s+in\s+europe\s+(?:and|or)\s+(?:on\s+)?(?:the\s+)?us\s+east\s+coast", desc, re.I):
+            return ("blocked", "regional_restriction_excludes_nepal")
+        if re.search(r"\banywhere\s+in\s+europe\b", desc, re.I):
+            return ("blocked", "regional_restriction_excludes_nepal")
+        if re.search(r"\b(?:us\s+east\s+coast|eu\s+residents?|europe\s+only|eu\s+only|us\s+only|usa\s+only|uk\s+only|canada\s+only)\b", desc, re.I):
+            return ("blocked", "regional_restriction_excludes_nepal")
+
+        # 3. Timezone restrictions excluding Nepal
+        if re.search(r"\b(?:gmt-5\s+to\s+gmt\+1|cet\s+timezones?\s+required|gmt\+0\s+to\s+gmt\+2|cet\s*/\s*et)\b", desc, re.I):
+            return ("blocked", "timezone_excludes_nepal")
+
+        # 4. Region code in title
+        for code in ["EMEA", "NA", "EU", "US", "USA", "LATAM"]:
+            if re.search(rf"\b{code}\b", title_upper):
+                return ("blocked", "title_region_code")
+
+        # 5. Explicit positive evidence (accessible)
+        if "can be executed globally" in desc:
+            return ("accessible", "can_be_executed_globally")
+        if any(term in desc or term in combined_loc for term in ["nepal", "kathmandu", "lalitpur"]):
+            return ("accessible", "nepal_explicit")
+        if any(term in combined_loc for term in ["worldwide", "work from anywhere", "anywhere in the world"]):
+            return ("accessible", "explicit_worldwide_location")
+        if "remote (worldwide)" in desc or "remote(worldwide)" in desc:
+            return ("accessible", "worldwide_in_description")
+
+        # 6. Not remote -> blocked
+        if not is_remote:
+            return ("blocked", "onsite_abroad")
+
+        # 7. Blocked locations (single country abroad or non-Nepal cities)
+        blocked_locations = [
+            "usa", "united states", "us", "canada", "switzerland", "schweiz", "suisse",
+            "germany", "deutschland", "france", "frankreich", "uk", "united kingdom",
+            "australia", "ireland", "netherlands", "spain", "espagne", "poland", "japan",
+            "turkey", "vietnam", "mexico", "norway", "israel", "brazil", "argentina",
+            "americas", "europe", "latam", "latin america", "northern america",
+            "berlin", "munich", "münchen", "köln", "cologne", "hamburg", "bonn",
+            "bielefeld", "paris", "amsterdam", "london"
+        ]
+        if any(re.search(rf"\b{re.escape(term)}\b", combined_loc) for term in blocked_locations):
+            return ("blocked", "location_excludes_nepal")
+
+        # 8. Everything else stays unknown
+        return ("unknown", "no_location_restriction_stated")
+
+    @staticmethod
     def extract_tech_tags(title: str, description: str, existing_tags: List[str]) -> List[str]:
         """Extract standardized tech stack tags from title and description."""
         combined = f"{title} {description}".lower()
@@ -249,11 +334,17 @@ class JobEnricher:
         is_remote = bool(job.get("is_remote", False))
         existing_tags = job.get("tags") or []
 
+        reach_status, reach_reason = cls.detect_reachability(
+            title, desc, loc, restriction, is_remote
+        )
+
         return {
             "detected_language": cls.detect_language(title, desc),
             "experience_level": cls.detect_seniority(title, desc),
             "is_unpaid": cls.detect_unpaid(title, desc),
             "nepal_accessible": cls.detect_nepal_accessible(is_remote, loc, restriction),
             "accessibility": cls.detect_accessibility_3state(title, is_remote, loc, restriction),
+            "reachable_from_nepal": reach_status,
+            "reachable_reason": reach_reason,
             "tags": cls.extract_tech_tags(title, desc, existing_tags),
         }

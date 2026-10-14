@@ -68,6 +68,8 @@ class JobPipeline:
                 norm_job.is_unpaid = enrichment["is_unpaid"]
                 norm_job.nepal_accessible = enrichment["nepal_accessible"]
                 norm_job.accessibility = enrichment["accessibility"]
+                norm_job.reachable_from_nepal = enrichment["reachable_from_nepal"]
+                norm_job.reachable_reason = enrichment["reachable_reason"]
                 norm_job.tags = enrichment["tags"]
 
                 normalized_jobs.append(norm_job)

@@ -198,3 +198,47 @@ def test_accessibility_remote_generic_is_unknown():
     """Generic 'Remote' with no restriction info → UNKNOWN."""
     assert JobEnricher.detect_accessibility_3state("Dev", True, "Remote", "unspecified") == "UNKNOWN"
 
+
+# ---------------------------------------------------------------------------
+# Phase B Real-world Reachability Tests (detect_reachability)
+# ---------------------------------------------------------------------------
+
+def test_reachability_swarmaero_itar_blocked():
+    """Swarmaero ITAR requirement -> blocked."""
+    title = "Flight Software Engineer"
+    desc = (
+        "ITAR requirement: Due to federal regulations, this position requires applicants "
+        "to be a U.S. citizen, lawful permanent resident (Green Card holder)."
+    )
+    status, reason = JobEnricher.detect_reachability(title, desc, "Remote", "unspecified", True)
+    assert status == "blocked"
+    assert "itar" in reason or "citizen" in reason
+
+
+def test_reachability_elevenlabs_europe_us_east_coast_blocked():
+    """ElevenLabs 'anywhere in Europe and the US East Coast' -> blocked."""
+    title = "Product Designer"
+    desc = "This role can be based anywhere in Europe and the US East Coast, operating in GMT-5 to GMT+1."
+    status, reason = JobEnricher.detect_reachability(title, desc, "Remote", "unspecified", True)
+    assert status == "blocked"
+    assert reason == "regional_restriction_excludes_nepal"
+
+
+def test_reachability_elevenlabs_devexp_globally_accessible():
+    """ElevenLabs Developer Experience Engineer 'can be executed globally' -> accessible."""
+    title = "Developer Experience Engineer"
+    desc = "This role can be executed globally. We are an international team working across timezones."
+    status, reason = JobEnricher.detect_reachability(title, desc, "Remote", "unspecified", True)
+    assert status == "accessible"
+    assert reason == "can_be_executed_globally"
+
+
+def test_reachability_duna_remote_unknown():
+    """Duna 'Remote' with no location rule -> unknown."""
+    title = "Backend Engineer"
+    desc = "Join Duna to build modern microservices. We care about clean code and performance."
+    status, reason = JobEnricher.detect_reachability(title, desc, "Remote", "unspecified", True)
+    assert status == "unknown"
+    assert reason == "no_location_restriction_stated"
+
+

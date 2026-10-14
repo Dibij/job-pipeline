@@ -37,15 +37,19 @@ def main() -> None:
                 cur.execute(
                     """
                     UPDATE jobs
-                    SET remote_restriction = %s,
-                        accessibility      = %s,
-                        nepal_accessible   = %s
+                    SET remote_restriction   = %s,
+                        accessibility        = %s,
+                        nepal_accessible     = %s,
+                        reachable_from_nepal = %s,
+                        reachable_reason     = %s
                     WHERE source = %s AND external_id = %s
                     """,
                     (
                         job.remote_restriction,
                         enrichment["accessibility"],
                         enrichment["nepal_accessible"],
+                        enrichment["reachable_from_nepal"],
+                        enrichment["reachable_reason"],
                         job.source,
                         job.external_id,
                     ),
@@ -62,13 +66,38 @@ def main() -> None:
         conn.commit()
         print(f"Updated: {updated}  Skipped (no matching jobs row): {skipped}  Errors: {errors}")
 
-        # Show new distribution
+        # Show reachable_from_nepal distribution
         cur.execute(
-            "SELECT accessibility, COUNT(*) FROM jobs GROUP BY accessibility ORDER BY accessibility"
+            """
+            SELECT reachable_from_nepal, COUNT(*) 
+            FROM jobs 
+            GROUP BY reachable_from_nepal 
+            ORDER BY reachable_from_nepal
+            """
         )
-        print("\naccessibility distribution after re-normalization:")
-        for acc_row in cur.fetchall():
-            print(f"  {acc_row['accessibility'] or 'NULL'}: {acc_row['count']}")
+        print("\nreachable_from_nepal distribution after re-normalization:")
+        for r_row in cur.fetchall():
+            print(f"  {r_row['reachable_from_nepal'] or 'NULL'}: {r_row['count']}")
+
+        # Print 10 random rows per state
+        print("\nSample 10 rows per state:")
+        for state in ["accessible", "unknown", "blocked"]:
+            print(f"\n--- State: {state.upper()} ---")
+            cur.execute(
+                """
+                SELECT title, company_name, location_raw, remote_restriction, reachable_reason
+                FROM jobs
+                WHERE reachable_from_nepal = %s
+                ORDER BY RANDOM()
+                LIMIT 10;
+                """,
+                (state,),
+            )
+            samples = cur.fetchall()
+            for idx, s in enumerate(samples, 1):
+                loc = s['location_raw'] or 'None'
+                restr = s['remote_restriction'] or 'None'
+                print(f"  {idx}. [{s['company_name']}] {s['title']} | loc: {loc} | restr: {restr} | reason: {s['reachable_reason']}")
 
 
 if __name__ == "__main__":

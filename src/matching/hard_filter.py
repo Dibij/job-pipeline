@@ -203,14 +203,22 @@ def _check_region(
     remote_restriction: str,
     description: str,
     accessibility: Optional[str] = None,
+    reachable_from_nepal: Optional[str] = None,
+    reachable_reason: Optional[str] = None,
 ) -> FilterResult:
-    acc = accessibility or JobEnricher.detect_accessibility_3state(title, is_remote, location_raw, remote_restriction)
-    if acc == "BLOCKED":
+    reach = reachable_from_nepal
+    reason = reachable_reason
+    if not reach:
+        reach, reason = JobEnricher.detect_reachability(
+            title, description, location_raw, remote_restriction, is_remote
+        )
+
+    if reach == "blocked":
         if not is_remote:
             return FilterResult.fail(FilterReason.NOT_REMOTE, f"on-site: {location_raw!r}")
-        return FilterResult.fail(FilterReason.REGION_LOCKED, f"blocked location: {location_raw!r}")
-    elif acc == "UNKNOWN":
-        return FilterResult.review(f"location not stated / unknown: {location_raw!r}")
+        return FilterResult.fail(FilterReason.REGION_LOCKED, f"{reason}: {location_raw!r}")
+    elif reach == "unknown":
+        return FilterResult.review(f"location not stated / unknown: {reason}")
     return FilterResult.ok()
 
 
@@ -282,7 +290,14 @@ def apply(job: Dict[str, Any]) -> FilterResult:
         return result
 
     accessibility = job.get("accessibility")
-    result = _check_region(title, is_remote, location_raw, remote_restriction, desc, accessibility=accessibility)
+    reachable_from_nepal = job.get("reachable_from_nepal")
+    reachable_reason = job.get("reachable_reason")
+    result = _check_region(
+        title, is_remote, location_raw, remote_restriction, desc,
+        accessibility=accessibility,
+        reachable_from_nepal=reachable_from_nepal,
+        reachable_reason=reachable_reason,
+    )
     if not result.passed:
         return result
 

@@ -40,6 +40,8 @@ def export_feed(top_n: int = 100) -> Path:
             j.experience_level,
             j.nepal_accessible,
             j.accessibility,
+            j.reachable_from_nepal,
+            j.reachable_reason,
             jm.match_score,
             jm.matched_skills,
             jm.reason_code,
@@ -109,10 +111,15 @@ def export_feed(top_n: int = 100) -> Path:
             disqualified_counts[key] += 1
             continue
 
+        # Exclude any job explicitly blocked by reachable_from_nepal
+        if r.get("reachable_from_nepal") == "blocked":
+            disqualified_counts["REGION_LOCKED"] += 1
+            continue
+
         passed_jobs.append(r)
 
-    accessible_jobs = [r for r in passed_jobs if r.get("accessibility") == "ACCESSIBLE"][:top_n]
-    unknown_jobs = [r for r in passed_jobs if r.get("accessibility") != "ACCESSIBLE"][:top_n]
+    accessible_jobs = [r for r in passed_jobs if r.get("reachable_from_nepal") == "accessible"][:top_n]
+    unknown_jobs = [r for r in passed_jobs if r.get("reachable_from_nepal") == "unknown"][:top_n]
 
     lines = []
     lines.append("# Job Feed — Top Matched Roles")
@@ -127,8 +134,8 @@ def export_feed(top_n: int = 100) -> Path:
     # --- Section 1: Verified Accessible ---
     lines.append("## 🌐 Verified Accessible Jobs")
     if accessible_jobs:
-        lines.append("| Rank | Match | Laya | Job Title | Company | Location | Matched Skills | Apply |")
-        lines.append("| :---: | :---: | :---: | :--- | :--- | :--- | :--- | :---: |")
+        lines.append("| Rank | Match | Laya | Reachability | Job Title | Company | Location | Matched Skills | Apply |")
+        lines.append("| :---: | :---: | :---: | :---: | :--- | :--- | :--- | :--- | :---: |")
         for rank, j in enumerate(accessible_jobs, start=1):
             lines.append(_format_job_row(rank, j))
     else:
@@ -141,8 +148,8 @@ def export_feed(top_n: int = 100) -> Path:
     lines.append("> *These jobs pass hard filters but have no explicit worldwide/Nepal qualification. Review location before applying.*")
     lines.append("")
     if unknown_jobs:
-        lines.append("| Rank | Match | Laya | Job Title | Company | Location | Matched Skills | Apply |")
-        lines.append("| :---: | :---: | :---: | :--- | :--- | :--- | :--- | :---: |")
+        lines.append("| Rank | Match | Laya | Reachability | Job Title | Company | Location | Matched Skills | Apply |")
+        lines.append("| :---: | :---: | :---: | :---: | :--- | :--- | :--- | :--- | :---: |")
         for rank, j in enumerate(unknown_jobs, start=1):
             lines.append(_format_job_row(rank, j))
     else:
@@ -194,6 +201,10 @@ def _format_job_row(rank: int, j: Dict[str, Any]) -> str:
     loc = j.get("location_raw") or "Unspecified"
     loc_str = f"{is_remote} ({loc})" if loc != "Unspecified" else is_remote
 
+    reach = j.get("reachable_from_nepal") or "unknown"
+    reason = j.get("reachable_reason") or "unspecified"
+    reach_str = f"`{reach}` ({reason})" if reach == "accessible" else f"`{reach}`"
+
     skills = j.get("matched_skills") or []
     if isinstance(skills, str):
         try:
@@ -206,7 +217,7 @@ def _format_job_row(rank: int, j: Dict[str, Any]) -> str:
     apply_md = f"[Apply]({link})" if link != "#" else "N/A"
 
     return (
-        f"| {rank} | **{match_score:.1f}** | {laya_str}"
+        f"| {rank} | **{match_score:.1f}** | {laya_str} | {reach_str}"
         f" | {title} | {company} | {loc_str} | {skills_str} | {apply_md} |"
     )
 

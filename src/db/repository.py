@@ -17,14 +17,16 @@ class JobRepository:
         sql = """
             INSERT INTO jobs (
                 source, external_id, title, company_name, company_url,
-                location_raw, is_remote, remote_restriction, accessibility, job_type,
+                location_raw, is_remote, remote_restriction, accessibility,
+                reachable_from_nepal, reachable_reason, job_type,
                 experience_level, description_text, description_html,
                 apply_url, salary_min, salary_max, salary_currency,
                 tags, posted_at, expires_at, fingerprint_hash,
                 detected_language, is_unpaid, nepal_accessible
             ) VALUES (
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s,
                 %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
@@ -38,6 +40,8 @@ class JobRepository:
                 is_remote = EXCLUDED.is_remote,
                 remote_restriction = COALESCE(EXCLUDED.remote_restriction, jobs.remote_restriction),
                 accessibility = EXCLUDED.accessibility,
+                reachable_from_nepal = EXCLUDED.reachable_from_nepal,
+                reachable_reason = EXCLUDED.reachable_reason,
                 job_type = COALESCE(EXCLUDED.job_type, jobs.job_type),
                 experience_level = EXCLUDED.experience_level,
                 detected_language = EXCLUDED.detected_language,
@@ -64,6 +68,8 @@ class JobRepository:
             job.is_remote,
             job.remote_restriction,
             job.accessibility,
+            job.reachable_from_nepal,
+            job.reachable_reason,
             job.job_type,
             job.experience_level,
             job.description_text,
