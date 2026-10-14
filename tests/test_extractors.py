@@ -310,3 +310,59 @@ def test_jobicy_fetch_mocked():
         assert len(jobs) == 2
         assert jobs[0]["jobTitle"] == "Backend Dev"
         assert jobs[1]["jobGeo"] == "USA"
+
+def test_hackernews_extract_external_id():
+    """Verify HackerNewsExtractor properly extracts id."""
+    from src.extractors.hackernews import HackerNewsExtractor
+
+    extractor = HackerNewsExtractor(delay_seconds=0)
+
+    item1 = {"id": 49926618, "text": "FUTO | Austin"}
+    assert extractor.extract_external_id(item1) == "49926618"
+
+    item2 = {"id": "50000000"}
+    assert extractor.extract_external_id(item2) == "50000000"
+
+    item3 = {}
+    assert extractor.extract_external_id(item3) == ""
+
+
+def test_hackernews_fetch_mocked():
+    """Verify HackerNewsExtractor fetches the hiring story and comment items."""
+    from src.extractors.hackernews import HackerNewsExtractor
+
+    extractor = HackerNewsExtractor(delay_seconds=0)
+
+    user_resp = MagicMock()
+    user_resp.status_code = 200
+    user_resp.json.return_value = {"submitted": [1000]}
+
+    story_resp = MagicMock()
+    story_resp.status_code = 200
+    story_resp.json.return_value = {
+        "id": 1000,
+        "title": "Ask HN: Who is hiring? (October 2026)",
+        "kids": [2001, 2002],
+    }
+
+    comment1 = MagicMock()
+    comment1.status_code = 200
+    comment1.json.return_value = {
+        "id": 2001,
+        "by": "testco",
+        "time": 1727730000,
+        "text": "TestCo | Senior Engineer | Remote | Full Time<p>We are hiring engineers.</p>",
+    }
+
+    comment2 = MagicMock()
+    comment2.status_code = 200
+    comment2.json.return_value = {
+        "id": 2002,
+        "deleted": True,
+    }
+
+    with patch.object(extractor.session, "get", side_effect=[user_resp, story_resp, comment1, comment2]):
+        jobs = extractor.fetch_raw(limit=2)
+        assert len(jobs) == 1
+        assert jobs[0]["id"] == 2001
+        assert "TestCo" in jobs[0]["text"]

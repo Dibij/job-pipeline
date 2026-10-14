@@ -273,3 +273,44 @@ def test_jobicy_transformation():
     assert "Sales" in job.tags
     assert job.posted_at is not None
     assert job.fingerprint_hash is not None
+
+def test_hackernews_transformation():
+    """Verify Hacker News comment transforms into NormalizedJob accurately."""
+    from src.models.transformers import transform_hackernews
+
+    raw_payload = {
+        "id": 49926618,
+        "by": "futohq",
+        "time": 1727730000,
+        "text": 'FUTO | <a href="https://futo.tech/" rel="nofollow">https://futo.tech/</a> | Austin, TX | REMOTE(Worldwide) or ONSITE | Full Time<p>FUTO is an organization dedicated to open software.</p>',
+    }
+
+    job = transform_hackernews(raw_payload)
+    assert job.source == "hackernews"
+    assert job.external_id == "49926618"
+    assert job.company_name == "FUTO"
+    assert job.is_remote is True
+    assert job.remote_restriction == "Worldwide"
+    assert job.location_raw == "Worldwide"
+    assert "FUTO is an organization" in job.description_text
+    assert job.posted_at is not None
+    assert job.apply_url == "https://futo.tech/"
+    assert job.fingerprint_hash is not None
+
+
+def test_hackernews_transformation_dash_delimiter():
+    """Verify Hacker News comment with em-dash delimiters transforms accurately."""
+    from src.models.transformers import transform_hackernews
+
+    raw_payload = {
+        "id": 49922584,
+        "by": "mwest1066",
+        "time": 1727730000,
+        "text": "PrairieLearn (Remote US) \u2014 Full-Stack Software Engineer \u2014 TypeScript / Postgres / React / AI<p>PrairieLearn is building edtech tools.</p>",
+    }
+
+    job = transform_hackernews(raw_payload)
+    assert job.company_name == "PrairieLearn"
+    assert job.title == "Full-Stack Software Engineer"
+    assert job.is_remote is True
+    assert job.remote_restriction == "Remote US"

@@ -3,7 +3,15 @@ import logging
 from typing import Dict, Any
 
 from src.db.repository import JobRepository
-from src.extractors import ArbeitnowExtractor, RemotiveExtractor, HimalayasExtractor, WWRExtractor, RemoteOKExtractor, JobicyExtractor
+from src.extractors import (
+    ArbeitnowExtractor,
+    RemotiveExtractor,
+    HimalayasExtractor,
+    WWRExtractor,
+    RemoteOKExtractor,
+    JobicyExtractor,
+    HackerNewsExtractor,
+)
 from src.models import transform_raw_listing
 from src.enrichment.enricher import JobEnricher
 
@@ -81,6 +89,16 @@ class JobPipeline:
         except Exception as exc:
             logger.error("Jobicy extractor failed: %s", exc)
             stats["jobicy"] = {"error": str(exc)}
+
+        # 7. Hacker News (Who is hiring)
+        try:
+            hn = HackerNewsExtractor(delay_seconds=0.1)
+            items = hn.fetch_raw(limit=50)
+            res = hn.stage_raw(items)
+            stats["hackernews"] = res
+        except Exception as exc:
+            logger.error("Hacker News extractor failed: %s", exc)
+            stats["hackernews"] = {"error": str(exc)}
 
         return stats
 

@@ -300,6 +300,112 @@ def transform_jobicy(payload: Dict[str, Any]) -> NormalizedJob:
     )
 
 
+def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
+    """Transform Hacker News Who is hiring comment into NormalizedJob."""
+    raw_html = payload.get("text", "")
+    plain_desc = strip_html(raw_html)
+
+    # First line / paragraph contains the structured header
+    first_part = raw_html.split("<p>")[0] if "<p>" in raw_html else raw_html.split("\n")[0]
+    header = strip_html(first_part)
+
+    # Standardize common delimiters: em-dash, en-dash, bullet, middle dot -> pipe
+    header_clean = header.replace("\u2014", "|").replace("\u2013", "|").replace("\u2022", "|").replace("\u00b7", "|")
+    parts = [p.strip() for p in header_clean.split("|") if p.strip()]
+
+    # Extract company, title, location
+    company_name = "Unknown Company"
+    title = "Hacker News Role"
+    location_raw = "Remote"
+    remote_restriction = "unspecified"
+    is_remote = False
+
+    if parts:
+        # First part is almost always the company name
+        comp_candidate = parts[0]
+        # Clean URLs or parenthetical links from company name
+        comp_candidate = re.sub(r"https?://[^\s)]+", "", comp_candidate)
+        comp_candidate = re.sub(r"\(.*?\)", "", comp_candidate).strip()
+        if comp_candidate:
+            company_name = comp_candidate
+
+        # Find title among remaining parts
+        title_found = False
+        for p in parts[1:]:
+            p_lower = p.lower()
+            # Skip pure URLs
+            if p_lower.startswith("http://") or p_lower.startswith("https://") or any(ext in p_lower for ext in [".com", ".tech", ".io", ".ai", ".org", ".co"]):
+                continue
+            # Skip if this part is just generic status
+            if p_lower in ["remote", "onsite", "hybrid", "full-time", "part-time", "contract"]:
+                continue
+            if not title_found:
+                title = p
+                title_found = True
+                break
+
+        if not title_found and len(parts) > 1:
+            title = parts[1]
+
+    # Detect remote status
+    full_text_lower = f"{header} {plain_desc}".lower()
+    if "remote" in full_text_lower:
+        is_remote = True
+        # Look for explicit remote restriction in header (e.g. REMOTE(Worldwide), (Remote US), Remote - Europe)
+        m_prefix = re.search(r"remote\s*\(([^)]+)\)", header, re.IGNORECASE)
+        m_paren = re.search(r"\(([^)]*\bremote\b[^)]*)\)", header, re.IGNORECASE)
+        m2 = re.search(r"remote\s*[-–—:]\s*([A-Za-z\s,]+)", header, re.IGNORECASE)
+        if m_prefix:
+            remote_restriction = m_prefix.group(1).strip()
+            location_raw = remote_restriction
+        elif m_paren:
+            remote_restriction = m_paren.group(1).strip()
+            location_raw = remote_restriction
+        elif m2:
+            remote_restriction = m2.group(1).strip()
+            location_raw = remote_restriction
+        else:
+            location_raw = "Remote"
+            remote_restriction = "unspecified"
+    elif "onsite" in full_text_lower:
+        is_remote = False
+        location_raw = "Onsite"
+        remote_restriction = "unspecified"
+    else:
+        is_remote = False
+        location_raw = "Unspecified"
+        remote_restriction = "unspecified"
+
+    # Extract apply link
+    apply_url = ""
+    links = re.findall(r'href=["\'](https?://[^"\']+)["\']', raw_html)
+    if not links:
+        links = re.findall(r'(https?://[^\s<>"()]+)', raw_html)
+    if links:
+        apply_url = links[0]
+    else:
+        hn_id = payload.get("id")
+        apply_url = f"https://news.ycombinator.com/item?id={hn_id}"
+
+    posted_at = parse_timestamp(payload.get("time"))
+    item_id = str(payload.get("id", "")).strip()
+
+    return NormalizedJob(
+        source="hackernews",
+        external_id=item_id,
+        title=title.strip(),
+        company_name=company_name.strip(),
+        location_raw=location_raw.strip(),
+        is_remote=is_remote,
+        remote_restriction=remote_restriction.strip(),
+        description_text=plain_desc or title,
+        description_html=raw_html,
+        apply_url=apply_url,
+        tags=["HackerNews", "Who is Hiring"],
+        posted_at=posted_at,
+    )
+
+
 def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
@@ -315,8 +421,11 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         return transform_remoteok(payload)
     elif source_lower == "jobicy":
         return transform_jobicy(payload)
+    elif source_lower == "hackernews":
+        return transform_hackernews(payload)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
+
 
 
 

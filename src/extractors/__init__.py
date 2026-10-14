@@ -6,9 +6,11 @@ from src.extractors.himalayas import HimalayasExtractor
 from src.extractors.weworkremotely import WWRExtractor
 from src.extractors.remoteok import RemoteOKExtractor
 from src.extractors.jobicy import JobicyExtractor
+from src.extractors.hackernews import HackerNewsExtractor
 
 __all__ = [
     "BaseExtractor", "ArbeitnowExtractor", "RemotiveExtractor",
     "HimalayasExtractor", "WWRExtractor", "RemoteOKExtractor", "JobicyExtractor",
+    "HackerNewsExtractor",
 ]
 
