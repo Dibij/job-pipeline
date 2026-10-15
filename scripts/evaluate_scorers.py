@@ -75,7 +75,14 @@ def evaluate():
 
     # Initialize scorers
     match_scorer = MatchScorer()
-    laya_scorer = LayaScorer(device="cpu")
+
+    try:
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:
+        device = "cpu"
+
+    laya_scorer = LayaScorer(device=device)
 
     match_correct = 0
     laya_correct = 0
@@ -87,11 +94,14 @@ def evaluate():
 
     categories = ["good_fit", "maybe", "bad_fit"]
 
-    for row in rows:
+    for idx, row in enumerate(rows, 1):
         job_id = str(row["job_id"])
         human_label = str(row["label"]).lower()
         title = row["title"] or "Untitled"
         company = row["company_name"] or "Unknown"
+
+        if idx == 1 or idx % 5 == 0 or idx == len(rows):
+            logger.info("Evaluating [%d/%d] (%.1f%%) — %s (%s)...", idx, len(rows), (idx / len(rows)) * 100, title[:28], company[:18])
 
         # 1. Rule-based MatchScorer
         ms_score, ms_matched, ms_missing, ms_breakdown = match_scorer.score_job(row)
@@ -100,6 +110,7 @@ def evaluate():
         # 2. LayaScorer
         ls_res = laya_scorer.score_job(row)
         ls_category = map_laya_scorer_category(ls_res.final_score, ls_res.is_passed, ls_res.role_type)
+
 
         # Accuracy checks
         is_match_exact = (ms_category == human_label)

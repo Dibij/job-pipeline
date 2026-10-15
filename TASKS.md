@@ -49,7 +49,7 @@
 - [x] 6.1 Implement `FEED.md` exporter: ranked table of jobs that passed hard filters, with score, title, company, location/remote, matched skills, and apply link. Include a section showing filter reason-code counts.
 - [x] 6.2 Build interactive CLI query tool for reviewing top matches.
 - [x] 6.3 Package pipeline runner into a scheduled daily script.
-- [ ] 6.4 Wire the web dashboard (`tools/app.py`) to use the new hard-filter output.
+- [x] 6.4 Wire the web dashboard (`tools/app.py`) to use the new hard-filter output, reachability status, and in-browser human labeling & rating.
 
 ## Phase 6 Refinements: Accessibility, Thresholds & Evaluation
 - [x] 6a **Accessibility Architecture** (highest priority):
@@ -70,6 +70,15 @@
   - **Himalayas**: Free public JSON API. Rate limit: 429 returned if exceeded; no numeric limit published. Data cached every 24 h; polling more often provides no benefit. Max 20 jobs/request. `locationRestrictions` and `timezoneRestrictions` fields on each job. Attribution required (link back + mention Himalayas). Source: `https://himalayas.app/api` (FAQ section, fetched 2026-10-10).
   - **Jobicy**: Free public API (no key). `jobGeo` field per job. No numeric rate limit published; 429 returned on excess; fair-use only. `count` param (up to 50). Source: API JSON response header + friendly notice in `https://jobicy.com/api/v2/remote-jobs`.
   - **Merojob**: Nepal-focused job board. Terms explicitly prohibit "Data scraping, automated bots, or other tools for collecting or mining personal or professional data." No public API. `robots.txt` empty Disallow but `ai-train=no`. **Never use Merojob text for fine-tuning.** Source: `https://merojob.com/terms-and-conditions/` (section 3.E, fetched 2026-10-11).
+- [x] 6g **Tri-State Reachability & Candidate Sources Ingestion** (Oct 14-15 2026):
+  - Migration 008 added `reachable_from_nepal` (`accessible`, `unknown`, `blocked`) and `reachable_reason`.
+  - Built extractors & transformers for Himalayas, We Work Remotely (RSS), Remote OK, Jobicy, and Hacker News (Who is hiring Firebase API).
+  - Staged and scored all sources. Database reached 2,609 active jobs (90 accessible, 218 unknown, 2,301 blocked).
+- [x] 6h **In-Browser Labeling & Rating Dashboard** (Oct 15 2026):
+  - Upgraded `tools/app.py` with `POST /api/label` endpoint.
+  - Integrated 1-5 star rating, fit buttons (`good_fit`, `maybe`, `bad_fit`), and inline notes directly into job cards.
+  - Added `⚡ Unlabeled Only` filtering. Total human-labeled jobs crossed 100 milestone (103 unique jobs, 127 records).
+
 
 ## Phase 7: Laya Scoring
 - [x] 7.1 Spike: run Laya locally on one hard-coded example and print raw output. Record hardware, speed, and token limit in PROGRESS.md.

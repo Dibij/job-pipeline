@@ -25,9 +25,9 @@ A modular data engineering pipeline that aggregates messy job listings from mult
 
 ---
 
-## 🌐 Local Web Dashboard
+## 🌐 Local Web Dashboard & In-Browser Labeling
 
-Launch the live visual web interface backed directly by your local PostgreSQL database:
+Launch the live visual web interface backed directly by your local PostgreSQL database (2,609 jobs across 7 active sources):
 
 ```powershell
 & .\.venv\Scripts\python.exe tools/app.py
@@ -35,9 +35,11 @@ Launch the live visual web interface backed directly by your local PostgreSQL da
 
 Then open **[http://localhost:5000](http://localhost:5000)** in your browser.
 
-- Features live search filtering by keyword, tech stack tag (`Python`, `Django`, `React`, `AI`), and remote accessibility.
-- Connects live to `raw_job_listings` in PostgreSQL and normalizes jobs dynamically.
+- **In-Browser Labeling & Rating**: Label jobs directly (`Good Fit`, `Maybe`, `Bad Fit`), rate with 1–5 stars, and save notes without touching Excel or CSV exports.
+- **Reachability & Clean Filters**: Filter by Nepal accessibility (90 accessible, 218 unknown, 2,301 blocked), seniority, language, and `⚡ Unlabeled Only`.
+- **Live Search & Tags**: Filter by keyword, tech stack tag (`Python`, `Django`, `React`, `AI`), and remote accessibility.
 - Interactive "Apply Now ↗" buttons link directly to original listings.
+
 
 ## 📊 Database CLI Commands
 

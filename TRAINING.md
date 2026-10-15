@@ -5,13 +5,19 @@ This document tracks the calibration and fine-tuning engineering for Laya (Task 
 ---
 
 ## 1. Current State
-* **Spike and Scoring Active**: Base checkpoint `convaiinnovations/laya` (ModernBERT-large, 421M params) runs on CPU with ~2.8s latency per job.
-* **Database Table Created**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql`) stores candidate fit labels with columns `(job_id, label, notes, metadata, labeled_at)`.
+* **Spike and Scoring Active**: Base checkpoint `convaiinnovations/laya` (ModernBERT-large, 421M params). Inference on CPU takes ~15–20s per full JD (on CUDA RTX 2050 ~40ms).
+* **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql` & `007_labeling_schema.sql`) stores human fit labels with columns `(job_id, label, notes, metadata, sampling_stratum, label_guideline_version, labeled_at)`.
+* **Current Human Labeled Dataset (Oct 15 2026)**: **103 unique jobs** (127 total label events):
+  - `bad_fit`: 95 (74.8%)
+  - `good_fit`: 18 (14.2%)
+  - `maybe`: 14 (11.0%)
+* **In-Browser Labeling Active**: `tools/app.py` writes directly to `laya_labels` via `POST /api/label` with strata `web_ui`, supporting rapid interactive review without CSV round-trips.
 * **Scaffolding Complete**: All 4 pipeline scripts are implemented and tested:
-  1. `scripts/export_for_labeling.py`: Exports unlabeled jobs to `data/labeling_batch_YYYYMMDD.csv` prioritizing low-confidence predictions.
+  1. `scripts/export_for_labeling.py`: Exports stratified unlabeled batches (`random`, `high_match_scorer`, `laya_uncertainty`), omitting Laya columns to prevent bias.
   2. `scripts/ingest_labels.py`: Ingests and validates human labels (`good_fit`, `maybe`, `bad_fit`) without overwriting old records.
   3. `scripts/calibrate_laya.py`: Fits temperature scaling parameters (Task 7.8a) to calibrate confidence scores.
   4. `scripts/train_laya.py`: Supervises decision head training with strict safeguards and `--dry-run` support (Task 7.8b).
+
 
 ---
 

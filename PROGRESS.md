@@ -14,24 +14,31 @@
 
 ---
 
-## Current State (Oct 10 2026)
+## Current State (Oct 15 2026)
 
-### Infrastructure
+### Infrastructure & Sources
 - Phase 1, Phase 2, Phase 3, Phase 5, and Phase 6 complete.
-- 1,194 unique jobs in PostgreSQL (576 added Oct 9). MatchScorer re-run on all.
-- CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed.
-- Task 5b.2 seniority fix and Task 5b.3 HardFilter complete.
-- Task 7.1-7.7 Laya spike, JD extraction, truncation, typed questions, confidence gating, batch scoring, and labeling scaffolding all complete.
-- Task 7.8a `calibrate_laya.py` rewritten (removed train/val split that caused n_eval=0).
+- **Candidate Sources Built & Ingested**: 2,609 unique jobs in PostgreSQL across 7 sources (Arbeitnow: 2,307, Remote OK: 97, We Work Remotely: 86, Jobicy: 50, Hacker News: 30, Himalayas: 20, Remotive: 19).
+- **Tri-State Reachability**: Migration 008 applied (`reachable_from_nepal` & `reachable_reason`). Distribution: 90 `accessible`, 218 `unknown`, 2,301 `blocked`. FEED.md filters out all blocked roles.
+- **In-Browser Labeling Dashboard (`tools/app.py`)**: Built interactive labeling, 1-5 star rating, and notes directly on cards via `POST /api/label`, eliminating the Excel/CSV manual loop. Supports filtering by `⚡ Unlabeled Only`.
+- CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed. Test suite: 144 passing tests.
 
-### Labeling (as of Oct 10 2026)
-86 human labels in `laya_labels`:
+### Labeling (as of Oct 15 2026)
+103 unique human-labeled jobs (127 total label events) in `laya_labels`:
 
 | Label | Count | % |
 |-------|-------|---|
-| `bad_fit` | 65 | 75.6% |
-| `maybe` | 12 | 14.0% |
-| `good_fit` | 9 | 10.5% |
+| `bad_fit` | 95 | 74.8% |
+| `good_fit` | 18 | 14.2% |
+| `maybe` | 14 | 11.0% |
+
+- **Strata Breakdown**: 86 legacy batch labels, 12 `random`, 9 `high_match_scorer`, 9 `laya_uncertainty`, 11 `web_ui` (labeled directly in-browser).
+- **Milestone Progress**: Crossed 100 labeled jobs. `good_fit` count is 18 (approaching the M1 target of 30 positive labels required for fine-tuning).
+
+### Evaluation & Inference Latency Note (`evaluate_scorers.py`)
+- Running `scripts/evaluate_scorers.py` evaluates 127 labeled jobs through rule-based `MatchScorer` and neural `LayaScorer`.
+- On CPU, Laya inference requires ~15–20 seconds per job description.
+- For 127 jobs: $127 \times 15\text{s} \approx 1,900\text{s} \approx 32\text{ minutes}$. Because the evaluation loop had no per-iteration logging, the terminal appears silent/stuck between model load and final summary table output. Running on CUDA (`device="cuda"`) reduces this to ~1–2 minutes.
 
 The ~10% `good_fit` rate reflects the source bias (Arbeitnow, Remotive skew senior/US/EU). This is not a labeling error.
 
