@@ -46,9 +46,16 @@ class LayaScoreResult:
 class LayaScorer:
     """Evaluates jobs using typed Laya questions from YAML configuration."""
 
-    def __init__(self, config_path: Optional[Path] = None, device: str = "cpu"):
+    def __init__(self, config_path: Optional[Path] = None, device: Optional[str] = None):
         self.config_path = config_path or CONFIG_PATH
-        self.device = device
+        if device is None:
+            try:
+                import torch
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            except Exception:
+                self.device = "cpu"
+        else:
+            self.device = device
         self.config = self._load_config()
         self.confidence_threshold = self.config.get("confidence_threshold", 0.65)
         self.gates_warn_only = self.config.get("gates_warn_only", True)

@@ -40,8 +40,14 @@ def build_records(scorer: LayaScorer, jobs: list) -> list:
 
     qtype_map = {"choice": 0, "score": 1, "noul": 2}
     records = []
+    total = len(jobs)
 
-    for job in jobs:
+    for idx, job in enumerate(jobs, 1):
+        title = job.get("title") or "Untitled"
+        company = job.get("company_name") or "Unknown"
+        if idx == 1 or idx % 5 == 0 or idx == total:
+            logger.info("Scoring [%d/%d] (%.1f%%) — %s (%s)...", idx, total, (idx / total) * 100, title[:28], company[:18])
+
         res = scorer.score_job(job)
         label = job["label"]
         # Map human label → numeric target score (0–4 scale)
@@ -73,6 +79,7 @@ def run_temperature_calibration(
     version: str = "v1",
     min_labels: int = 15,
     seed: int = 42,
+    device: str = None,
 ):
     logger.info("=" * 60)
     logger.info("  LAYA TEMPERATURE CALIBRATION (Task 7.8a)")
@@ -110,8 +117,15 @@ def run_temperature_calibration(
     )
 
     # 3. Load Laya and score all labeled jobs
-    logger.info("Loading Laya scorer (device=cpu)...")
-    scorer = LayaScorer(device="cpu")
+    if device is None:
+        try:
+            import torch
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        except Exception:
+            device = "cpu"
+
+    logger.info("Loading Laya scorer (device=%s)...", device)
+    scorer = LayaScorer(device=device)
 
     logger.info("Scoring %d labeled jobs to collect prediction records...", n_total)
     all_records = build_records(scorer, all_jobs)
@@ -179,5 +193,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Calibrate Laya confidence temperatures (Task 7.8a).")
     parser.add_argument("--version", type=str, default="v1", help="Version tag for output config file.")
     parser.add_argument("--min-labels", type=int, default=10, help="Minimum labeled rows required to proceed.")
+    parser.add_argument("--device", type=str, default=None, help="Device to run inference on (cuda or cpu). Defaults to auto-detect.")
     args = parser.parse_args()
-    run_temperature_calibration(version=args.version, min_labels=args.min_labels)
+    run_temperature_calibration(version=args.version, min_labels=args.min_labels, device=args.device)
