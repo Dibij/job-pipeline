@@ -3,13 +3,16 @@
 A modular data engineering pipeline that aggregates messy job listings from multiple sources, normalizes and deduplicates them into PostgreSQL, and scores them against a personal CV to surface relevant junior, remote, and local roles.
 
 ## Architecture
-- **Ingest**: Pluggable extractors for public APIs (Remotive, Arbeitnow, Jobicy, Greenhouse) and polite HTML scraping (Merojob).
+- **Ingest**: Pluggable extractors managed via a unified `SOURCES` registry with isolated per-source failure boundaries (Arbeitnow, Remotive, Himalayas, WWR, Remote OK, Jobicy, Hacker News).
 - **Stage**: Raw JSON/HTML payloads preserved in `raw_job_listings` (ELT pattern) to guarantee zero data loss.
-- **Normalize & Enrich**: Pydantic models clean text, extract seniority levels (`junior`, `intern`), and isolate tech stacks.
+- **Normalize & Enrich**: Pydantic models clean text, truncate fields to 255 chars with warnings, extract seniority levels (`junior`, `intern`), and classify reachability.
+- **Reachability (Single Source of Truth)**: Evaluates Nepal accessibility as `reachable_from_nepal` (`accessible`, `unknown`, `blocked`) with explicit `reachable_reason` (blocking ITAR, region locks, and US-citizen-only restrictions).
 - **Deduplicate**: SHA-256 content hashing collapses identical postings cross-posted across platforms.
+- **Eligibility & HardFilter**: Single shared eligibility pipeline (`src/matching/eligibility.py`) enforcing `HardFilter` uniformly across batch scoring, labeling exports, and daily feed generation.
 - **Match**: Weighted rule-based ranking (MatchScorer) and Laya neural scorer (`convaiinnovations/laya`, ModernBERT-large).
 - **Output**: Daily markdown digest (`FEED.md`), interactive CLI review tool, and local web dashboard.
 - **Labeling & Calibration**: Human-labeled dataset in `laya_labels` (PostgreSQL). Strategy, evaluation protocol, and milestones documented in [`TRAINING.md`](TRAINING.md).
+
 
 ## ⚡ Quick Commands Cheatsheet
 

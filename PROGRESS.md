@@ -56,19 +56,21 @@ See `TRAINING.md` for full rationale. Summary:
 
 ---
 
-## What's Broken / Incomplete
-- **7.8a PROVISIONAL**: calibration ran on 43 unique labeled+scored jobs. Temperatures in `config/laya_temperatures_v1.json` are provisional. Re-run at M1.
-- **`use_confidence_flag: false`** on disk — correct.
-- **5c.1 Audit & 5c.2 Fixes DONE** (Oct 10 2026) — FEED.md deduplicated, NON_ENGLISH & NON_TECHNICAL & country-locks filtered, MatchScorer updated with section-targeted skill matching and seniority fallback, evaluate_scoring.py deduplicated.
-- **5c.3 Supply Audit DONE** (Oct 10 2026) — Remotive category limit analyzed; 5 new candidate sources identified. `TRAINING.md` milestones updated.
-- **6a ACCESSIBILITY ARCHITECTURE DONE** (Oct 11 2026) — Migration 006 applied, 3-state enum (`ACCESSIBLE`, `BLOCKED`, `UNKNOWN`), fixed transformers (never default to 'Worldwide'), 18 regression tests added (suite 99 green). Re-normalized 1,846 jobs: ACCESSIBLE 10, BLOCKED 1765, UNKNOWN 71. FEED.md split into Verified Accessible (1 job) and Location Not Stated (23 jobs).
-- **6b FEED THRESHOLD & PLACEHOLDER FILTERING DONE** (Oct 11 2026) — Technical title signals in `cv_profile.json`, placeholder detection ('template', 'test'). Dropped 20 roles (1 PLACEHOLDER, 19 NO_TECH_SIGNAL without matched skills); kept 10 unknown + 1 accessible in FEED.md (including zero-skill tech roles like "Full-stack Engineer - Creative Agents"). 6 regression tests added (suite 105 green).
-- **6c UNPAID FALSE POSITIVE FIX DONE** (Oct 11 2026) — Replaced bare keyword matching with contextual patterns (`unpaid internship/role/position`, `this role is unpaid`, `equity only`, etc.). Disqualified UNPAID count dropped from 53 to 1 true positive (`IndieKidz GmbH | (Unpaid) Mandatory Internship`); 52 false positives eliminated (Credit Wellness sales commission, Robinhood & Contabo volunteer day benefits). 5 regression tests added (suite 110 green).
-- **6d ENRICHMENT PIPELINE INTEGRATION & BACKFILL DONE** (Oct 11 2026) — Verified that 42.1% of jobs (777/1846) had stored experience_level differences and 95.8% had tag changes. Wired `JobEnricher.enrich_job()` directly into `JobPipeline.process_staged()` and `JobRepository.upsert_job()`. Backfilled all 1,846 DB jobs via `scripts/backfill_enrichment.py`. Unspecified experience level dropped from 1,440 (78%) to 710 (38%); senior 346 -> 897, intern 36 -> 118, junior 15 -> 67, mid 9 -> 54. Suite: 110 green.
-- **7.7b LABELING SCHEMA & EXPORT HYGIENE DONE** (Oct 13 2026) — Migration 007 added `sampling_stratum` and `label_guideline_version`. 3-stratum sampling (40% random, 30% high_match_scorer, 30% laya_uncertainty with fallback) in `export_for_labeling.py`. Laya internal scores/confidence omitted from export CSV. Ingestion updated. 9 regression tests added (`test_export_labeling.py`).
-- Task 7.8b BLOCKED: needs M3 (500+ labels, 30+ `good_fit`).
-- Task 7.9 NOT STARTED: report script (`scripts/report_labels.py`).
-- Task 6.4 (dashboard wired to hard-filter output) — not started.
+## What's Broken / Incomplete (Phase 8 Issues from tmp/4.txt)
+- **DB Connection Timeout**: Pipeline lacks fast-fail on database connection (`connect_timeout=5`); when Docker Desktop is stopped, `run_daily.py` hangs for 4 minutes before failing with socket timeout.
+- **Hacker News Field-Length Parser Bug**: Comments lacking a clear "Company | Role | Location" header (e.g., #49924674) overflow the 255-character `VARCHAR(255)` constraint on `title`/`company_name`. Needs fallback title and string truncation to 255 chars in normalization.
+- **Eligibility Discrepancy (98 vs 161, 287 vs 546)**:
+  - `score_jobs.py` queries `WHERE detected_language = 'english' AND nepal_accessible = true` (546 jobs).
+  - `export_for_labeling.py` queries `WHERE accessibility IN ('ACCESSIBLE', 'UNKNOWN')` (267 jobs).
+  - Neither script executes `HardFilter`, leaking ITAR defense roles (e.g. Swarmaero), US-citizen-only restrictions, and non-technical jobs (e.g. Account Executives) into Laya scoring and the labeling queue.
+  - Solution: Create one shared `src/matching/eligibility.py` module backed by `HardFilter.apply`.
+- **Reachability Field Fragmentation**: Codebase reads from legacy `nepal_accessible` and `accessibility` columns alongside `reachable_from_nepal` & `reachable_reason`. Must unify onto `reachable_from_nepal` as single source of truth.
+- **Title & Seniority Gaps**: Out-of-range senior titles (Senior, Staff, Principal, Lead, VP, Director) and non-engineering titles (Recruiter, Sourcer, FP&A, Accounts Payable) pass through to scoring unless explicitly caught.
+- **`laya_uncertainty` Export Stratum**: Picks senior, score-0 jobs because Laya is not yet calibrated. Must fall back to the random pool until calibration is verified.
+- **Orchestrator Code Duplication**: `JobPipeline.run_extractors` repeats per-source try/except blocks; must be refactored into a declarative `SOURCES` registry with per-source error isolation.
+- **7.8a PROVISIONAL**: Calibration ran on 103 unique labeled jobs (1,133 records). ECE evaluation skipped until M1 (150 labels).
+- **Task 7.8b BLOCKED**: Needs M3 (150+ labels, 30+ `good_fit`).
+- **Task 7.9 NOT STARTED**: Report script (`scripts/report_labels.py`).
 
 ---
 

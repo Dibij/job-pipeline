@@ -128,6 +128,7 @@ Each label row must include a `label_guideline_version` (stored in `metadata`) a
 - Every label comes from the human labeler. Accepting Laya's output as a default is **not allowed**.
 - Laya's answers must not be visible while labeling (anchoring bias). Task 7.7b tracks moving Laya columns out of the export CSV or hiding them until after the label is entered.
 - A skipped job is **unlabeled**, never `bad_fit`.
+- **Pre-Export HardFilter Enforcement (Phase 8 / tmp/4.txt)**: All exported candidate jobs must pass `HardFilter.apply()` (via shared `src/matching/eligibility.py`) to prevent ITAR defense restrictions, US-citizen locks, and non-technical titles from leaking into human labeling batches.
 
 ### 6.5 Labeling Queue -- Sampling Strata
 Each exported job must have a `sampling_stratum` field recorded in `laya_labels.metadata`:
@@ -136,9 +137,9 @@ Each exported job must have a `sampling_stratum` field recorded in `laya_labels.
 |---------|--------------|----------------|
 | `random` | 40% | Uniformly sampled from the natural stream after hard filters. Must always be present -- provides unbiased rates for calibration. |
 | `high_match_scorer` | 30% | Highest MatchScorer scores among unlabeled, hard-filter-passing jobs. Finds positives using a signal independent of Laya. |
-| `laya_uncertainty` | 30% | Jobs where calibrated Laya confidence is lowest. **Only active after 7.8a calibration.** Before calibration, fill this share with additional `random` jobs. |
+| `laya_uncertainty` | 30% | Jobs where calibrated Laya confidence is lowest. **Only active after 7.8a calibration is verified.** If uncalibrated or if insufficient Laya-scored eligible jobs exist, fill remainder from the `random` eligible pool to avoid picking senior, score-0 jobs. |
 
-> **Important**: Do not use uncalibrated Laya outputs to discard jobs or decide labeling order. Raw confidence scores (~0.10-0.26 on score questions) are noise, not signal, until 7.8a is done.
+> **Important**: Do not use uncalibrated Laya outputs to discard jobs or decide labeling order. Raw confidence scores (~0.10-0.26 on score questions) are noise, not signal, until calibration is verified. When Laya-scored eligible jobs are fewer than the allocated batch share, automatically fall back to the random pool.
 
 ### 6.6 Per-Source Tracking
 Track `good_fit` rate per source and per stratum (Task 7.9 report script). This makes it visible when a new source (e.g. Nepal-friendly boards) actually improves yield.
