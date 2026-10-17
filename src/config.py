@@ -14,6 +14,7 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "jobseeker_dev_pw")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "job_pipeline")
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
 POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
+POSTGRES_CONNECT_TIMEOUT = int(os.getenv("POSTGRES_CONNECT_TIMEOUT", "5"))
 
 DATABASE_URL = (
     f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"

@@ -114,7 +114,7 @@
 
 ## Phase 8: Pipeline Cleanup & Architecture Harmonization (tmp/4.txt)
 - [x] 8.1 Record tmp/4.txt findings and decisions into project documentation (README.md, PROGRESS.md, TASKS.md, TRAINING.md).
-- [ ] 8.2 DB Identity & Fast-Fail Timeout: Verify database connection host/port/db vs docker-compose.yml; add `connect_timeout=5` to connection pool to prevent socket hanging.
+- [x] 8.2 DB Identity & Fast-Fail Timeout: Verify database connection host/port/db vs docker-compose.yml; add `connect_timeout=5` to connection pool to prevent socket hanging.
 - [ ] 8.3 HN Parser & Field-Length Truncation: Fix Hacker News comment parser fallback for non-pipe comments; truncate strings to 255 chars in normalization with warnings.
 - [ ] 8.4 Count Mismatch Diagnosis: Document queries and root causes for 287 HardFilter passed vs 109 really passed vs 40/69 feed vs 546 score_jobs.
 - [ ] 8.5 One Shared Eligibility Function: Create `src/matching/eligibility.py` as single source of truth for candidate eligibility across run_daily, score_jobs, and export_for_labeling; fix summary count key.

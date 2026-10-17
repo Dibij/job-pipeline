@@ -19,6 +19,7 @@ def get_connection(autocommit: bool = False) -> Generator[psycopg.Connection, No
         dbname=config.POSTGRES_DB,
         user=config.POSTGRES_USER,
         password=config.POSTGRES_PASSWORD,
+        connect_timeout=config.POSTGRES_CONNECT_TIMEOUT,
         autocommit=autocommit,
         row_factory=dict_row,
     )
