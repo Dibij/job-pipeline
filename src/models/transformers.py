@@ -320,10 +320,17 @@ def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
     remote_restriction = "unspecified"
     is_remote = False
 
-    if parts:
+    # Check for clean "Company | Role | Location" header:
+    # Must have at least 2 parts, and first part is <= 80 chars without multi-sentence text
+    is_clean_header = (
+        len(parts) >= 2
+        and len(parts[0]) <= 80
+        and not any(s in parts[0] for s in [". ", "? ", "! "])
+    )
+
+    if is_clean_header:
         # First part is almost always the company name
         comp_candidate = parts[0]
-        # Clean URLs or parenthetical links from company name
         comp_candidate = re.sub(r"https?://[^\s)]+", "", comp_candidate)
         comp_candidate = re.sub(r"\(.*?\)", "", comp_candidate).strip()
         if comp_candidate:
@@ -346,6 +353,15 @@ def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
 
         if not title_found and len(parts) > 1:
             title = parts[1]
+    else:
+        # No clean header: fallback title, full text only in description
+        title = "Hacker News Role"
+        # Try to extract clean company if header starts with "Company - " or "Company: " (<= 50 chars)
+        match_co = re.match(r"^([A-Za-z0-9\s&.,'-]{2,50})\s+[-–—:]\s+", header)
+        if match_co:
+            cand = match_co.group(1).strip()
+            if not any(stop in cand.lower() for stop in ["we are", "looking for", "hiring", "http"]):
+                company_name = cand
 
     # Detect remote status
     full_text_lower = f"{header} {plain_desc}".lower()
@@ -354,14 +370,14 @@ def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
         # Look for explicit remote restriction in header (e.g. REMOTE(Worldwide), (Remote US), Remote - Europe)
         m_prefix = re.search(r"remote\s*\(([^)]+)\)", header, re.IGNORECASE)
         m_paren = re.search(r"\(([^)]*\bremote\b[^)]*)\)", header, re.IGNORECASE)
-        m2 = re.search(r"remote\s*[-–—:]\s*([A-Za-z\s,]+)", header, re.IGNORECASE)
-        if m_prefix:
+        m2 = re.search(r"remote\s*[-–—:]\s*([A-Za-z\s,]{2,40})", header, re.IGNORECASE)
+        if m_prefix and len(m_prefix.group(1).strip()) <= 100:
             remote_restriction = m_prefix.group(1).strip()
             location_raw = remote_restriction
-        elif m_paren:
+        elif m_paren and len(m_paren.group(1).strip()) <= 100:
             remote_restriction = m_paren.group(1).strip()
             location_raw = remote_restriction
-        elif m2:
+        elif m2 and len(m2.group(1).strip()) <= 100:
             remote_restriction = m2.group(1).strip()
             location_raw = remote_restriction
         else:

@@ -1,10 +1,12 @@
-"""Pydantic model for normalized job listings."""
 import hashlib
+import logging
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
-from pydantic import BaseModel, Field, field_validator
+from typing import Any, List, Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class NormalizedJob(BaseModel):
@@ -37,12 +39,28 @@ class NormalizedJob(BaseModel):
     expires_at: Optional[datetime] = None
     fingerprint_hash: Optional[str] = None
 
-    @field_validator("title", "company_name", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def clean_strings(cls, value: str) -> str:
-        if isinstance(value, str):
-            return value.strip()
-        return str(value or "")
+    def truncate_and_clean_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        job_id = data.get("external_id") or "unknown"
+        fields_to_truncate = ["title", "company_name", "location_raw", "remote_restriction"]
+
+        for field in fields_to_truncate:
+            val = data.get(field)
+            if val is not None and isinstance(val, str):
+                cleaned = val.strip()
+                if len(cleaned) > 255:
+                    logger.warning(
+                        "Truncating %s for job id '%s' from %d to 255 characters",
+                        field, job_id, len(cleaned)
+                    )
+                    data[field] = cleaned[:255].strip()
+                else:
+                    data[field] = cleaned
+        return data
 
     def compute_fingerprint(self) -> str:
         """Generate SHA-256 fingerprint from title + company_name + location/remote."""

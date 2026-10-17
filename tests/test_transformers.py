@@ -314,3 +314,66 @@ def test_hackernews_transformation_dash_delimiter():
     assert job.title == "Full-Stack Software Engineer"
     assert job.is_remote is True
     assert job.remote_restriction == "Remote US"
+
+
+def test_hackernews_no_pipes_5000_chars():
+    """Verify a 5,000-character HN comment without pipes gets fallback title and full text in description."""
+    from src.models.transformers import transform_hackernews
+
+    huge_text = "We are an innovative company building autonomous agents for healthcare. " * 80
+    raw_payload = {
+        "id": 49999999,
+        "by": "builder",
+        "time": 1727730000,
+        "text": huge_text,
+    }
+
+    job = transform_hackernews(raw_payload)
+    assert job.title == "Hacker News Role"
+    assert job.company_name == "Unknown Company"
+    assert len(job.description_text) >= 5000
+    assert len(job.title) <= 255
+    assert len(job.company_name) <= 255
+
+
+def test_hackernews_messy_header_fallback():
+    """Verify HN post with dash intro but no pipes gets clean company and fallback title (item 49924674 pattern)."""
+    from src.models.transformers import transform_hackernews
+
+    raw_payload = {
+        "id": 49924674,
+        "by": "ddg_recruiter",
+        "time": 1727730000,
+        "text": "DuckDuckGo - we are looking for candidates that are excited to join us on a mission. Senior Web Security Engineer. <a href='https://duckduckgo.com/jobs'>Link</a>",
+    }
+
+    job = transform_hackernews(raw_payload)
+    assert job.company_name == "DuckDuckGo"
+    assert job.title == "Hacker News Role"
+    assert len(job.company_name) <= 255
+    assert "DuckDuckGo" in job.description_text
+
+
+def test_field_truncation_255_chars(caplog):
+    """Verify NormalizedJob model truncates fields > 255 chars and logs a warning with job id."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        job = NormalizedJob(
+            source="test",
+            external_id="ext-999",
+            title="A" * 300,
+            company_name="B" * 280,
+            location_raw="C" * 260,
+            remote_restriction="D" * 270,
+            description_text="Valid description",
+            apply_url="https://example.com/apply",
+        )
+
+    assert len(job.title) == 255
+    assert len(job.company_name) == 255
+    assert len(job.location_raw) == 255
+    assert len(job.remote_restriction) == 255
+    assert "Truncating title for job id 'ext-999'" in caplog.text
+    assert "Truncating company_name for job id 'ext-999'" in caplog.text
+
