@@ -12,6 +12,7 @@ import yaml
 import laya
 from src.matching.jd_extractor import JDSections, extract_sections
 from src.matching.jd_truncator import build_truncated_laya_state
+from src.models.job import build_job_text
 
 logger = logging.getLogger(__name__)
 
@@ -138,9 +139,10 @@ class LayaScorer:
         desc = job_dict.get("description_text", "")
         job_id = str(job_dict.get("id", ""))
 
-        # 1. Extract sections and truncate to budget
+        # 1. Extract sections and truncate to budget using unified text representation
+        unified_text = build_job_text(title, desc)
         sections = extract_sections(
-            description_text=desc,
+            description_text=unified_text,
             title=title,
             company=company,
             location=location

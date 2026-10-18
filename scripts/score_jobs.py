@@ -32,6 +32,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.db.connection import execute_query
 from src.matching.laya_scorer import LayaScorer
+from src.models.job import build_job_text
 
 LAYA_CHECKPOINT = "convaiinnovations/laya"
 
@@ -224,6 +225,7 @@ def main():
         safe_title = job["title"].encode("ascii", "replace").decode("ascii")
         safe_co = job["company_name"].encode("ascii", "replace").decode("ascii")
 
+        job["text"] = build_job_text(job.get("title", ""), job.get("description_text", ""))
         t0 = time.perf_counter()
         result = scorer.score_job(job)
         elapsed = time.perf_counter() - t0

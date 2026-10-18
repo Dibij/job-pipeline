@@ -8,13 +8,49 @@ from bs4 import BeautifulSoup
 from src.models.job import NormalizedJob
 
 
+import html
+
+_MOJIBAKE_PATTERN = re.compile(
+    r"([\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xf4][\x80-\xbf]{3})+"
+)
+
+
+def fix_mojibake(text: str) -> str:
+    """Recover UTF-8 byte sequences that were mistakenly decoded as latin-1."""
+    def repl(match):
+        s = match.group(0)
+        try:
+            return s.encode("latin-1").decode("utf-8")
+        except UnicodeDecodeError:
+            return s
+    return _MOJIBAKE_PATTERN.sub(repl, text)
+
+
+def clean_description_text(content: Optional[str]) -> str:
+    """Clean HTML tags, decode entities, repair mojibake, and normalize whitespace."""
+    if not content:
+        return ""
+    # 1. Unescape HTML entities (twice for double-escaped entities like &amp;nbsp;)
+    text = html.unescape(content)
+    text = html.unescape(text)
+
+    # 2. Strip HTML tags
+    if "<" in text and ">" in text:
+        soup = BeautifulSoup(text, "html.parser")
+        text = soup.get_text(separator=" ")
+
+    # 3. Repair mojibake
+    text = fix_mojibake(text)
+
+    # 4. Normalize whitespace
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def strip_html(html_content: Optional[str]) -> str:
     """Clean HTML tags and normalize whitespace into plain text."""
-    if not html_content:
-        return ""
-    soup = BeautifulSoup(html_content, "html.parser")
-    text = soup.get_text(separator=" ")
-    return re.sub(r"\s+", " ", text).strip()
+    return clean_description_text(html_content)
 
 
 def parse_timestamp(dt_val: Any) -> Optional[datetime]:

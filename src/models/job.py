@@ -9,6 +9,13 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 logger = logging.getLogger(__name__)
 
 
+def build_job_text(title: str, description: str) -> str:
+    """Format unified job representation text: 'TITLE: {title}\\n\\n{description}'."""
+    t = (title or "").strip()
+    d = (description or "").strip()
+    return f"TITLE: {t}\n\n{d}" if t else d
+
+
 class NormalizedJob(BaseModel):
     """Unified job listing schema matching PostgreSQL jobs table."""
 
