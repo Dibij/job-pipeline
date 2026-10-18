@@ -17,6 +17,8 @@
 | **🌍 Backfill Detected Languages** | `& .\.venv\Scripts\python.exe scripts/backfill_detected_language.py` | Re-evaluates language via title+first 500 chars & updates DB |
 | **🔍 Audit Language Transitions** | `& .\.venv\Scripts\python.exe scripts/audit_language_changes.py` | Audits French/German/English transitions and false positives |
 | **🎯 Calibrate Laya** | `& .\.venv\Scripts\python.exe scripts/calibrate_laya.py --version v1` | Fits temperature scaling on human labels |
+| **📈 Pipeline Funnel Report** | `& .\.venv\Scripts\python.exe scripts/funnel_report.py --days 7` | Source-level funnel stats (fetched → new → passed HF → scored ≥60) |
+| **🧪 ATS Yield Dry-Run** | `& .\.venv\Scripts\python.exe scripts/dry_run_yield_test.py` | In-memory yield test across 10 company ATS boards (no DB writes) |
 
 ---
 
@@ -203,5 +205,60 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
 
 ---
 
+## Phase 8 / 9: Pipeline Observability, Leak Audit & ATS Yield Test (Oct 18 2026)
+
+### 1. Pipeline Leak Audit (`scripts/funnel_report.py`)
+- Added read-only `scripts/funnel_report.py` reporting per-source funnel metrics over configurable look-back windows (`--days N`, default 7):
+  `Fetched (source_runs) -> New (jobs inserted) -> Passed HardFilter -> Scored >= 60`.
+- Split rejection reasons into two explicit side-by-side columns: **HardFilter Rejections** (`NOT_REMOTE`, `NON_ENGLISH`, `REGION_LOCKED`, `NON_TECHNICAL`, `UNPAID`) and **MatchScorer Rejections** (`SENIOR`, `NO_TECH_SIGNAL`, `LOW_SCORE`, `PLACEHOLDER`).
+- **Audit Findings**:
+  - **Arbeitnow** was identified as the largest intake waster in the pipeline: 1,443 fetched, 1,201 new, only 51 passed HardFilter (95.7% rejection rate, 0.08% yield, only 1 job scored $\ge 60$).
+  - Verified live that Arbeitnow's public API ignores `?remote=true` (still returns ~89% non-remote on-site German roles).
+  - Reduced Arbeitnow intake in `src/pipeline.py` from `max_pages=2` (600 jobs) to `max_pages=1` (300 jobs), cutting raw non-remote waste by 50% without dropping fresh listings.
+  - **Jobicy** (75.5%) and **Himalayas** (72.5%) have severe `REGION_LOCKED` leak rates due to US/Americas residency requirements.
+  - **We Work Remotely** demonstrated the highest intake quality among aggregators (82.6% HardFilter pass rate, 2.1% final yield).
+
+### 2. Observability & Orchestrator Telemetry (`source_runs`)
+- **Migration 009 (`009_source_runs.sql`)**: Created `source_runs` table `(id, run_id, source, started_at, fetched, inserted, skipped, error)` with index on `(source, started_at)`. Reversible via `DROP TABLE IF EXISTS source_runs`.
+- **Telemetry Integration**: Added `JobRepository.record_source_run` and wrapped extractor executions in `JobPipeline.run_extractors` to record execution timestamps, batch counts, duplicate skips, and errors under a unified pipeline `run_id`.
+- **Historical Fallback**: `funnel_report.py` reads `Fetched` directly from `source_runs`, seamlessly falling back to `raw_job_listings` for earlier historical days prior to migration 009 and reporting fallback status.
+- **Scorer Summary Bug Fix**: Fixed `score_all_jobs()` in `src/matching/service.py` to return `"total_scored": len(passed_jobs)`, resolving a bug where `run_daily.py` printed `Scored 0 jobs`.
+
+### 3. ATS Company Board Yield Dry-Run (`scripts/dry_run_yield_test.py`)
+- Evaluated 10 high-signal company boards across Greenhouse, Lever, and Ashby without writing to the database:
+  - **Greenhouse**: `gitlab`, `givedirectly`
+  - **Lever**: `curai`, `peerspace`
+  - **Ashby**: `openai`, `elevenlabs`, `supabase`, `omnea`, `runway-ml`, `duck-duck-go`
+- **Existence Verification**: 0 HTTP 404s (all 10 company boards exist and returned HTTP 200).
+- **Yield Results (1,414 jobs total, 637 passed HardFilter, 29 scored $\ge 60$)**:
+  - Combined yield across the 10 boards: **2.05%** (~25× higher than Arbeitnow's 0.08%).
+  - **Boards Beating 2% Yield**:
+    1. **Supabase** (`ashby`): **12.96% yield** (7 / 54 jobs) — exceptional remote engineering concentration.
+    2. **OpenAI** (`ashby`): **2.09% yield** (17 / 813 jobs) — massive scale with 421 jobs clearing HardFilter.
+    3. **Runway ML** (`ashby`): **2.04% yield** (1 / 49 jobs) — 41 jobs passed HardFilter.
+    4. *(ElevenLabs near-miss: 1.92% yield, 3 / 156 jobs).*
+
+---
+
+## 🛠️ Potential Things We May Need to Fix (Backlog / Roadmap)
+
+1. **Targeted ATS Extractor Implementation**:
+   - The dry-run proved that direct ATS boards deliver ~25× higher match yield than broad aggregators.
+   - Build a pluggable `ATSExtractor` supporting Greenhouse, Lever, and Ashby boards from a configurable company list in `config/` or `cv_profile.json`.
+2. **Direct Application Link Extraction**:
+   - Currently, `jobs.apply_url` stores the aggregator listing URL (e.g. `https://www.arbeitnow.com/jobs/...`) rather than the direct employer ATS link (`jobs.ashbyhq.com/...`, `boards.greenhouse.io/...`).
+   - Extract direct links from `description_html` or add redirect-resolving during ingestion so candidates can click directly into the ATS application form.
+3. **Aggregator Geo-Filter Tightening**:
+   - Jobicy leaks 75.5% of intake to `REGION_LOCKED` and Himalayas leaks 72.5%.
+   - Investigate adding `geo=worldwide` or equivalent query parameters to Jobicy and Himalayas fetchers to avoid ingesting region-locked listings in the first place.
+4. **Unified Eligibility Module (`src/matching/eligibility.py`)**:
+   - Complete Task 8.5: Unify eligibility logic between `run_daily.py`, `score_jobs.py`, and `export_for_labeling.py` so `HardFilter.apply` is the single authoritative gate.
+5. **Fast-Fail DB Timeout & HN String Truncation**:
+   - Add `connect_timeout=5` to connection pool to prevent 4-minute hangs when Docker is stopped.
+   - Truncate long Hacker News comment titles/company names to 255 chars in normalization to prevent schema violations.
+
+---
+
 ## Next Step
-Proceed with **Task 7.9** — build report script (`scripts/report_labels.py`) for per-source counts/rates, per-stratum breakdown, and small-sample caveat warnings.
+Proceed with building a targeted ATS board ingest capability (for Supabase, OpenAI, Runway ML, ElevenLabs, GitLab) or finalizing Phase 8 eligibility unification (`src/matching/eligibility.py`).
+

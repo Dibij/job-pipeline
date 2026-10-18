@@ -124,3 +124,14 @@
 - [ ] 8.9 `SOURCES` Orchestrator Registry: Refactor `JobPipeline.run_extractors` into a declarative `SOURCES` list with per-source error isolation.
 - [ ] 8.10 Documentation Finalization: Synchronize all numbers, reason codes, and architecture decisions across docs with verified session measurements.
 
+## Phase 9: Pipeline Observability, Leak Fixes & ATS Sources Evaluation (Oct 18 2026)
+- [x] 9.1 **Funnel Reporting**: Build `scripts/funnel_report.py` with multi-day windowing, side-by-side HardFilter vs MatchScorer rejection breakdown, and Remotive inclusion.
+- [x] 9.2 **Leak Identification & Mitigation**: Identify Arbeitnow 95.7% rejection rate; reduce `max_pages=2` -> `max_pages=1` after verifying `?remote=true` is ignored on free API.
+- [x] 9.3 **Observability Schema**: Add `source_runs` table (migration `009_source_runs.sql`, reversible) with orchestrator telemetry per source and historical fallback in funnel reports.
+- [x] 9.4 **Scorer Summary Synchronization**: Fix `score_all_jobs()` to return `total_scored` so `run_daily.py` matches scorer execution.
+- [x] 9.5 **Source Research & Proofs**: Fetch live terms and verify automated/commercial clauses for WWR and Working Nomads; prove ATS rate limit claims from fetched official docs.
+- [x] 9.6 **ATS Company Board Dry-Run**: Run in-memory evaluation across 10 boards (Greenhouse, Lever, Ashby) without DB writes; identify Supabase (12.96%), OpenAI (2.09%), Runway ML (2.04%) as beating 2% yield.
+- [ ] 9.7 **Targeted ATS Board Extractor**: Build pluggable extractor for high-yield ATS boards (`Supabase`, `OpenAI`, `Runway ML`, `ElevenLabs`, `GitLab`) using polite delays and caching.
+- [ ] 9.8 **Direct Application Link Extraction**: Extract direct ATS links from description or resolve redirects so `jobs.apply_url` points directly to employer application forms.
+- [ ] 9.9 **Aggregator Geo-Filter Tightening**: Pass `geo=worldwide` / remote category filters to Jobicy and Himalayas to mitigate the ~75% `REGION_LOCKED` leak rate.
+
