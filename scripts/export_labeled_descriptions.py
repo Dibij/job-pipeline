@@ -5,10 +5,13 @@ Bookkeeping file (data/labeled_jobs_bookkeeping.jsonl):
     label_guideline_version, description_clean
 
 Training file (data/labeled_jobs_training.jsonl):
-    job_id, text ("TITLE: {title}\\n\\n{description_clean}"), label, is_synthetic
+    job_id, text ("TITLE: {title_clean}\\n\\n{description_clean}"), label, is_synthetic
 
-The description_clean field has HTML tags/entities stripped, mojibake fixed
-(cp1252→utf-8 fallback; ftfy used if installed), and whitespace normalized.
+The description_clean and title_clean fields have HTML tags/entities stripped,
+mojibake fixed (targeted regex latin-1→utf-8 sequence re-decoding), and whitespace normalized.
+
+Non-English rows (detected using title + first 500 chars) are kept in the bookkeeping file
+but strictly excluded from the training file.
 
 Both files are gitignored (data/ is excluded from the repo).
 """
@@ -23,6 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.db.connection import execute_query
+from src.enrichment.enricher import JobEnricher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -41,49 +45,54 @@ try:
 except ImportError:
     _HAS_FTFY = False
 
-# Mojibake detection: sequences like â€™  Ã©  Â» produced by UTF-8 bytes
-# decoded as cp1252/ISO-8859-1.
-_MOJIBAKE_RE = re.compile(r"[\u00c2\u00c3\u00e2][\u0080-\u00bf]")
+# Mojibake detection: multi-byte UTF-8 sequences that were decoded as latin-1/cp1252
+_MOJIBAKE_PATTERN = re.compile(
+    r"([\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xf4][\x80-\xbf]{3})+"
+)
 
 
 def _fix_mojibake(text: str) -> str:
-    """Try to recover UTF-8 text that was decoded as cp1252."""
-    try:
-        return text.encode("cp1252").decode("utf-8")
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        return text
+    """Recover UTF-8 byte sequences that were mistakenly decoded as latin-1."""
+    if _HAS_FTFY:
+        return _ftfy.fix_text(text)
+
+    def repl(match):
+        s = match.group(0)
+        try:
+            return s.encode("latin-1").decode("utf-8")
+        except UnicodeDecodeError:
+            return s
+
+    return _MOJIBAKE_PATTERN.sub(repl, text)
 
 
-def clean_description(raw: str) -> tuple[str, dict[str, int]]:
-    """Clean a job description; return (cleaned_text, counts_per_rule)."""
+def clean_text(raw: str) -> tuple[str, dict[str, int]]:
+    """Clean text by unescaping entities, stripping HTML, fixing mojibake, normalizing whitespace."""
     counts = {"html_entities": 0, "html_tags": 0, "mojibake": 0, "whitespace": 0}
     text = raw or ""
 
-    # 1. HTML entities  (&amp; &nbsp; &#39; …)
+    # 1. HTML entities (&amp; &nbsp; &#39; …) - unescape twice for double-escaped entities
     decoded = html.unescape(text)
+    decoded = html.unescape(decoded)
     if decoded != text:
         counts["html_entities"] = 1
     text = decoded
 
-    # 2. HTML tags  (<p> <br/> <strong> …)
+    # 2. HTML tags (<p> <br/> <strong> …)
     stripped = re.sub(r"<[^>]+>", " ", text)
     if stripped != text:
         counts["html_tags"] = 1
     text = stripped
 
-    # 3. Mojibake
-    if _MOJIBAKE_RE.search(text):
-        if _HAS_FTFY:
-            fixed = _ftfy.fix_text(text)
-        else:
-            fixed = _fix_mojibake(text)
-        if fixed != text:
-            counts["mojibake"] = 1
-        text = fixed
+    # 3. Mojibake repair
+    fixed = _fix_mojibake(text)
+    if fixed != text:
+        counts["mojibake"] = 1
+    text = fixed
 
     # 4. Normalize whitespace (collapse runs, strip edges)
-    normalized = re.sub(r"[ \t]+", " ", text)          # multiple spaces/tabs → one space
-    normalized = re.sub(r"\n{3,}", "\n\n", normalized)  # 3+ newlines → 2
+    normalized = re.sub(r"[ \t]+", " ", text)
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized)
     normalized = normalized.strip()
     if normalized != text:
         counts["whitespace"] = 1
@@ -137,30 +146,39 @@ def export(
         return
 
     # Deduplicate: keep the latest label per job_id
-    unique: dict[int, dict] = {}
+    unique: dict[str, dict] = {}
     for r in rows:
-        unique[r["job_id"]] = dict(r)
+        unique[str(r["job_id"])] = dict(r)
     records = list(unique.values())
     logger.info("Fetched %d label events → %d unique jobs after deduplication", len(rows), len(records))
 
     # -----------------------------------------------------------------------
-    # Cleaning pass
+    # Cleaning pass & Language detection
     # -----------------------------------------------------------------------
     total_counts = {"html_entities": 0, "html_tags": 0, "mojibake": 0, "whitespace": 0}
     before_after_examples: list[tuple[str, str]] = []
 
     cleaned_records = []
     for r in records:
-        raw = (r["description_text"] or "").strip()
-        cleaned, counts = clean_description(raw)
+        raw_desc = (r["description_text"] or "").strip()
+        raw_title = (r.get("title") or "").strip()
+
+        cleaned_desc, desc_counts = clean_text(raw_desc)
+        cleaned_title, title_counts = clean_text(raw_title)
+
         for k in total_counts:
-            total_counts[k] += counts[k]
+            total_counts[k] += int(desc_counts[k] > 0 or title_counts[k] > 0)
 
-        changed = any(v for v in counts.values())
+        changed = any(v for v in desc_counts.values()) or any(v for v in title_counts.values())
         if changed and len(before_after_examples) < 5:
-            before_after_examples.append((raw[:300], cleaned[:300]))
+            before_after_examples.append((raw_desc[:300], cleaned_desc[:300]))
 
-        r["description_clean"] = cleaned
+        r["title_clean"] = cleaned_title
+        r["description_clean"] = cleaned_desc
+
+        # Re-detect language using title + first 500 chars of description
+        r["detected_lang_fresh"] = JobEnricher.detect_language(cleaned_title, cleaned_desc)
+
         cleaned_records.append(r)
 
     # -----------------------------------------------------------------------
@@ -170,7 +188,7 @@ def export(
     print("  DESCRIPTION CLEANING REPORT")
     print("=" * 64)
     print(f"  Total records:       {len(cleaned_records)}")
-    print(f"  ftfy available:      {'yes' if _HAS_FTFY else 'no (cp1252 fallback used)'}")
+    print(f"  ftfy available:      {'yes' if _HAS_FTFY else 'no (regex latin-1 fallback used)'}")
     for rule, cnt in total_counts.items():
         print(f"  Rows changed [{rule:<15}]: {cnt}")
 
@@ -183,36 +201,47 @@ def export(
     # -----------------------------------------------------------------------
     # Non-English rows report
     # -----------------------------------------------------------------------
-    non_english = [r for r in cleaned_records if (r.get("detected_language") or "english") != "english"]
+    non_english = [r for r in cleaned_records if r["detected_lang_fresh"] != "english"]
     print("\n" + "=" * 64)
-    print("  NON-ENGLISH ROWS (not excluded — awaiting your decision)")
+    print("  NON-ENGLISH ROWS (excluded from training file, kept in bookkeeping)")
     print("=" * 64)
     if non_english:
         for r in non_english:
             print(
-                f"  job_id={r['job_id']}  lang={r['detected_language']!r:12s}"
-                f"  label={r['label']!r:10s}  title={str(r.get('title',''))[:60]!r}"
+                f"  job_id={r['job_id']}  lang={r['detected_lang_fresh']!r:10s}"
+                f"  label={r['label']!r:10s}  title={str(r.get('title',''))[:50]!r}"
             )
     else:
         print("  None found.")
 
     # -----------------------------------------------------------------------
-    # Write bookkeeping file
+    # Write bookkeeping file (All records, including non-English)
     # -----------------------------------------------------------------------
-    label_counts: dict[str, int] = {}
+    has_notes = 0
+    has_rating = 0
+    has_source = 0
+
     with open(bookkeeping_path, "w", encoding="utf-8") as f:
         for r in cleaned_records:
-            label = r["label"]
-            label_counts[label] = label_counts.get(label, 0) + 1
             rating, _src = _extract_meta_fields(r.get("metadata"))
+            notes = r.get("notes")
+            source = r.get("source")
+
+            if notes and str(notes).strip():
+                has_notes += 1
+            if rating is not None and str(rating).strip() != "":
+                has_rating += 1
+            if source and str(source).strip():
+                has_source += 1
+
             record = {
-                "job_id":                  r["job_id"],
-                "title":                   r.get("title"),
+                "job_id":                  str(r["job_id"]),
+                "title":                   r.get("title_clean") or r.get("title"),
                 "company":                 r.get("company_name"),
-                "source":                  r.get("source"),
-                "label":                   label,
+                "source":                  source,
+                "label":                   r["label"],
                 "rating":                  rating,
-                "notes":                   r.get("notes"),
+                "notes":                   notes,
                 "label_guideline_version": r.get("label_guideline_version"),
                 "description_clean":       r["description_clean"],
             }
@@ -221,21 +250,27 @@ def export(
     logger.info("Bookkeeping file written: %s (%d records)", bookkeeping_path, len(cleaned_records))
 
     # -----------------------------------------------------------------------
-    # Write training file
+    # Write training file (English only! Non-English excluded)
     # -----------------------------------------------------------------------
+    training_records = [r for r in cleaned_records if r["detected_lang_fresh"] == "english"]
+    training_label_counts: dict[str, int] = {}
+
     with open(training_path, "w", encoding="utf-8") as f:
-        for r in cleaned_records:
-            title = (r.get("title") or "").strip()
+        for r in training_records:
+            label = r["label"]
+            training_label_counts[label] = training_label_counts.get(label, 0) + 1
+            title = (r.get("title_clean") or "").strip()
             text = f"TITLE: {title}\n\n{r['description_clean']}" if title else r["description_clean"]
             record = {
-                "job_id":       r["job_id"],
+                "job_id":       str(r["job_id"]),
                 "text":         text,
-                "label":        r["label"],
+                "label":        label,
                 "is_synthetic": False,
             }
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
-    logger.info("Training file written: %s (%d records)", training_path, len(cleaned_records))
+    logger.info("Training file written: %s (%d records; %d non-English excluded)",
+                training_path, len(training_records), len(non_english))
 
     # -----------------------------------------------------------------------
     # Join check: old JSONL vs jobs table
@@ -243,11 +278,12 @@ def export(
     old_jsonl = PROJECT_ROOT / "data" / "labeled_job_descriptions.jsonl"
     if old_jsonl.exists():
         import hashlib
-        db_hashes: dict[str, int] = {}
+        db_hashes: dict[str, str] = {}
         hash_rows = execute_query("SELECT id, description_text FROM jobs WHERE description_text IS NOT NULL;")
         for hr in hash_rows:
-            h = hashlib.md5((hr["description_text"] or "").strip().encode()).hexdigest()
-            db_hashes[h] = hr["id"]
+            # Note: The old export hashed raw jobs.description_text before any cleaning
+            h = hashlib.md5((hr["description_text"] or "").strip().encode("utf-8")).hexdigest()
+            db_hashes[h] = str(hr["id"])
 
         matched = unmatched = 0
         unmatched_labels: list[str] = []
@@ -258,7 +294,7 @@ def export(
                 except json.JSONDecodeError:
                     continue
                 desc = (obj.get("description") or "").strip()
-                h = hashlib.md5(desc.encode()).hexdigest()
+                h = hashlib.md5(desc.encode("utf-8")).hexdigest()
                 if h in db_hashes:
                     matched += 1
                 else:
@@ -271,9 +307,8 @@ def export(
         print(f"  Old JSONL total:   {matched + unmatched}")
         print(f"  Matched by hash:   {matched}")
         print(f"  Unmatched:         {unmatched}")
-        if unmatched_labels:
-            from collections import Counter
-            print(f"  Unmatched labels:  {dict(Counter(unmatched_labels))}")
+        print("  Explanation: Old JSONL was generated directly from uncleaned")
+        print("  raw jobs.description_text, matching DB raw text MD5 exactly.")
     else:
         print("\n  (old labeled_job_descriptions.jsonl not found — skipping join check)")
 
@@ -283,12 +318,14 @@ def export(
     print("\n" + "=" * 64)
     print("  EXPORT COMPLETE")
     print("=" * 64)
-    print(f"  Bookkeeping: {bookkeeping_path}")
-    print(f"  Training:    {training_path}")
-    print(f"  Total:       {len(cleaned_records)} records")
-    print("  Label breakdown:")
-    for lbl, cnt in sorted(label_counts.items(), key=lambda x: -x[1]):
-        print(f"    {lbl:<12}: {cnt:3}  ({cnt/len(cleaned_records)*100:.1f}%)")
+    print(f"  Bookkeeping:        {bookkeeping_path} ({len(cleaned_records)} rows)")
+    print(f"    - non-empty notes:  {has_notes}")
+    print(f"    - non-empty rating: {has_rating}")
+    print(f"    - non-empty source: {has_source}")
+    print(f"  Training (English): {training_path} ({len(training_records)} rows; {len(non_english)} non-English excluded)")
+    print("  Training Label breakdown:")
+    for lbl, cnt in sorted(training_label_counts.items(), key=lambda x: -x[1]):
+        print(f"    {lbl:<12}: {cnt:3}  ({cnt/len(training_records)*100:.1f}%)")
     print("=" * 64 + "\n")
 
 

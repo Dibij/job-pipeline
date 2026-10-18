@@ -51,17 +51,52 @@ TECH_KEYWORDS_MAP = {
 }
 
 
+LANGUAGE_STOPWORDS = {
+    "german": {"der", "die", "das", "und", "ist", "den", "von", "zu", "mit", "sich", "des", "auf", "für", "dem", "nicht", "ein", "eine", "als", "auch", "es", "an", "werden", "aus", "er", "hat", "dass", "sie", "nach", "wird", "bei", "einer", "um", "am", "sind", "wir", "ihr", "du", "uns"},
+    "french": {"le", "la", "les", "de", "des", "du", "et", "en", "est", "un", "une", "que", "pour", "dans", "qui", "au", "par", "sur", "pas", "plus", "avec", "sont", "nous", "vous", "votre", "notre", "vos", "nos"},
+    "spanish": {"el", "la", "de", "que", "y", "en", "un", "una", "los", "del", "las", "por", "para", "con", "no", "su", "al", "lo", "como", "pero", "sus", "le", "ya", "este", "ha", "son", "ellos", "nosotros", "más", "están"},
+    "english": {"the", "and", "to", "of", "a", "in", "is", "that", "for", "you", "it", "with", "on", "as", "are", "be", "this", "our", "we", "from", "at", "or", "your", "all", "have", "new", "more", "an", "was", "by"},
+}
+
+
 class JobEnricher:
     """Enriches job records with computed metadata."""
 
     @staticmethod
     def detect_language(title: str, description: str) -> str:
-        """Detect whether the job description is primarily in German or English."""
-        combined = f"{title} {description}".lower()
-        german_hits = sum(1 for pattern in GERMAN_INDICATORS if re.search(pattern, combined, re.IGNORECASE))
-        if german_hits >= 2 or re.search(r"\(m/w/d\)|\(w/m/d\)", combined, re.IGNORECASE):
+        """Detect language of a job using title and first 500 chars of description.
+
+        Supports German, French, Spanish, and English.
+        """
+        t = title or ""
+        d = (description or "")[:500]
+        text = f"{t} {d}".lower()
+
+        if re.search(r"\(m/w/d\)|\(w/m/d\)|\(d/m/w\)", text):
             return "german"
-        return "english"
+        if re.search(r"\(f/h\)|\(h/f\)", text):
+            return "french"
+        if sum(1 for p in GERMAN_INDICATORS if re.search(p, text, re.I)) >= 2:
+            return "german"
+
+        words = re.findall(r"\b[a-zA-Z\u00c0-\u00ff]+\b", text)
+        word_counts = {}
+        for w in words:
+            word_counts[w] = word_counts.get(w, 0) + 1
+
+        scores = {}
+        for lang, sw in LANGUAGE_STOPWORDS.items():
+            scores[lang] = sum(word_counts[w] for w in sw if w in word_counts)
+
+        best_lang, best_score = max(scores.items(), key=lambda x: x[1])
+        if best_score < 3:
+            return "english"
+        if best_lang == "english":
+            for other in ["german", "french", "spanish"]:
+                if scores[other] >= 5 and scores[other] >= scores["english"] * 0.8:
+                    return other
+            return "english"
+        return best_lang
 
     @staticmethod
     def detect_seniority(title: str, description: str) -> str:

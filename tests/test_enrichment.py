@@ -57,9 +57,11 @@ def test_detect_seniority_body_mid():
 
 
 def test_detect_german():
-    """Verify German job detection based on keywords and (m/w/d) tags."""
+    """Verify language detection based on keywords, stopwords, and tags."""
     assert JobEnricher.detect_language("Softwareentwickler (m/w/d)", "Wir suchen einen Entwickler.") == "german"
     assert JobEnricher.detect_language("Python Engineer", "Looking for a software engineer.") == "english"
+    assert JobEnricher.detect_language("Sr REACT NATIVE", "Qué es Deazy: Deazy es una plataforma de software para conectar empresas con agencias de desarrollo en todo el mundo.") == "spanish"
+    assert JobEnricher.detect_language("Technicien (F/H)", "Notre entreprise recherche un collaborateur pour rejoindre notre équipe.") == "french"
 
 
 def test_detect_unpaid():
