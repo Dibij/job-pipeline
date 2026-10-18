@@ -1,6 +1,8 @@
 """Job ingestion and processing pipeline orchestrator."""
+import json
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, Any, Callable
 import uuid
 
@@ -13,6 +15,7 @@ from src.extractors import (
     RemoteOKExtractor,
     JobicyExtractor,
     HackerNewsExtractor,
+    ATSBoardExtractor,
 )
 from src.models import transform_raw_listing
 from src.enrichment.enricher import JobEnricher
@@ -120,6 +123,34 @@ class JobPipeline:
                 HackerNewsExtractor(delay_seconds=0.1).fetch_raw(limit=50)
             )
         )
+
+        # 8. ATS company boards (Greenhouse / Lever / Ashby) — loaded from config/ats_boards.json
+        ats_config_path = Path(__file__).resolve().parent.parent / "config" / "ats_boards.json"
+        if ats_config_path.exists():
+            try:
+                ats_config = json.loads(ats_config_path.read_text(encoding="utf-8"))
+                boards = [b for b in ats_config.get("boards", []) if b.get("enabled", True)]
+            except Exception as exc:
+                logger.warning("Failed to load ATS boards config: %s", exc)
+                boards = []
+
+            for board in boards:
+                slug = board["slug"]
+                platform = board["platform"]
+                company = board.get("company_name", slug)
+                source_name = f"ats:{slug}"
+
+                def _make_ats_fn(s, p, c):
+                    def _run():
+                        ext = ATSBoardExtractor(board_slug=s, platform=p, company_name=c, delay_seconds=1.5)
+                        return ext.stage_raw(ext.fetch_raw())
+                    return _run
+
+                stats[source_name] = self._run_single_extractor(
+                    run_id, source_name, _make_ats_fn(slug, platform, company)
+                )
+        else:
+            logger.warning("ATS boards config not found at %s — skipping ATS phase.", ats_config_path)
 
         return stats
 

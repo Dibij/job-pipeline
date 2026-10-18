@@ -458,6 +458,135 @@ def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
     )
 
 
+def transform_ats_greenhouse(payload: Dict[str, Any], source: str) -> "NormalizedJob":
+    """Transform Greenhouse board API item into NormalizedJob."""
+    meta = payload.get("_ats_meta", {})
+    company_name = meta.get("company_name") or payload.get("company_name", "Unknown Company")
+
+    title = payload.get("title", "Untitled Position")
+    loc_obj = payload.get("location") or {}
+    location_raw = loc_obj.get("name", "") if isinstance(loc_obj, dict) else str(loc_obj)
+    content_html = payload.get("content", "")
+    desc_clean = clean_description_text(content_html) if content_html else title
+    is_remote = any(
+        k in location_raw.lower() for k in ["remote", "anywhere", "virtual", "distributed"]
+    ) or "remote" in title.lower()
+    remote_restriction = location_raw.strip() if location_raw.strip() else "unspecified"
+
+    apply_url = payload.get("absolute_url") or payload.get("url") or ""
+    external_id = str(payload.get("id", "")).strip()
+
+    return NormalizedJob(
+        source=source,
+        external_id=external_id,
+        title=title,
+        company_name=company_name,
+        location_raw=location_raw or "Remote",
+        is_remote=is_remote,
+        remote_restriction=remote_restriction,
+        job_type="full-time",
+        description_text=desc_clean,
+        description_html=content_html,
+        apply_url=apply_url,
+        tags=[],
+    )
+
+
+def transform_ats_lever(payload: Dict[str, Any], source: str) -> "NormalizedJob":
+    """Transform Lever postings API item into NormalizedJob."""
+    meta = payload.get("_ats_meta", {})
+    company_name = meta.get("company_name") or "Unknown Company"
+
+    title = payload.get("text", "Untitled Position")
+    cats = payload.get("categories") or {}
+    location_raw = cats.get("location", "") if isinstance(cats, dict) else ""
+    workplace_type = str(payload.get("workplaceType", "")).lower()
+    content_html = (payload.get("description", "") or "") + " " + (payload.get("additional", "") or "")
+    desc_clean = clean_description_text(content_html) if content_html.strip() else (
+        payload.get("descriptionPlain", "") or title
+    )
+    is_remote = (workplace_type == "remote") or ("remote" in location_raw.lower()) or ("remote" in title.lower())
+    remote_restriction = location_raw.strip() if location_raw.strip() else "unspecified"
+
+    apply_url = payload.get("hostedUrl") or payload.get("applyUrl") or ""
+    external_id = str(payload.get("id", "")).strip()
+
+    return NormalizedJob(
+        source=source,
+        external_id=external_id,
+        title=title,
+        company_name=company_name,
+        location_raw=location_raw or "Remote",
+        is_remote=is_remote,
+        remote_restriction=remote_restriction,
+        job_type="full-time",
+        description_text=desc_clean,
+        description_html=content_html,
+        apply_url=apply_url,
+        tags=[],
+    )
+
+
+def transform_ats_ashby(payload: Dict[str, Any], source: str) -> "NormalizedJob":
+    """Transform Ashby job board API item into NormalizedJob."""
+    meta = payload.get("_ats_meta", {})
+    company_name = meta.get("company_name") or "Unknown Company"
+
+    title = payload.get("title", "Untitled Position")
+    location_raw = payload.get("location", "")
+    workplace_type = str(payload.get("workplaceType", "")).lower()
+    content_html = payload.get("descriptionHtml", "")
+    desc_clean = clean_description_text(content_html) if content_html else (
+        payload.get("descriptionPlain", "") or title
+    )
+    is_remote = (
+        bool(payload.get("isRemote", False))
+        or workplace_type == "remote"
+        or "remote" in location_raw.lower()
+        or "remote" in title.lower()
+    )
+    remote_restriction = location_raw.strip() if location_raw.strip() else "unspecified"
+
+    apply_url = payload.get("jobUrl") or payload.get("applyUrl") or ""
+    external_id = str(payload.get("id", "")).strip()
+
+    return NormalizedJob(
+        source=source,
+        external_id=external_id,
+        title=title,
+        company_name=company_name,
+        location_raw=location_raw or "Remote",
+        is_remote=is_remote,
+        remote_restriction=remote_restriction,
+        job_type="full-time",
+        description_text=desc_clean,
+        description_html=content_html,
+        apply_url=apply_url,
+        tags=[],
+    )
+
+
+def transform_ats(source: str, payload: Dict[str, Any]) -> "NormalizedJob":
+    """Dispatch ATS payload to the correct platform transformer.
+
+    Source name format: 'ats:{board_slug}'.
+    Platform is determined from '_ats_meta.platform' embedded by ATSBoardExtractor.
+    """
+    meta = payload.get("_ats_meta", {})
+    platform = meta.get("platform", "").lower()
+    if platform == "greenhouse":
+        return transform_ats_greenhouse(payload, source)
+    elif platform == "lever":
+        return transform_ats_lever(payload, source)
+    elif platform == "ashby":
+        return transform_ats_ashby(payload, source)
+    else:
+        raise ValueError(
+            f"[{source}] Unknown ATS platform in _ats_meta: '{platform}'. "
+            "Expected 'greenhouse', 'lever', or 'ashby'."
+        )
+
+
 def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
@@ -475,6 +604,8 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         return transform_jobicy(payload)
     elif source_lower == "hackernews":
         return transform_hackernews(payload)
+    elif source_lower.startswith("ats:"):
+        return transform_ats(source, payload)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
 
