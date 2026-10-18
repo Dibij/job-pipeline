@@ -126,6 +126,8 @@ def score_all_jobs() -> Dict[str, Any]:
 
     return {
         "total": len(jobs),
+        "total_scored": len(passed_jobs),
+        "scored": len(passed_jobs),
         "passed_filter": really_passed_count,
         "disqualified": len(jobs) - really_passed_count,
         "reason_counts": reason_counts,
