@@ -33,7 +33,7 @@ class JobPipeline:
         # 1. Arbeitnow
         try:
             arbeitnow = ArbeitnowExtractor(delay_seconds=1.0)
-            items = arbeitnow.fetch_raw(max_pages=2)
+            items = arbeitnow.fetch_raw(max_pages=1)
             res = arbeitnow.stage_raw(items)
             stats["arbeitnow"] = res
         except Exception as exc:
