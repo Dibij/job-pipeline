@@ -46,7 +46,20 @@ def run_report(days: int = 7) -> None:
             )
             all_sources = [r["source"] for r in cur.fetchall()]
 
-            # 2. Ingest attempts in the window from raw_job_listings
+            # 2a. Read Fetched from source_runs table (observability)
+            cur.execute(
+                """
+                SELECT source, SUM(fetched) AS fetched, COUNT(*) AS run_count
+                FROM source_runs
+                WHERE started_at >= NOW() - %s * INTERVAL '1 day'
+                GROUP BY source;
+                """,
+                (days,),
+            )
+            sr_rows = cur.fetchall()
+            sr_map = {r["source"]: int(r["fetched"] or 0) for r in sr_rows}
+
+            # 2b. Fallback query from raw_job_listings for earlier days / untracked runs
             cur.execute(
                 """
                 SELECT source, COUNT(*) AS fetched
@@ -56,7 +69,7 @@ def run_report(days: int = 7) -> None:
                 """,
                 (days,),
             )
-            fetched_map = {r["source"]: r["fetched"] for r in cur.fetchall()}
+            raw_fallback_map = {r["source"]: r["fetched"] for r in cur.fetchall()}
 
             # 3. New rows actually inserted into jobs in the window
             cur.execute(
@@ -112,6 +125,17 @@ def run_report(days: int = 7) -> None:
         else:
             ms_rejections.setdefault(src, []).append((code, cnt))
 
+    # Resolve Fetched per source: prefer source_runs, fall back to raw_job_listings
+    fetched_map = {}
+    fallback_sources = []
+    for s in all_sources:
+        if s in sr_map:
+            fetched_map[s] = sr_map[s]
+        else:
+            fetched_map[s] = raw_fallback_map.get(s, 0)
+            if raw_fallback_map.get(s, 0) > 0:
+                fallback_sources.append(s)
+
     # Sort sources by fetched DESC (then source name)
     sources_sorted = sorted(
         all_sources,
@@ -122,6 +146,11 @@ def run_report(days: int = 7) -> None:
     divider = "-" * 132
     print(f"\n{'=' * 132}")
     print(f"  PIPELINE FUNNEL REPORT  (last {days} days)")
+    if fallback_sources:
+        print(f"  * Note: Fetched reads from source_runs table. Fell back to raw_job_listings query for")
+        print(f"          earlier days without source_runs: {', '.join(fallback_sources)}")
+    else:
+        print(f"  * Note: Fetched reads from source_runs table.")
     print(f"{'=' * 132}")
     print(
         f"  {'Source':<16} {'Fetched':>8} {'New':>7} {'PassedHF':>9} {'Scored>=60':>10} | "

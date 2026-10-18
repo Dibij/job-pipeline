@@ -137,3 +137,24 @@ class JobRepository:
                     "UPDATE raw_job_listings SET processed = TRUE WHERE id = ANY(%s);",
                     (ids,),
                 )
+
+    def record_source_run(
+        self,
+        run_id: str,
+        source: str,
+        started_at: Any,
+        fetched: int,
+        inserted: int,
+        skipped: int,
+        error: Optional[str] = None,
+    ) -> None:
+        """Record an extraction run outcome into source_runs table."""
+        with get_connection(autocommit=True) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO source_runs (run_id, source, started_at, fetched, inserted, skipped, error)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
+                    """,
+                    (run_id, source, started_at, fetched, inserted, skipped, error),
+                )

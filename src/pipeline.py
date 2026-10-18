@@ -1,6 +1,8 @@
 """Job ingestion and processing pipeline orchestrator."""
 import logging
-from typing import Dict, Any
+from datetime import datetime, timezone
+from typing import Dict, Any, Callable
+import uuid
 
 from src.db.repository import JobRepository
 from src.extractors import (
@@ -25,80 +27,99 @@ class JobPipeline:
     def __init__(self):
         self.repo = JobRepository()
 
+    def _run_single_extractor(
+        self,
+        run_id: str,
+        source_name: str,
+        fetch_fn: Callable[[], Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Execute one extractor and record execution metrics in source_runs table."""
+        started_at = datetime.now(timezone.utc)
+        try:
+            res = fetch_fn()
+            self.repo.record_source_run(
+                run_id=run_id,
+                source=source_name,
+                started_at=started_at,
+                fetched=res.get("total", 0),
+                inserted=res.get("inserted", 0),
+                skipped=res.get("skipped", 0),
+            )
+            return res
+        except Exception as exc:
+            logger.error("%s extractor failed: %s", source_name.title(), exc)
+            self.repo.record_source_run(
+                run_id=run_id,
+                source=source_name,
+                started_at=started_at,
+                fetched=0,
+                inserted=0,
+                skipped=0,
+                error=str(exc),
+            )
+            return {"error": str(exc)}
+
     def run_extractors(self) -> Dict[str, Any]:
         """Fetch raw listings from all enabled sources and stage into raw_job_listings."""
         stats = {}
-        logger.info("=== Starting Extraction Phase ===")
+        run_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+        logger.info("=== Starting Extraction Phase [run_id: %s] ===", run_id)
 
         # 1. Arbeitnow
-        try:
-            arbeitnow = ArbeitnowExtractor(delay_seconds=1.0)
-            items = arbeitnow.fetch_raw(max_pages=1)
-            res = arbeitnow.stage_raw(items)
-            stats["arbeitnow"] = res
-        except Exception as exc:
-            logger.error("Arbeitnow extractor failed: %s", exc)
-            stats["arbeitnow"] = {"error": str(exc)}
+        stats["arbeitnow"] = self._run_single_extractor(
+            run_id, "arbeitnow",
+            lambda: ArbeitnowExtractor(delay_seconds=1.0).stage_raw(
+                ArbeitnowExtractor(delay_seconds=1.0).fetch_raw(max_pages=1)
+            )
+        )
 
         # 2. Remotive
-        try:
-            remotive = RemotiveExtractor(delay_seconds=2.0)
-            items = remotive.fetch_raw(category="software-dev", limit=50)
-            res = remotive.stage_raw(items)
-            stats["remotive"] = res
-        except Exception as exc:
-            logger.error("Remotive extractor failed: %s", exc)
-            stats["remotive"] = {"error": str(exc)}
+        stats["remotive"] = self._run_single_extractor(
+            run_id, "remotive",
+            lambda: RemotiveExtractor(delay_seconds=2.0).stage_raw(
+                RemotiveExtractor(delay_seconds=2.0).fetch_raw(category="software-dev", limit=50)
+            )
+        )
 
         # 3. Himalayas
-        try:
-            himalayas = HimalayasExtractor(delay_seconds=2.0)
-            items = himalayas.fetch_raw(limit=50, max_pages=1)
-            res = himalayas.stage_raw(items)
-            stats["himalayas"] = res
-        except Exception as exc:
-            logger.error("Himalayas extractor failed: %s", exc)
-            stats["himalayas"] = {"error": str(exc)}
+        stats["himalayas"] = self._run_single_extractor(
+            run_id, "himalayas",
+            lambda: HimalayasExtractor(delay_seconds=2.0).stage_raw(
+                HimalayasExtractor(delay_seconds=2.0).fetch_raw(limit=50, max_pages=1)
+            )
+        )
 
         # 4. We Work Remotely
-        try:
-            wwr = WWRExtractor(delay_seconds=2.0)
-            items = wwr.fetch_raw()
-            res = wwr.stage_raw(items)
-            stats["weworkremotely"] = res
-        except Exception as exc:
-            logger.error("WWR extractor failed: %s", exc)
-            stats["weworkremotely"] = {"error": str(exc)}
+        stats["weworkremotely"] = self._run_single_extractor(
+            run_id, "weworkremotely",
+            lambda: WWRExtractor(delay_seconds=2.0).stage_raw(
+                WWRExtractor(delay_seconds=2.0).fetch_raw()
+            )
+        )
 
         # 5. Remote OK
-        try:
-            remoteok = RemoteOKExtractor(delay_seconds=2.0)
-            items = remoteok.fetch_raw()
-            res = remoteok.stage_raw(items)
-            stats["remoteok"] = res
-        except Exception as exc:
-            logger.error("Remote OK extractor failed: %s", exc)
-            stats["remoteok"] = {"error": str(exc)}
+        stats["remoteok"] = self._run_single_extractor(
+            run_id, "remoteok",
+            lambda: RemoteOKExtractor(delay_seconds=2.0).stage_raw(
+                RemoteOKExtractor(delay_seconds=2.0).fetch_raw()
+            )
+        )
 
         # 6. Jobicy
-        try:
-            jobicy = JobicyExtractor(delay_seconds=2.0)
-            items = jobicy.fetch_raw(count=50, max_pages=1)
-            res = jobicy.stage_raw(items)
-            stats["jobicy"] = res
-        except Exception as exc:
-            logger.error("Jobicy extractor failed: %s", exc)
-            stats["jobicy"] = {"error": str(exc)}
+        stats["jobicy"] = self._run_single_extractor(
+            run_id, "jobicy",
+            lambda: JobicyExtractor(delay_seconds=2.0).stage_raw(
+                JobicyExtractor(delay_seconds=2.0).fetch_raw(count=50, max_pages=1)
+            )
+        )
 
         # 7. Hacker News (Who is hiring)
-        try:
-            hn = HackerNewsExtractor(delay_seconds=0.1)
-            items = hn.fetch_raw(limit=50)
-            res = hn.stage_raw(items)
-            stats["hackernews"] = res
-        except Exception as exc:
-            logger.error("Hacker News extractor failed: %s", exc)
-            stats["hackernews"] = {"error": str(exc)}
+        stats["hackernews"] = self._run_single_extractor(
+            run_id, "hackernews",
+            lambda: HackerNewsExtractor(delay_seconds=0.1).stage_raw(
+                HackerNewsExtractor(delay_seconds=0.1).fetch_raw(limit=50)
+            )
+        )
 
         return stats
 
