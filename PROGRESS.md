@@ -240,25 +240,45 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
 
 ---
 
+### 4. Targeted ATS Board Extractor Implementation (Task 9.7)
+- Built `src/extractors/ats_board.py` featuring `ATSBoardExtractor` supporting Greenhouse, Lever, and Ashby job boards.
+- Configurable via `config/ats_boards.json` (declarative list of boards, slugs, and platforms).
+- Initial production roster: `supabase` (ashby), `openai` (ashby), `runway-ml` (ashby), `elevenlabs` (ashby), `gitlab` (greenhouse).
+- Added per-platform normalizers (`transform_ats_greenhouse`, `transform_ats_lever`, `transform_ats_ashby`) and dispatched via `ats:*` in `src/models/transformers.py`.
+- Integrated directly into `JobPipeline.run_extractors()` with individual `source_runs` telemetry logging.
+- Verified live: fetched 1,304 items across the 5 target boards with 100% successful transformation, zero errors, and direct employer application links.
+
+### 5. Direct ATS Application Link Extraction & Backfill (Task 9.8)
+- Added `extract_direct_ats_link()` to `src/models/transformers.py` to recognize direct application links (`job-boards.greenhouse.io`, `grnh.se`, `jobs.lever.co`, `jobs.ashbyhq.com`, `apply.workable.com`).
+- Resolved Hacker News HTML entity decoding (`&#x2F;`), unlocking direct apply link extraction for 47 / 53 HN listings that previously fell back to generic thread comments.
+- Wired automatic direct ATS promotion into `transform_raw_listing`: if an aggregator description embeds a direct ATS link, `apply_url` is automatically upgraded from the aggregator link to the direct ATS application form.
+- Created and executed `scripts/backfill_direct_ats_links.py`, successfully upgrading 15 existing aggregator/thread jobs in the PostgreSQL database to direct ATS URLs.
+
+### 6. Aggregator Geo-Filter Tightening (Task 9.9)
+- Tested server-side geo filtering against Jobicy and Himalayas APIs:
+  - **Jobicy**: Proved live that `?geo=worldwide` returns HTTP 400 (not supported by free API).
+  - **Himalayas**: Proved live that location query parameters (`location=worldwide`, etc.) are silently ignored.
+- Implemented client-side geo pre-filtering:
+  - `src/extractors/jobicy.py`: skips single-country jobs (~98% drop rate), keeping only worldwide, remote, or blank listings.
+  - `src/extractors/himalayas.py`: skips jobs with non-empty single-country `locationRestrictions` (~75% drop rate).
+  - Eliminates upstream noise before staging into `raw_job_listings` and database.
+
+---
+
 ## 🛠️ Potential Things We May Need to Fix (Backlog / Roadmap)
 
-1. **Targeted ATS Extractor Implementation**:
-   - The dry-run proved that direct ATS boards deliver ~25× higher match yield than broad aggregators.
-   - Build a pluggable `ATSExtractor` supporting Greenhouse, Lever, and Ashby boards from a configurable company list in `config/` or `cv_profile.json`.
-2. **Direct Application Link Extraction**:
-   - Currently, `jobs.apply_url` stores the aggregator listing URL (e.g. `https://www.arbeitnow.com/jobs/...`) rather than the direct employer ATS link (`jobs.ashbyhq.com/...`, `boards.greenhouse.io/...`).
-   - Extract direct links from `description_html` or add redirect-resolving during ingestion so candidates can click directly into the ATS application form.
-3. **Aggregator Geo-Filter Tightening**:
-   - Jobicy leaks 75.5% of intake to `REGION_LOCKED` and Himalayas leaks 72.5%.
-   - Investigate adding `geo=worldwide` or equivalent query parameters to Jobicy and Himalayas fetchers to avoid ingesting region-locked listings in the first place.
-4. **Unified Eligibility Module (`src/matching/eligibility.py`)**:
-   - Complete Task 8.5: Unify eligibility logic between `run_daily.py`, `score_jobs.py`, and `export_for_labeling.py` so `HardFilter.apply` is the single authoritative gate.
-5. **Fast-Fail DB Timeout & HN String Truncation**:
+1. **Unified Eligibility Module (`src/matching/eligibility.py`)** [Task 8.5]:
+   - Create single authoritative candidate eligibility function wrapping `HardFilter.apply` to eliminate divergence between `run_daily.py`, `score_jobs.py`, and `export_for_labeling.py`.
+2. **Single Reachability Field** [Task 8.6]:
+   - Retain `reachable_from_nepal` & `reachable_reason` as the only reachability fields; eliminate legacy reads/writes of `nepal_accessible` and `accessibility`.
+3. **Title & Seniority Hard Filter** [Task 8.7]:
+   - Extend `non_technical_title_blocklist` and add configurable seniority title checks (`SENIORITY_TITLE`) with zero-regression check on human labels.
+4. **Fast-Fail DB Timeout & HN String Truncation** [Task 8.2 & 8.3]:
    - Add `connect_timeout=5` to connection pool to prevent 4-minute hangs when Docker is stopped.
    - Truncate long Hacker News comment titles/company names to 255 chars in normalization to prevent schema violations.
 
 ---
 
 ## Next Step
-Proceed with building a targeted ATS board ingest capability (for Supabase, OpenAI, Runway ML, ElevenLabs, GitLab) or finalizing Phase 8 eligibility unification (`src/matching/eligibility.py`).
+Proceed with Phase 8 architecture harmonization: building `src/matching/eligibility.py` (Task 8.5) and retiring legacy reachability columns (Task 8.6).
 
