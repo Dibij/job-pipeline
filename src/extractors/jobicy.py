@@ -1,12 +1,28 @@
 """Jobicy public JSON API extractor."""
 import logging
 from typing import Any, Dict, List
+
 import requests
 
 from src import config
 from src.extractors.base import BaseExtractor
 
 logger = logging.getLogger(__name__)
+
+# Jobicy: ?geo=worldwide returns HTTP 400 (verified live 2026-10-18).
+# Client-side pre-filter: only stage jobs with no geo restriction or an
+# explicit worldwide/global geo.  Single-country strings are skipped to
+# reduce REGION_LOCKED rejections downstream (~98% of fetched jobs).
+_WORLDWIDE_GEOS = frozenset({"", "worldwide", "anywhere", "global", "remote"})
+
+
+def _jobicy_geo_is_accessible(job: Dict[str, Any]) -> bool:
+    """Return True if the job has no single-country geo restriction."""
+    geo_raw = (job.get("jobGeo") or "").lower().strip()
+    parts = [p.strip() for p in geo_raw.split(",") if p.strip()]
+    if not parts:
+        return True  # blank = worldwide
+    return all(p in _WORLDWIDE_GEOS for p in parts)
 
 
 class JobicyExtractor(BaseExtractor):
@@ -15,6 +31,8 @@ class JobicyExtractor(BaseExtractor):
     Jobicy API Guidelines:
     - Free public JSON API, no authentication.
     - Paginated via count parameter (max 50 per request).
+    - ?geo=worldwide is NOT supported on the free API (HTTP 400, verified 2026-10-18).
+    - Client-side geo filter applied: only worldwide/blank geos are staged.
     - Rate limit: Fair use, polite delay between requests.
     """
 
@@ -35,6 +53,9 @@ class JobicyExtractor(BaseExtractor):
 
     def fetch_raw(self, count: int = 50, max_pages: int = 1) -> List[Dict[str, Any]]:
         """Fetch remote job listings from Jobicy API.
+
+        Only returns jobs with worldwide or unspecified geo restrictions.
+        Single-country jobs are discarded before staging.
 
         Args:
             count: Number of jobs per page (max 50).
@@ -76,10 +97,19 @@ class JobicyExtractor(BaseExtractor):
                 logger.info("[%s] No more jobs returned.", self.source_name)
                 break
 
+            before = len(jobs)
+            jobs = [j for j in jobs if _jobicy_geo_is_accessible(j)]
+            skipped_geo = before - len(jobs)
+            if skipped_geo:
+                logger.info(
+                    "[%s] Geo pre-filter: dropped %d/%d single-country jobs on page %d.",
+                    self.source_name, skipped_geo, before, page + 1,
+                )
+
             collected.extend(jobs)
 
             if page < max_pages - 1:
                 self.polite_sleep()
 
-        logger.info("[%s] Retrieved %d jobs total", self.source_name, len(collected))
+        logger.info("[%s] Retrieved %d accessible jobs total", self.source_name, len(collected))
         return collected

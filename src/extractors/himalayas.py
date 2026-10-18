@@ -1,12 +1,29 @@
 """Himalayas remote job board API extractor."""
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
 import requests
 
 from src import config
 from src.extractors.base import BaseExtractor
 
 logger = logging.getLogger(__name__)
+
+# Himalayas: no server-side location filter exists (verified 2026-10-18 — all tested params
+# are silently ignored).  Client-side pre-filter: skip jobs whose locationRestrictions list
+# is non-empty and contains only single-country/region strings.  Empty list = worldwide.
+_ACCESSIBLE_LOCATION_TOKENS = frozenset({
+    "worldwide", "anywhere", "global", "remote", "no restriction",
+})
+
+
+def _himalayas_is_accessible(job: Dict[str, Any]) -> bool:
+    """Return True if the job has no single-country location restriction."""
+    locs = job.get("locationRestrictions") or []
+    if not locs:
+        return True  # no restriction = worldwide
+    locs_lower = [str(l).lower().strip() for l in locs if l]
+    return any(l in _ACCESSIBLE_LOCATION_TOKENS for l in locs_lower)
 
 
 class HimalayasExtractor(BaseExtractor):
@@ -85,14 +102,23 @@ class HimalayasExtractor(BaseExtractor):
                 logger.info("[%s] No more jobs returned at offset %d.", self.source_name, offset)
                 break
 
+            before = len(jobs)
+            jobs = [j for j in jobs if _himalayas_is_accessible(j)]
+            skipped_geo = before - len(jobs)
+            if skipped_geo:
+                logger.info(
+                    "[%s] Geo pre-filter: dropped %d/%d single-country jobs on page %d.",
+                    self.source_name, skipped_geo, before, page + 1,
+                )
+
             collected.extend(jobs)
-            offset += len(jobs)
+            offset += before  # advance by raw count, not filtered count
 
             if page < max_pages - 1:
                 self.polite_sleep()
 
         logger.info(
-            "[%s] Successfully retrieved %d jobs across %d page(s)",
+            "[%s] Successfully retrieved %d accessible jobs across %d page(s)",
             self.source_name,
             len(collected),
             max_pages,
