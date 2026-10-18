@@ -1,8 +1,8 @@
 """Read-only pipeline funnel report.
 
 For the last N days (default 7), prints per-source:
-  fetched -> new -> passed HardFilter -> scored >= 60
-  Top 3 rejection reasons with counts.
+  Fetched (from raw_job_listings) -> New (rows inserted into jobs) -> Passed HardFilter -> Scored >= 60
+  Split into two columns: HardFilter reasons and MatchScorer reasons.
 
 Usage:
     python scripts/funnel_report.py [--days N]
@@ -20,46 +20,76 @@ HARD_FILTER_REASONS = {
     "NON_ENGLISH", "GERMAN_ONLY", "UNPAID", "REGION_LOCKED",
     "NOT_REMOTE", "NON_TECHNICAL",
 }
+MATCH_SCORER_REASONS = {
+    "SENIOR", "NO_TECH_SIGNAL", "LOW_SCORE", "PLACEHOLDER",
+}
 
 
 def run_report(days: int = 7) -> None:
-    """Query DB and print funnel table + rejection breakdown."""
+    """Query DB and print funnel table with split rejection columns."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     with get_connection(autocommit=True) as conn:
         with conn.cursor() as cur:
-            # ── Funnel counts per source ──────────────────────────────────
+            # 1. All distinct sources across raw and normalized jobs + remotive
+            cur.execute(
+                """
+                SELECT DISTINCT source FROM (
+                    SELECT source FROM raw_job_listings
+                    UNION
+                    SELECT source FROM jobs
+                    UNION
+                    SELECT 'remotive'
+                ) s ORDER BY source;
+                """
+            )
+            all_sources = [r["source"] for r in cur.fetchall()]
+
+            # 2. Ingest attempts in the window from raw_job_listings
+            cur.execute(
+                """
+                SELECT source, COUNT(*) AS fetched
+                FROM raw_job_listings
+                WHERE fetched_at >= NOW() - %s * INTERVAL '1 day'
+                GROUP BY source;
+                """,
+                (days,),
+            )
+            fetched_map = {r["source"]: r["fetched"] for r in cur.fetchall()}
+
+            # 3. New rows actually inserted into jobs in the window
             cur.execute(
                 """
                 SELECT
                     j.source,
-                    COUNT(DISTINCT r.id)   AS fetched,
-                    COUNT(DISTINCT j.id)   AS new_jobs,
-                    COUNT(DISTINCT j.id)
-                        FILTER (WHERE m.reason_code IS NULL
-                                   OR m.reason_code NOT IN (
-                                       'NON_ENGLISH','GERMAN_ONLY','UNPAID',
-                                       'REGION_LOCKED','NOT_REMOTE','NON_TECHNICAL'
-                                   ))    AS passed_hf,
-                    COUNT(DISTINCT j.id)
-                        FILTER (WHERE m.match_score >= 60.0
-                                  AND m.reason_code IS NULL) AS scored_60_plus
+                    COUNT(DISTINCT j.id) AS new_jobs,
+                    COUNT(DISTINCT j.id) FILTER (
+                        WHERE m.reason_code IS NULL
+                           OR m.reason_code NOT IN (
+                               'NON_ENGLISH','GERMAN_ONLY','UNPAID',
+                               'REGION_LOCKED','NOT_REMOTE','NON_TECHNICAL'
+                           )
+                    ) AS passed_hf,
+                    COUNT(DISTINCT j.id) FILTER (
+                        WHERE m.match_score >= 60.0
+                          AND m.reason_code IS NULL
+                    ) AS scored_60
                 FROM jobs j
-                LEFT JOIN raw_job_listings r
-                       ON j.source = r.source AND j.external_id = r.external_id
                 LEFT JOIN job_matches m ON j.id = m.job_id
                 WHERE j.created_at >= NOW() - %s * INTERVAL '1 day'
-                GROUP BY j.source
-                ORDER BY fetched DESC;
+                GROUP BY j.source;
                 """,
                 (days,),
             )
-            funnel_rows = cur.fetchall()
+            new_map = {r["source"]: r for r in cur.fetchall()}
 
-            # ── Rejection reasons per source ──────────────────────────────
+            # 4. Rejection breakdown per source in the window
             cur.execute(
                 """
                 SELECT j.source, m.reason_code, COUNT(*) AS cnt
-                FROM job_matches m
-                JOIN jobs j ON j.id = m.job_id
+                FROM jobs j
+                JOIN job_matches m ON j.id = m.job_id
                 WHERE j.created_at >= NOW() - %s * INTERVAL '1 day'
                   AND m.reason_code IS NOT NULL
                 GROUP BY j.source, m.reason_code
@@ -69,63 +99,100 @@ def run_report(days: int = 7) -> None:
             )
             rejection_rows = cur.fetchall()
 
-    # Build rejection lookup: source -> [(reason, cnt), ...]
-    rejection: dict[str, list[tuple[str, int]]] = {}
+    # Split rejections into HardFilter and MatchScorer buckets
+    hf_rejections: dict[str, list[tuple[str, int]]] = {}
+    ms_rejections: dict[str, list[tuple[str, int]]] = {}
+
     for row in rejection_rows:
-        rejection.setdefault(row["source"], []).append(
-            (row["reason_code"], row["cnt"])
-        )
+        src = row["source"]
+        code = row["reason_code"]
+        cnt = row["cnt"]
+        if code in HARD_FILTER_REASONS:
+            hf_rejections.setdefault(src, []).append((code, cnt))
+        else:
+            ms_rejections.setdefault(src, []).append((code, cnt))
 
-    # Ensure UTF-8 output on Windows consoles if needed
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # Sort sources by fetched DESC (then source name)
+    sources_sorted = sorted(
+        all_sources,
+        key=lambda s: (fetched_map.get(s, 0), new_map.get(s, {}).get("new_jobs", 0)),
+        reverse=True,
+    )
 
-    # ── Print report ──────────────────────────────────────────────────────
-    divider = "-" * 80
-    print(f"\n{'=' * 80}")
+    divider = "-" * 132
+    print(f"\n{'=' * 132}")
     print(f"  PIPELINE FUNNEL REPORT  (last {days} days)")
-    print(f"{'=' * 80}")
+    print(f"{'=' * 132}")
     print(
-        f"  {'Source':<18} {'Fetched':>8} {'New':>7} {'PassedHF':>10}"
-        f" {'Scored>=60':>10}  {'Yield':>6}"
+        f"  {'Source':<16} {'Fetched':>8} {'New':>7} {'PassedHF':>9} {'Scored>=60':>10} | "
+        f"{'HardFilter Rejections':<38} | {'MatchScorer Rejections':<35}"
     )
     print(f"  {divider}")
 
-    totals = {"fetched": 0, "new": 0, "passed_hf": 0, "scored_60": 0}
+    totals = {
+        "fetched": 0,
+        "new": 0,
+        "passed_hf": 0,
+        "scored_60": 0,
+        "hf_rej": 0,
+        "ms_rej": 0,
+    }
 
-    for row in funnel_rows:
-        src = row["source"]
-        fetched = row["fetched"] or 0
-        new_jobs = row["new_jobs"] or 0
-        passed_hf = row["passed_hf"] or 0
-        scored_60 = row["scored_60_plus"] or 0
-        yield_pct = (scored_60 / fetched * 100) if fetched else 0.0
+    for src in sources_sorted:
+        fetched = fetched_map.get(src, 0)
+        n_info = new_map.get(src, {})
+        new_jobs = n_info.get("new_jobs", 0)
+        passed_hf = n_info.get("passed_hf", 0)
+        scored_60 = n_info.get("scored_60", 0)
+
+        hf_list = hf_rejections.get(src, [])
+        ms_list = ms_rejections.get(src, [])
+
+        hf_total = sum(c for _, c in hf_list)
+        ms_total = sum(c for _, c in ms_list)
 
         totals["fetched"] += fetched
         totals["new"] += new_jobs
         totals["passed_hf"] += passed_hf
         totals["scored_60"] += scored_60
+        totals["hf_rej"] += hf_total
+        totals["ms_rej"] += ms_total
 
+        # Format initial row with source stats and total rejection counts
+        hf_summary = f"{hf_total:,} disqualified" if hf_total else "-"
+        ms_summary = f"{ms_total:,} disqualified" if ms_total else "-"
         print(
-            f"  {src:<18} {fetched:>8,} {new_jobs:>7,} {passed_hf:>10,}"
-            f" {scored_60:>10,}  {yield_pct:>5.1f}%"
+            f"  {src:<16} {fetched:>8,} {new_jobs:>7,} {passed_hf:>9,} {scored_60:>10,} | "
+            f"{hf_summary:<38} | {ms_summary:<35}"
         )
 
-        # Top 3 rejection reasons for this source
-        reasons = rejection.get(src, [])[:3]
-        for reason, cnt in reasons:
-            pct = (cnt / fetched * 100) if fetched else 0.0
-            print(f"    -> {reason:<20} {cnt:>5,}  ({pct:.1f}% of fetched)")
+        # Print detailed reasons in two columns side-by-side
+        max_reasons = max(len(hf_list), len(ms_list))
+        for i in range(max_reasons):
+            if i < len(hf_list):
+                r_code, r_cnt = hf_list[i]
+                pct = (r_cnt / fetched * 100) if fetched else 0.0
+                hf_str = f"  -> {r_code}: {r_cnt:,} ({pct:.1f}%)"
+            else:
+                hf_str = ""
+
+            if i < len(ms_list):
+                r_code, r_cnt = ms_list[i]
+                pct = (r_cnt / fetched * 100) if fetched else 0.0
+                ms_str = f"  -> {r_code}: {r_cnt:,} ({pct:.1f}%)"
+            else:
+                ms_str = ""
+
+            print(f"  {'':<16} {'':>8} {'':>7} {'':>9} {'':>10} | {hf_str:<38} | {ms_str:<35}")
 
     print(f"  {divider}")
-    total_yield = (
-        (totals["scored_60"] / totals["fetched"] * 100) if totals["fetched"] else 0.0
-    )
+    tot_hf = f"{totals['hf_rej']:,} disqualified"
+    tot_ms = f"{totals['ms_rej']:,} disqualified"
     print(
-        f"  {'TOTAL':<18} {totals['fetched']:>8,} {totals['new']:>7,}"
-        f" {totals['passed_hf']:>10,} {totals['scored_60']:>10,}  {total_yield:>5.1f}%"
+        f"  {'TOTAL':<16} {totals['fetched']:>8,} {totals['new']:>7,} {totals['passed_hf']:>9,} {totals['scored_60']:>10,} | "
+        f"{tot_hf:<38} | {tot_ms:<35}"
     )
-    print(f"{'=' * 80}\n")
+    print(f"{'=' * 132}\n")
 
 
 def main() -> None:
