@@ -14,6 +14,27 @@ _MOJIBAKE_PATTERN = re.compile(
     r"([\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}|[\xf0-\xf4][\x80-\xbf]{3})+"
 )
 
+_ATS_LINK_PATTERNS = [
+    re.compile(r"https?://(?:boards\.greenhouse\.io|job-boards\.greenhouse\.io|grnh\.se)/[^\s\"\'<>]+"),
+    re.compile(r"https?://jobs\.lever\.co/[^\s\"\'<>]+"),
+    re.compile(r"https?://jobs\.ashbyhq\.com/[^\s\"\'<>]+"),
+    re.compile(r"https?://apply\.workable\.com/[^\s\"\'<>]+"),
+]
+
+
+def extract_direct_ats_link(content: Optional[str]) -> Optional[str]:
+    """Scan HTML or text for known ATS links and return the first clean match."""
+    if not content:
+        return None
+    unescaped = html.unescape(html.unescape(content))
+    for pat in _ATS_LINK_PATTERNS:
+        match = pat.search(unescaped)
+        if match:
+            url = match.group(0)
+            url = re.sub(r"[\.,;\)\]'\"]+$", "", url)
+            return url
+    return None
+
 
 def fix_mojibake(text: str) -> str:
     """Recover UTF-8 byte sequences that were mistakenly decoded as latin-1."""
@@ -430,14 +451,19 @@ def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
 
     # Extract apply link
     apply_url = ""
-    links = re.findall(r'href=["\'](https?://[^"\']+)["\']', raw_html)
-    if not links:
-        links = re.findall(r'(https?://[^\s<>"()]+)', raw_html)
-    if links:
-        apply_url = links[0]
+    direct_ats = extract_direct_ats_link(raw_html)
+    if direct_ats:
+        apply_url = direct_ats
     else:
-        hn_id = payload.get("id")
-        apply_url = f"https://news.ycombinator.com/item?id={hn_id}"
+        raw_unescaped = html.unescape(raw_html)
+        links = re.findall(r'href=["\'](https?://[^"\'\s>]+)["\']', raw_unescaped)
+        if not links:
+            links = re.findall(r'(https?://[^\s<>"()]+)', raw_unescaped)
+        if links:
+            apply_url = links[0]
+        else:
+            hn_id = payload.get("id")
+            apply_url = f"https://news.ycombinator.com/item?id={hn_id}"
 
     posted_at = parse_timestamp(payload.get("time"))
     item_id = str(payload.get("id", "")).strip()
@@ -591,23 +617,31 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
     if source_lower == "arbeitnow":
-        return transform_arbeitnow(payload)
+        job = transform_arbeitnow(payload)
     elif source_lower == "remotive":
-        return transform_remotive(payload)
+        job = transform_remotive(payload)
     elif source_lower == "himalayas":
-        return transform_himalayas(payload)
+        job = transform_himalayas(payload)
     elif source_lower == "weworkremotely":
-        return transform_weworkremotely(payload)
+        job = transform_weworkremotely(payload)
     elif source_lower == "remoteok":
-        return transform_remoteok(payload)
+        job = transform_remoteok(payload)
     elif source_lower == "jobicy":
-        return transform_jobicy(payload)
+        job = transform_jobicy(payload)
     elif source_lower == "hackernews":
-        return transform_hackernews(payload)
+        job = transform_hackernews(payload)
     elif source_lower.startswith("ats:"):
-        return transform_ats(source, payload)
+        job = transform_ats(source, payload)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
+
+    # Task 9.8: If apply_url is not already an ATS link, check if description contains a direct ATS link
+    if job.apply_url and not any(p.match(job.apply_url) for p in _ATS_LINK_PATTERNS):
+        ats_link = extract_direct_ats_link(job.description_html) or extract_direct_ats_link(job.description_text)
+        if ats_link:
+            job.apply_url = ats_link
+
+    return job
 
 
 
