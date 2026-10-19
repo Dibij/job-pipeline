@@ -2,9 +2,9 @@
   "_comment": "High-yield ATS company boards for targeted extraction. platform: greenhouse | lever | ashby",
   "boards": [
     { "slug": "supabase",   "platform": "ashby",      "company_name": "Supabase",    "enabled": true  },
-    { "slug": "openai",     "platform": "ashby",      "company_name": "OpenAI",      "enabled": true  },
-    { "slug": "runway-ml",  "platform": "ashby",      "company_name": "Runway ML",   "enabled": true  },
     { "slug": "elevenlabs", "platform": "ashby",      "company_name": "ElevenLabs",  "enabled": true  },
-    { "slug": "gitlab",     "platform": "greenhouse", "company_name": "GitLab",      "enabled": true  }
+    { "slug": "gitlab",     "platform": "greenhouse", "company_name": "GitLab",      "enabled": true  },
+    { "slug": "openai",     "platform": "ashby",      "company_name": "OpenAI",      "enabled": false, "_reason": "97% hybrid in SF/NYC, 3% US-only remote" },
+    { "slug": "runway-ml",  "platform": "ashby",      "company_name": "Runway ML",   "enabled": false, "_reason": "100% US-only/hybrid roles" }
   ]
 }

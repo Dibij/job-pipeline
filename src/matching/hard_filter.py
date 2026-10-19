@@ -276,6 +276,12 @@ def apply(job: Dict[str, Any]) -> FilterResult:
     is_remote = bool(job.get("is_remote", False))
     detected_language = job.get("detected_language") or ""
 
+    # 0. Remote check: If not remote, and location is outside Nepal, immediately disqualify
+    loc_combined = f"{location_raw} {remote_restriction}".lower()
+    is_nepal_local = any(k in loc_combined for k in ["nepal", "kathmandu", "lalitpur", "pokhara", "patan"])
+    if not is_remote and not is_nepal_local:
+        return FilterResult.fail(FilterReason.NOT_REMOTE, f"on-site or hybrid role outside Nepal: {location_raw!r}")
+
     # Cheapest first
     result = _check_unpaid(title, desc)
     if not result.passed:

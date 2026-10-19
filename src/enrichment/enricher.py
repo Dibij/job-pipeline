@@ -206,14 +206,23 @@ class JobEnricher:
 
         # 5. Exclusive country/region lists or city-level locations -> BLOCKED
         blocked_locations = [
-            "usa", "united states", "us", "canada", "switzerland", "schweiz", "suisse",
-            "germany", "deutschland", "france", "frankreich", "uk", "united kingdom",
+            "usa", "united states", "u.s.", "us", "canada", "switzerland", "schweiz", "suisse",
+            "germany", "deutschland", "france", "frankreich", "uk", "united kingdom", "great britain",
             "australia", "ireland", "netherlands", "spain", "espagne", "poland", "japan",
-            "turkey", "vietnam", "mexico", "norway", "israel", "brazil", "argentina",
+            "turkey", "vietnam", "mexico", "norway", "israel", "brazil", "argentina", "singapore",
+            "south korea", "korea", "taiwan", "new zealand", "sweden", "denmark", "finland", "italy",
             "americas", "europe", "latam", "latin america", "northern america",
             "berlin", "munich", "münchen", "köln", "cologne", "hamburg", "bonn",
-            "bielefeld", "paris", "la chaux-de-fonds", "mendrisio", "homeoffice"
+            "bielefeld", "paris", "la chaux-de-fonds", "mendrisio", "homeoffice",
+            "amsterdam", "london", "dublin", "tokyo", "toronto", "vancouver", "sydney", "melbourne",
+            "san francisco", "sf", "new york", "nyc", "seattle", "washington", "boston", "austin",
+            "chicago", "los angeles", "sunnyvale", "mountain view", "palo alto", "san jose", "cupertino",
+            "san diego", "denver", "atlanta", "dallas", "redmond", "cambridge"
         ]
+
+        if any(k in combined for k in ["(hybrid)", "(onsite)", "hybrid"]):
+            if not any(p in combined for p in positive_terms):
+                return "BLOCKED"
 
         for term in blocked_locations:
             if re.search(rf"\b{re.escape(term)}\b", combined):
@@ -323,15 +332,23 @@ class JobEnricher:
         if not is_remote:
             return ("blocked", "onsite_abroad")
 
+        if any(k in combined_loc for k in ["(hybrid)", "(onsite)", "hybrid"]):
+            return ("blocked", "hybrid_requires_local_presence")
+
         # 7. Blocked locations (single country abroad or non-Nepal cities)
         blocked_locations = [
-            "usa", "united states", "us", "canada", "switzerland", "schweiz", "suisse",
-            "germany", "deutschland", "france", "frankreich", "uk", "united kingdom",
+            "usa", "united states", "u.s.", "us", "canada", "switzerland", "schweiz", "suisse",
+            "germany", "deutschland", "france", "frankreich", "uk", "united kingdom", "great britain",
             "australia", "ireland", "netherlands", "spain", "espagne", "poland", "japan",
-            "turkey", "vietnam", "mexico", "norway", "israel", "brazil", "argentina",
+            "turkey", "vietnam", "mexico", "norway", "israel", "brazil", "argentina", "singapore",
+            "south korea", "korea", "taiwan", "new zealand", "sweden", "denmark", "finland", "italy",
             "americas", "europe", "latam", "latin america", "northern america",
             "berlin", "munich", "münchen", "köln", "cologne", "hamburg", "bonn",
-            "bielefeld", "paris", "amsterdam", "london"
+            "bielefeld", "paris", "la chaux-de-fonds", "mendrisio", "homeoffice",
+            "amsterdam", "london", "dublin", "tokyo", "toronto", "vancouver", "sydney", "melbourne",
+            "san francisco", "sf", "new york", "nyc", "seattle", "washington", "boston", "austin",
+            "chicago", "los angeles", "sunnyvale", "mountain view", "palo alto", "san jose", "cupertino",
+            "san diego", "denver", "atlanta", "dallas", "redmond", "cambridge"
         ]
         if any(re.search(rf"\b{re.escape(term)}\b", combined_loc) for term in blocked_locations):
             return ("blocked", "location_excludes_nepal")

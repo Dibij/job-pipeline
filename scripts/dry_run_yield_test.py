@@ -102,19 +102,48 @@ def normalize_item(item: Dict[str, Any], platform: str, company_name: str) -> Di
     elif platform == "lever":
         title = item.get("text", "Untitled")
         cats = item.get("categories") or {}
-        location_raw = cats.get("location", "")
+        location_raw = cats.get("location", "") if isinstance(cats, dict) else ""
         workplace_type = str(item.get("workplaceType", "")).lower()
         content_html = (item.get("description", "") or "") + " " + (item.get("additional", "") or "")
         desc_clean = clean_description_text(content_html) if content_html.strip() else (item.get("descriptionPlain", "") or title)
-        is_remote = (workplace_type == "remote") or ("remote" in location_raw.lower()) or ("remote" in title.lower())
+        if workplace_type in ("hybrid", "onsite"):
+            is_remote = False
+            location_raw = f"{location_raw} ({workplace_type.capitalize()})" if location_raw else workplace_type.capitalize()
+        elif workplace_type == "remote":
+            is_remote = True
+        else:
+            is_remote = ("remote" in location_raw.lower()) or ("remote" in title.lower())
 
     elif platform == "ashby":
         title = item.get("title", "Untitled")
-        location_raw = item.get("location", "")
         workplace_type = str(item.get("workplaceType", "")).lower()
+
+        loc_parts = []
+        loc_name = item.get("location")
+        if loc_name:
+            loc_parts.append(str(loc_name).strip())
+        addr = item.get("address") or {}
+        post = addr.get("postalAddress") or {}
+        country = post.get("addressCountry")
+        region = post.get("addressRegion")
+        if region and region not in loc_parts:
+            loc_parts.append(str(region).strip())
+        if country and country not in loc_parts:
+            loc_parts.append(str(country).strip())
+
+        if workplace_type in ("hybrid", "onsite"):
+            is_remote = False
+            loc_parts.append(f"({workplace_type.capitalize()})")
+        elif workplace_type == "remote":
+            is_remote = True
+        else:
+            is_remote = bool(item.get("isRemote", False)) and (
+                "remote" in (loc_name or "").lower() or "remote" in title.lower()
+            )
+
+        location_raw = ", ".join(loc_parts) if loc_parts else (loc_name or "")
         content_html = item.get("descriptionHtml", "")
         desc_clean = clean_description_text(content_html) if content_html else (item.get("descriptionPlain", "") or title)
-        is_remote = bool(item.get("isRemote", False)) or (workplace_type == "remote") or ("remote" in location_raw.lower()) or ("remote" in title.lower())
 
     else:
         title = "Untitled"

@@ -531,7 +531,13 @@ def transform_ats_lever(payload: Dict[str, Any], source: str) -> "NormalizedJob"
     desc_clean = clean_description_text(content_html) if content_html.strip() else (
         payload.get("descriptionPlain", "") or title
     )
-    is_remote = (workplace_type == "remote") or ("remote" in location_raw.lower()) or ("remote" in title.lower())
+    if workplace_type in ("hybrid", "onsite"):
+        is_remote = False
+        location_raw = f"{location_raw} ({workplace_type.capitalize()})" if location_raw else workplace_type.capitalize()
+    elif workplace_type == "remote":
+        is_remote = True
+    else:
+        is_remote = ("remote" in location_raw.lower()) or ("remote" in title.lower())
     remote_restriction = location_raw.strip() if location_raw.strip() else "unspecified"
 
     apply_url = payload.get("hostedUrl") or payload.get("applyUrl") or ""
@@ -559,17 +565,35 @@ def transform_ats_ashby(payload: Dict[str, Any], source: str) -> "NormalizedJob"
     company_name = meta.get("company_name") or "Unknown Company"
 
     title = payload.get("title", "Untitled Position")
-    location_raw = payload.get("location", "")
     workplace_type = str(payload.get("workplaceType", "")).lower()
+
+    loc_parts = []
+    loc_name = payload.get("location")
+    if loc_name:
+        loc_parts.append(str(loc_name).strip())
+    addr = payload.get("address") or {}
+    post = addr.get("postalAddress") or {}
+    country = post.get("addressCountry")
+    region = post.get("addressRegion")
+    if region and region not in loc_parts:
+        loc_parts.append(str(region).strip())
+    if country and country not in loc_parts:
+        loc_parts.append(str(country).strip())
+
+    if workplace_type in ("hybrid", "onsite"):
+        is_remote = False
+        loc_parts.append(f"({workplace_type.capitalize()})")
+    elif workplace_type == "remote":
+        is_remote = True
+    else:
+        is_remote = bool(payload.get("isRemote", False)) and (
+            "remote" in (loc_name or "").lower() or "remote" in title.lower()
+        )
+
+    location_raw = ", ".join(loc_parts) if loc_parts else (loc_name or "")
     content_html = payload.get("descriptionHtml", "")
     desc_clean = clean_description_text(content_html) if content_html else (
         payload.get("descriptionPlain", "") or title
-    )
-    is_remote = (
-        bool(payload.get("isRemote", False))
-        or workplace_type == "remote"
-        or "remote" in location_raw.lower()
-        or "remote" in title.lower()
     )
     remote_restriction = location_raw.strip() if location_raw.strip() else "unspecified"
 

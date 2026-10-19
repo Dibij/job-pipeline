@@ -307,9 +307,10 @@ def test_jobicy_fetch_mocked():
 
     with patch.object(extractor.session, "get", return_value=mock_resp):
         jobs = extractor.fetch_raw(count=2, max_pages=1)
-        assert len(jobs) == 2
+        # Geo pre-filter keeps Worldwide and filters out single-country USA
+        assert len(jobs) == 1
         assert jobs[0]["jobTitle"] == "Backend Dev"
-        assert jobs[1]["jobGeo"] == "USA"
+        assert jobs[0]["jobGeo"] == "Worldwide"
 
 def test_hackernews_extract_external_id():
     """Verify HackerNewsExtractor properly extracts id."""
