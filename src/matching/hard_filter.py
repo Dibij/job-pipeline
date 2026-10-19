@@ -44,6 +44,10 @@ class FilterReason(str, Enum):
     NOT_REMOTE = "NOT_REMOTE"
     NON_TECHNICAL = "NON_TECHNICAL"
     NEEDS_REVIEW = "NEEDS_REVIEW"
+    # Allowlist-era codes (brief §5)
+    NOT_ELIGIBLE_REGION = "NOT_ELIGIBLE_REGION"  # remote but region locked out of ALLOWED_REMOTE_TAGS
+    TOO_SENIOR = "TOO_SENIOR"                    # title hits BLOCKED_SENIORITY
+    DEGREE_OR_EXP = "DEGREE_OR_EXP"             # DEGREE_HARD_RE or YEARS_RE (3+ yrs)
     PASS = "PASS"
 
 
@@ -146,6 +150,52 @@ def _check_unpaid(title: str, description: str) -> FilterResult:
         m = pat.search(combined)
         if m:
             return FilterResult.fail(FilterReason.UNPAID, f"matched: '{m.group()}'")
+    return FilterResult.ok()
+
+
+# ---------------------------------------------------------------------------
+# Gate 2 — Seniority & Degree check (brief §5)
+# ---------------------------------------------------------------------------
+
+BLOCKED_SENIORITY = frozenset({
+    "senior", "staff", "principal", "lead", "manager", "director",
+    "head", "vp", "vice president", "chief", "cto", "ceo", "coo", "cpo",
+})
+
+# Matches explicit degree requirement phrasing (bachelor's/degree + required/must)
+_DEGREE_HARD_RE = re.compile(
+    r"\b(bachelor'?s?|b\.?s\.?c?|degree)\b.{0,40}\b(required|must)\b",
+    re.IGNORECASE,
+)
+
+# Matches 3+ years of experience requirement
+_YEARS_RE = re.compile(
+    r"\b([3-9]|[1-9][0-9])\+?\s*(?:years?|yrs?)\b.{0,30}\b(experience|exp\.?|background)\b",
+    re.IGNORECASE,
+)
+
+
+def _check_seniority_degree(title: str, description: str) -> FilterResult:
+    """Block roles that require seniority or a completed degree (Gate 2)."""
+    title_lower = (title or "").lower()
+
+    # Title seniority word check
+    for word in BLOCKED_SENIORITY:
+        if re.search(r"\b" + re.escape(word) + r"\b", title_lower):
+            return FilterResult.fail(FilterReason.TOO_SENIOR, f"title contains seniority word: {word!r}")
+
+    combined = f"{title} {description}"
+
+    # Hard degree requirement in description
+    m = _DEGREE_HARD_RE.search(combined)
+    if m:
+        return FilterResult.fail(FilterReason.DEGREE_OR_EXP, f"degree required: {m.group()!r}")
+
+    # 3+ years of experience required
+    m = _YEARS_RE.search(combined)
+    if m:
+        return FilterResult.fail(FilterReason.DEGREE_OR_EXP, f"experience required: {m.group()!r}")
+
     return FilterResult.ok()
 
 
@@ -288,6 +338,11 @@ def apply(job: Dict[str, Any]) -> FilterResult:
         return result
 
     result = _check_language(title, desc, detected_language)
+    if not result.passed:
+        return result
+
+    # Gate 2 — seniority & degree (allowlist-era, brief §5)
+    result = _check_seniority_degree(title, desc)
     if not result.passed:
         return result
 
