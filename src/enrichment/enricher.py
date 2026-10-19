@@ -338,9 +338,9 @@ class JobEnricher:
         if re.search(r"\b(?:gmt-5\s+to\s+gmt\+1|cet\s+timezones?\s+required|gmt\+0\s+to\s+gmt\+2|cet\s*/\s*et)\b", desc, re.I):
             return ("blocked", "timezone_excludes_nepal")
 
-        # 4. Region code in title
-        for code in ["EMEA", "NA", "EU", "US", "USA", "LATAM"]:
-            if re.search(rf"\b{code}\b", title_upper):
+        # 4. Region code in title (blocking Nepal unless it includes APAC/Global)
+        for code in ["EMEA", "NA", "EU", "US", "USA", "LATAM", "AMER"]:
+            if re.search(rf"\b{code}\b", title_upper) and not any(k in title_upper for k in ["APAC", "GLOBAL", "WORLDWIDE"]):
                 return ("blocked", "title_region_code")
 
         # 5. Explicit positive evidence (accessible)
@@ -360,8 +360,9 @@ class JobEnricher:
         if any(k in combined_loc for k in ["(hybrid)", "(onsite)", "hybrid"]):
             return ("blocked", "hybrid_requires_local_presence")
 
-        # 7. Blocked locations (single country abroad or non-Nepal cities)
+        # 7. Blocked locations (single country abroad or non-Nepal cities/regions)
         blocked_locations = [
+            "amer", "americas", "emea", "north america", "na",
             "usa", "united states", "u.s.", "us", "canada", "switzerland", "schweiz", "suisse",
             "germany", "deutschland", "france", "frankreich", "uk", "united kingdom", "great britain",
             "australia", "ireland", "netherlands", "spain", "espagne", "poland", "japan",

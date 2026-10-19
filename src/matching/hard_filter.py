@@ -158,8 +158,9 @@ def _check_unpaid(title: str, description: str) -> FilterResult:
 # ---------------------------------------------------------------------------
 
 BLOCKED_SENIORITY = frozenset({
-    "senior", "staff", "principal", "lead", "manager", "director",
-    "head", "vp", "vice president", "chief", "cto", "ceo", "coo", "cpo",
+    "senior", "staff", "principal", "lead", "leader", "leadership",
+    "manager", "director", "head", "vp", "vice president",
+    "chief", "cto", "ceo", "coo", "cpo",
 })
 
 # Matches explicit degree requirement phrasing (bachelor's/degree + required/must)
@@ -216,7 +217,8 @@ _COUNTRY_ONLY_PATTERNS = [
     re.compile(r"^(remote\s*[-–]?\s*)?(australia|australie)$", re.IGNORECASE),
     re.compile(r"^(remote\s*[-–]?\s*)?(ireland|irland)$", re.IGNORECASE),
     re.compile(r"^(remote\s*[-–]?\s*)?(netherlands|niederlande|pays-bas)$", re.IGNORECASE),
-    re.compile(r"^(remote\s*[-–]?\s*)?(spain|spanien|espagne)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–,]?\s*)?(spain|spanien|espagne)$", re.IGNORECASE),
+    re.compile(r"^(remote\s*[-–,]?\s*)?(amer|americas|emea|na|north america)$", re.IGNORECASE),
 ]
 
 # Hard lock phrases in any field — definitely blocks Nepal
@@ -227,8 +229,9 @@ _HARD_LOCK_PATTERNS = [
     re.compile(r"\bcanada\s*only\b", re.IGNORECASE),
     re.compile(r"\bgermany\s*only\b|\bdeutschland\s*only\b", re.IGNORECASE),
     re.compile(r"\blatam\s*only\b|\blatin\s+america\s*only\b", re.IGNORECASE),
+    re.compile(r"\bamer\s*only\b|\bemea\s*only\b", re.IGNORECASE),
     re.compile(r"\bauthorized\s+to\s+work\s+in\s+the\s+(us|uk|eu|canada)\b", re.IGNORECASE),
-    re.compile(r"\bmust\s+(?:be|reside|live)\s+in\s+(?:the\s+)?(?:us|usa|uk|canada|eu|europe)\b", re.IGNORECASE),
+    re.compile(r"\bmust\s+(?:be|reside|live)\s+in\s+(?:the\s+)?(?:us|usa|uk|canada|eu|europe|amer|emea)\b", re.IGNORECASE),
 ]
 
 # Ambiguous multi-region qualifiers — may include Nepal: do NOT block, flag for review
@@ -240,7 +243,7 @@ _OPEN_QUALIFIERS = re.compile(
 # Exclusive regions that exclude Nepal when listed WITHOUT an open qualifier
 _EXCLUSIVE_REGION_PATTERN = re.compile(
     r"\b(?:argentina|mexico|peru|brazil|colombia|chile|latam|latin america"
-    r"|northern america|usa|united states|canada|uk|united kingdom"
+    r"|northern america|north america|americas|amer|emea|na|usa|united states|canada|uk|united kingdom"
     r"|switzerland|france|germany|spain|netherlands|israel|norway|turkey)\b",
     re.IGNORECASE,
 )
