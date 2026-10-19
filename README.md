@@ -6,12 +6,17 @@ A modular data engineering pipeline that aggregates messy job listings from mult
 - **Ingest**: Pluggable extractors managed via a unified `SOURCES` registry with isolated per-source failure boundaries (Arbeitnow, Remotive, Himalayas, WWR, Remote OK, Jobicy, Hacker News).
 - **Stage**: Raw JSON/HTML payloads preserved in `raw_job_listings` (ELT pattern) to guarantee zero data loss.
 - **Normalize & Enrich**: Pydantic models clean text, truncate fields to 255 chars with warnings, extract seniority levels (`junior`, `intern`), and classify reachability.
-- **Reachability (Single Source of Truth)**: Evaluates Nepal accessibility as `reachable_from_nepal` (`accessible`, `unknown`, `blocked`) with explicit `reachable_reason` (blocking ITAR, region locks, and US-citizen-only restrictions).
+- **Reachability & Five-Gate Eligibility Filter**: Evaluates candidate fit via strict allowlists (default-deny architecture):
+  - **Gate 1 (Work Location)**: Strictly remote Worldwide/Global/APAC/Nepal or on-site/hybrid in Nepal. Automatically rejects all foreign hybrid/on-site postings (`NOT_REMOTE`) and region locks outside Nepal (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`).
+  - **Gate 2 (Seniority & Degree)**: Disqualifies titles with `BLOCKED_SENIORITY` (`senior`, `lead`, `leader`, `manager`, `head`, `vp`, `director`) as `TOO_SENIOR`, and hard degree requirements or $\ge 3$ years experience as `DEGREE_OR_EXP`.
+  - **Gate 3 (Clearance & Regulatory Fit)**: Blocks defense, military, ITAR, and government security clearance roles.
+  - **Gate 4 (Pay & Practicality)**: Blocks unpaid/equity-only roles and US Pacific fixed-overlap requirements ($\ge 6$h).
+  - **Gate 5 (Skill Fit)**: Ranks match against Python/ML, Django, React/Next.js, Flutter, and SQL stack.
+- **Zero-Scraping Policy for Nepal**: Strictly respects ToS and legal prohibitions on scraping local job boards (Merojob, Kumarijob, etc.). Local listings enter exclusively through manual JSON/CSV imports via `scripts/import_manual_jobs.py` (`source = 'manual:nepal'`).
 - **Deduplicate**: SHA-256 content hashing collapses identical postings cross-posted across platforms.
-- **Eligibility & HardFilter**: Single shared eligibility pipeline (`src/matching/eligibility.py`) enforcing `HardFilter` uniformly across batch scoring, labeling exports, and daily feed generation.
 - **Match**: Weighted rule-based ranking (MatchScorer) and Laya neural scorer (`convaiinnovations/laya`, ModernBERT-large).
 - **Output**: Daily markdown digest (`FEED.md`), interactive CLI review tool, and local web dashboard.
-- **Labeling & Calibration**: Human-labeled dataset in `laya_labels` (PostgreSQL). Strategy, evaluation protocol, and milestones documented in [`TRAINING.md`](TRAINING.md).
+- **Labeling & Calibration**: Human-labeled dataset in `laya_labels` (PostgreSQL) with 5-gate audit schema (migration 010). Strategy, evaluation protocol, and milestones documented in [`TRAINING.md`](TRAINING.md).
 
 
 ## ⚡ Quick Commands Cheatsheet
@@ -21,6 +26,7 @@ A modular data engineering pipeline that aggregates messy job listings from mult
 | **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe tools/app.py` | Open **http://localhost:5000** in browser |
 | **🚀 Generate FEED.md** | `& .\.venv\Scripts\python.exe scripts/export_feed.py` | Exports top matched jobs to `FEED.md` |
 | **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → Update FEED.md |
+| **🇳🇵 Manual Nepal Import** | `& .\.venv\Scripts\python.exe scripts/import_manual_jobs.py -f jobs.json` | Ingests user-supplied JSON/CSV (NO web scraping) |
 | **📋 Interactive CLI Review** | `& .\.venv\Scripts\python.exe scripts/review_jobs.py` | Review jobs (`y/n/s/q`), saves to `data/reviewed_jobs.json` |
 | **📥 Export Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/export_for_labeling.py --no-rescore --batch-size 30` | Creates `data/labeling_batch_YYYYMMDD.csv` |
 | **📤 Ingest Human Labels** | `& .\.venv\Scripts\python.exe scripts/ingest_labels.py data/labeling_batch_YYYYMMDD.csv` | Ingests CSV into `laya_labels` in Postgres |

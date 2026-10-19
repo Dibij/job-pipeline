@@ -18,46 +18,51 @@
 | **🔍 Audit Language Transitions** | `& .\.venv\Scripts\python.exe scripts/audit_language_changes.py` | Audits French/German/English transitions and false positives |
 | **🎯 Calibrate Laya** | `& .\.venv\Scripts\python.exe scripts/calibrate_laya.py --version v1` | Fits temperature scaling on human labels |
 | **📈 Pipeline Funnel Report** | `& .\.venv\Scripts\python.exe scripts/funnel_report.py --days 7` | Source-level funnel stats (fetched → new → passed HF → scored ≥60) |
+| **🇳🇵 Manual Nepal Import** | `& .\.venv\Scripts\python.exe scripts/import_manual_jobs.py -f jobs.json` | Ingests user-supplied JSON/CSV (NO web scraping) |
 | **🧪 ATS Yield Dry-Run** | `& .\.venv\Scripts\python.exe scripts/dry_run_yield_test.py` | In-memory yield test across 10 company ATS boards (no DB writes) |
 
 ---
 
-## Current State (Oct 15 2026)
+## Current State (Oct 19 2026)
 
 ### Infrastructure & Sources
-- Phase 1, Phase 2, Phase 3, Phase 5, and Phase 6 complete.
-- **Candidate Sources Built & Ingested**: 2,609 unique jobs in PostgreSQL across 7 sources (Arbeitnow: 2,307, Remote OK: 97, We Work Remotely: 86, Jobicy: 50, Hacker News: 30, Himalayas: 20, Remotive: 19).
-- **Tri-State Reachability**: Migration 008 applied (`reachable_from_nepal` & `reachable_reason`). Distribution: 90 `accessible`, 218 `unknown`, 2,301 `blocked`. FEED.md filters out all blocked roles.
-- **In-Browser Labeling Dashboard (`tools/app.py`)**: Built interactive labeling, 1-5 star rating, and notes directly on cards via `POST /api/label`, eliminating the Excel/CSV manual loop. Supports filtering by `⚡ Unlabeled Only`.
-- CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed. Test suite: 144 passing tests.
+- Phase 1 through Phase 6, Phase 9, and Phase 10 complete.
+- **Candidate Sources Built & Ingested**: 4,596 unique jobs in PostgreSQL across 8 sources (Arbeitnow, Remote OK, We Work Remotely, Jobicy, Hacker News, Himalayas, Remotive, ATS Boards).
+- **Five-Gate Allowlist HardFilter Active**: Disqualifies non-remote foreign jobs (`NOT_REMOTE`), region locks outside Nepal (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`), senior roles (`TOO_SENIOR`), and hard degree / 3+ year experience requirements (`DEGREE_OR_EXP`).
+- **OpenAI Leak Purged**: 0 OpenAI jobs in `job_matches`. All 571 stored OpenAI jobs disqualified due to SF/NYC hybrid presence.
+- **Zero-Scraping Nepal Ingestion**: Built `scripts/import_manual_jobs.py` for candidate JSON/CSV imports. Zero web scraping of Nepali sites.
+- **In-Browser Labeling Dashboard (`tools/app.py`)**: Persists 5-gate audit schema (`gate_failed`, `workplace_type`, `country_restriction`, `seniority`, `degree_required`, `years_required`, `pay_type`, `tz_overlap_required`) via migration 010.
+- CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed. Test suite: **150 passing tests**.
 
-### Labeling (as of Oct 15 2026)
-103 unique human-labeled jobs (127 total label events) in `laya_labels`:
+### Labeling (as of Oct 19 2026)
+130 distinct human-labeled jobs (169 total label events) in `laya_labels`:
 
 | Label | Count | % |
 |-------|-------|---|
-| `bad_fit` | 95 | 74.8% |
-| `good_fit` | 18 | 14.2% |
-| `maybe` | 14 | 11.0% |
+| `bad_fit` | 130 | 76.9% |
+| `maybe` | 20 | 11.8% |
+| `good_fit` | 19 | 11.2% |
 
-- **Strata Breakdown**: 86 legacy batch labels, 12 `random`, 9 `high_match_scorer`, 9 `laya_uncertainty`, 11 `web_ui` (labeled directly in-browser).
-- **Milestone Progress**: Crossed 100 labeled jobs. `good_fit` count is 18 (approaching the M1 target of 30 positive labels required for fine-tuning).
+- **Training Readiness Gate**:
+  - Fine-tuning Laya's decision head (`scripts/train_laya.py`) requires $\ge 150$ unique jobs and $\ge 30$ `good_fit` labels.
+  - Current status: **19 / 30 `good_fit`** labels (only **11 more** positive labels needed to unlock model training).
 
 ### Evaluation & Inference Latency Note (`evaluate_scorers.py`)
-- Running `scripts/evaluate_scorers.py` evaluates 127 labeled jobs through rule-based `MatchScorer` and neural `LayaScorer`.
+- Running `scripts/evaluate_scorers.py` evaluates labeled jobs through rule-based `MatchScorer` and neural `LayaScorer`.
 - On CPU, Laya inference requires ~15–20 seconds per job description.
-- For 127 jobs: $127 \times 15\text{s} \approx 1,900\text{s} \approx 32\text{ minutes}$. Because the evaluation loop had no per-iteration logging, the terminal appears silent/stuck between model load and final summary table output. Running on CUDA (`device="cuda"`) reduces this to ~1–2 minutes.
+- Running on CUDA (`device="cuda"`) reduces this to ~40ms per job.
 
-The ~10% `good_fit` rate reflects the source bias (Arbeitnow, Remotive skew senior/US/EU). This is not a labeling error.
+The ~11% `good_fit` rate reflects the source bias (Arbeitnow, Remotive skew senior/US/EU). This is not a labeling error.
 
-### Key Decisions Recorded (Oct 10 2026)
+### Key Decisions Recorded (Oct 10-19 2026)
 See `TRAINING.md` for full rationale. Summary:
 
-1. **Two datasets**: MEASURE/CALIBRATE set preserves natural distribution (never rebalanced). TRAIN set (7.8b only, train split only) may be rebalanced.
-2. **Training gated on both** total labels >= 150 AND `good_fit` >= 30 (`min_positive_labels`, configurable, default 30).
-3. **Binary primary view**: `good_fit` vs not. `maybe` = not good_fit. 3-class view reported as secondary.
-4. **Evaluation**: repeated stratified grouped k-fold; metrics are precision@k, recall@k, PR-AUC with bootstrap CIs. Primary metric is `recall@20`. Never report raw accuracy.
-5. **Labeling queue strata**: 40% random, 30% high MatchScorer, 30% Laya-uncertainty (last stratum deferred until 7.8a calibration is done).
+1. **Default-Deny Allowlist**: Jobs are blocked by default unless explicitly tagged Worldwide, Global, Anywhere, APAC, South Asia, or Nepal.
+2. **Two datasets**: MEASURE/CALIBRATE set preserves natural distribution (never rebalanced). TRAIN set (7.8b only, train split only) may be rebalanced.
+3. **Training gated on both** total labels >= 150 AND `good_fit` >= 30 (`min_positive_labels`, configurable, default 30).
+4. **Binary primary view**: `good_fit` vs not. `maybe` = not good_fit. 3-class view reported as secondary.
+5. **Evaluation**: repeated stratified grouped k-fold; metrics are precision@k, recall@k, PR-AUC with bootstrap CIs. Primary metric is `recall@20`. Never report raw accuracy.
+6. **Labeling queue strata**: 40% random, 30% high MatchScorer, 30% Laya-uncertainty (last stratum deferred until 7.8a calibration is done).
 6. **No uncalibrated Laya gating**: raw probabilities (~0.10-0.26) are stored only; never used to discard jobs or decide labeling priority.
 7. **Label hygiene**: Laya columns must be hidden from the export CSV; accepting Laya's suggestion is not allowed. `label_guideline_version` must be recorded per row.
 8. **`noul` correction**: it is Laya's boolean primitive (P(yes)), not a nuance/variance signal. Checkpoint is uncalibrated until 7.8a; never call outputs "calibrated confidence" before that.
@@ -262,6 +267,19 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
   - `src/extractors/jobicy.py`: skips single-country jobs (~98% drop rate), keeping only worldwide, remote, or blank listings.
   - `src/extractors/himalayas.py`: skips jobs with non-empty single-country `locationRestrictions` (~75% drop rate).
   - Eliminates upstream noise before staging into `raw_job_listings` and database.
+
+### 7. Eligibility Filter Rebuild & Allowlist Architecture (Oct 19 2026)
+- **Problem**: 814 OpenAI listings and numerous foreign hybrid/on-site postings leaked through the system because the filter relied on enumerating negative edge cases (blocklist) rather than strict allowlists.
+- **Mission**: Flipped the filter to **default deny**:
+  - **Gate 1 (Work Location)**: PASS only if on-site/hybrid in Nepal, or tagged exactly `worldwide`, `global`, `anywhere`, `apac`, `asia`, `south asia`, `nepal`, or remote at a verified global hiring company with international contractor payout. Fails all foreign hybrid/on-site (`NOT_REMOTE`), US/EU/UK/Americas locks, citizenship requirements, and W-2 restrictions (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`).
+  - **Gate 2 (Seniority & Degree)**: Disqualifies titles containing `BLOCKED_SENIORITY` (`senior`, `staff`, `principal`, `lead`, `leader`, `manager`, `head`, `vp`, `director`) as `TOO_SENIOR` (**420 jobs blocked**). Disqualifies hard degree requirements (`DEGREE_HARD_RE`) and $\ge 3$ years experience (`YEARS_RE`) as `DEGREE_OR_EXP` (**128 jobs blocked**).
+  - **Gate 3 (Clearance & Regulatory Fit)**: Disqualifies defense, military, ITAR, and government security clearance roles.
+  - **Gate 4 (Pay & Practicality)**: Disqualifies unpaid/equity/commission-only roles and US Pacific core hour overlap ($\ge 6$h).
+  - **Gate 5 (Skill Fit)**: Strong match on junior ML/AI, Python/Django, React/Next.js, Flutter.
+- **OpenAI Leak Resolution**: Reprocessed all 1,298 raw ATS rows. **0 OpenAI jobs** in `job_matches` (571 stored in `jobs` but 100% disqualified from matches and feed). Disabled non-worldwide boards (`openai`, `runway-ml`) in `config/ats_boards.json`.
+- **Zero-Scraping Compliance for Nepal**: Established strict prohibition against crawling Nepali sites (Merojob, Kumarijob, etc.). Implemented `scripts/import_manual_jobs.py` for local JSON/CSV entry with `source = 'manual:nepal'`.
+- **Audit Schema Migration 010**: Added `gate_failed`, `workplace_type`, `country_restriction`, `seniority`, `degree_required`, `years_required`, `pay_type`, and `tz_overlap_required` to `laya_labels`. Updated `tools/app.py` to persist all audit fields.
+- **Test Suite**: 150 passing tests.
 
 ---
 

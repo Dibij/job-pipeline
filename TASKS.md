@@ -135,3 +135,11 @@
 - [x] 9.8 **Direct Application Link Extraction**: Extract direct ATS links from description or resolve redirects so `jobs.apply_url` points directly to employer application forms.
 - [x] 9.9 **Aggregator Geo-Filter Tightening**: Pass `geo=worldwide` / remote category filters to Jobicy and Himalayas to mitigate the ~75% `REGION_LOCKED` leak rate.
 
+## Phase 10: Allowlist Filter Rebuild & Nepal Compliance (Oct 19 2026)
+- [x] 10.1 **Default-Deny Allowlist Architecture (Gate 1)**: Replace blocklists with `ALLOWED_REMOTE_TAGS = {"worldwide", "global", "anywhere", "apac", "asia", "south asia", "nepal"}` and `ALLOWED_COUNTRIES = {"nepal", "npl"}`. Disqualifies foreign on-site/hybrid (`NOT_REMOTE`), `COUNTRY_LOCK_RE`, and explicit country locks (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`).
+- [x] 10.2 **Gate 2 Seniority & Degree Hard Filters**: Add `BLOCKED_SENIORITY` (`TOO_SENIOR`), `_DEGREE_HARD_RE`, and `_YEARS_RE` ($\ge 3$ years) (`DEGREE_OR_EXP`) directly into `hard_filter.py`.
+- [x] 10.3 **OpenAI Leak Purge & ATS Sanitization**: Reprocess all 1,298 raw ATS listings. Verified **0 OpenAI jobs** in `job_matches` (all disqualified). Disabled non-worldwide boards (`openai`, `runway-ml`) in `config/ats_boards.json`.
+- [x] 10.4 **Manual Nepal Import CLI (`scripts/import_manual_jobs.py`)**: Zero-scraping policy for Nepali job sites. Built manual import CLI to ingest user-provided JSON/CSV with `source = 'manual:nepal'`. Added test suite in `tests/test_import_manual_jobs.py`.
+- [x] 10.5 **Audit Schema Migration 010**: Applied `010_laya_labels_gates.sql` adding 8 structured audit fields to `laya_labels`. Updated `tools/app.py` `_handle_label_job` to persist all 5 gates.
+- [x] 10.6 **Feed Regeneration & Verification**: Re-exported `FEED.md` with 27 verified accessible roles and 62 unknown. 150 automated tests passing.
+

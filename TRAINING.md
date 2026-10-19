@@ -6,17 +6,21 @@ This document tracks the calibration and fine-tuning engineering for Laya (Task 
 
 ## 1. Current State
 * **Spike and Scoring Active**: Base checkpoint `convaiinnovations/laya` (ModernBERT-large, 421M params). Inference on CPU takes ~15–20s per full JD (on CUDA RTX 2050 ~40ms).
-* **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql` & `007_labeling_schema.sql`) stores human fit labels with columns `(job_id, label, notes, metadata, sampling_stratum, label_guideline_version, labeled_at)`.
-* **Current Human Labeled Dataset (Oct 15 2026)**: **103 unique jobs** (127 total label events):
-  - `bad_fit`: 95 (74.8%)
-  - `good_fit`: 18 (14.2%)
-  - `maybe`: 14 (11.0%)
-* **In-Browser Labeling Active**: `tools/app.py` writes directly to `laya_labels` via `POST /api/label` with strata `web_ui`, supporting rapid interactive review without CSV round-trips.
+* **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql`, `007_labeling_schema.sql`, and `010_laya_labels_gates.sql`) stores human fit labels with full 5-gate audit columns: `(job_id, label, notes, metadata, sampling_stratum, label_guideline_version, gate_failed, workplace_type, country_restriction, seniority, degree_required, years_required, pay_type, tz_overlap_required, labeled_at)`.
+* **Current Human Labeled Dataset (Oct 19 2026)**: **130 distinct jobs** (169 total label events):
+  - `bad_fit`: 130 (76.9%)
+  - `maybe`: 20 (11.8%)
+  - `good_fit`: 19 (11.2%)
+* **In-Browser Labeling Active**: `tools/app.py` writes directly to `laya_labels` via `POST /api/label` with strata `web_ui`, supporting rapid interactive review with 5-gate audit persistence without CSV round-trips.
 * **Scaffolding Complete**: All 4 pipeline scripts are implemented and tested:
   1. `scripts/export_for_labeling.py`: Exports stratified unlabeled batches (`random`, `high_match_scorer`, `laya_uncertainty`), omitting Laya columns to prevent bias.
   2. `scripts/ingest_labels.py`: Ingests and validates human labels (`good_fit`, `maybe`, `bad_fit`) without overwriting old records.
   3. `scripts/calibrate_laya.py`: Fits temperature scaling parameters (Task 7.8a) to calibrate confidence scores.
   4. `scripts/train_laya.py`: Supervises decision head training with strict safeguards and `--dry-run` support (Task 7.8b).
+* **Training Unlocking Gate**:
+  - Requires $\ge 150$ total labeled jobs and $\ge 30$ `good_fit` labels.
+  - Current status: **19 / 30 `good_fit`** labels (**only 11 more** positive labels needed).
+
 
 
 ---
@@ -196,14 +200,17 @@ After 7.8a:
 
 ---
 
-## 9. Milestones
+## 9. Milestones & Training Roadmap
 
-With ~22–60 deduplicated HardFilter survivors from current sources (Arbeitnow & Remotive), targets of 150 and 500 labels cannot be reached without onboarding new data sources.
+With 4,596 jobs now across 8 active sources and 130 distinct jobs labeled, we are approaching the final fine-tuning gate:
 
-| Milestone | Target | Requirements | Unlocks |
-|-----------|--------|--------------|---------|
-| **M1** | All deduplicated survivors labeled (~60–80 jobs) | Random stratum included; labels complete for current stream | Provisional 7.8a calibration re-run; initial ranking report |
-| **M2** | ~150–300 labels | Requires onboarding new job sources (Jobicy, WWR, HN Algolia) | First Laya vs MatchScorer comparison with bootstrap CIs |
-| **M3** | 500+ labels | ≥ 30 `good_fit` positives | Consider 7.8b decision head fine-tuning (stays BLOCKED until then) |
+| Milestone | Target | Requirements | Status | Unlocks |
+|-----------|--------|--------------|:------:|---------|
+| **M1** | All deduplicated survivors labeled (~60–80 jobs) | Random stratum included; labels complete for current stream | **COMPLETED** | Provisional 7.8a calibration re-run; initial ranking report |
+| **M2** | ~150 labels | Onboarded ATS, Jobicy, WWR, Remote OK | **IN PROGRESS** (130 / 150 unique jobs) | Stratified cross-validation splits and evaluation harness |
+| **M3** | Decision Head Fine-Tuning | $\ge 150$ unique jobs AND $\ge 30$ `good_fit` positives | **19 / 30 positives** (Needs 11 more) | Unlocks `scripts/train_laya.py` for model head fine-tuning |
 
-M3 gates strictly on `min_positive_labels = 30` (default, configurable in `scripts/train_laya.py`). Task 7.8b stays BLOCKED.
+> **Training Readiness**:
+> `scripts/train_laya.py` gates strictly on `min_positive_labels = 30` and `min_total_labels = 150`.
+> As soon as 11 more positive (`good_fit`) jobs are labeled in `http://localhost:5000` (or imported via `scripts/import_manual_jobs.py`), the safeguard will clear and Laya decision heads can be fine-tuned.
+
