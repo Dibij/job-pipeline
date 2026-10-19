@@ -655,6 +655,38 @@ def transform_ats(source: str, payload: Dict[str, Any]) -> "NormalizedJob":
         )
 
 
+def transform_manual_nepal(payload: Dict[str, Any], source: str = "manual:nepal") -> NormalizedJob:
+    """Transform manually imported job listing into NormalizedJob."""
+    title = str(payload.get("title") or "").strip()
+    company = str(payload.get("company_name") or payload.get("company") or "Unknown").strip()
+    location = str(payload.get("location_raw") or payload.get("location") or "Kathmandu, Nepal").strip()
+    is_remote = bool(payload.get("is_remote", False))
+    desc_text = str(payload.get("description_text") or payload.get("description") or "").strip()
+    apply_url = str(payload.get("apply_url") or payload.get("company_url") or "https://manual-import.local").strip()
+    ext_id = str(payload.get("external_id") or "").strip()
+    if not ext_id:
+        ext_id = f"manual_{abs(hash(f'{title}_{company}_{location}'))}"
+
+    tags = payload.get("tags") or []
+    if isinstance(tags, str):
+        tags = [t.strip() for t in tags.split(",") if t.strip()]
+
+    return NormalizedJob(
+        source=source,
+        external_id=ext_id,
+        title=title,
+        company_name=company,
+        company_url=str(payload.get("company_url") or "").strip() or None,
+        location_raw=location,
+        is_remote=is_remote,
+        remote_restriction=str(payload.get("remote_restriction") or "nepal").strip() if not is_remote else str(payload.get("remote_restriction") or "unspecified").strip(),
+        job_type=str(payload.get("job_type") or "full_time").strip(),
+        description_text=desc_text,
+        apply_url=apply_url,
+        tags=tags,
+    )
+
+
 def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
@@ -674,6 +706,8 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         job = transform_hackernews(payload)
     elif source_lower.startswith("ats:"):
         job = transform_ats(source, payload)
+    elif source_lower.startswith("manual:"):
+        job = transform_manual_nepal(payload, source=source_lower)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
 
