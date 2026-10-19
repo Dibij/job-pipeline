@@ -18,7 +18,7 @@
 ## Phase 4: Messy & Unstructured Sources (Skipped per request)
 - [ ] 4.1 Build Hacker News Algolia extractor for "Who is hiring" comments.
 - [ ] 4.2 Build text parser for unformatted HN comment posts.
-- [ ] 4.3 Build polite BeautifulSoup scraper for Merojob tech listings.
+- [-] 4.3 Scraping Merojob cancelled: ToS prohibits scraping/bots (Brief §0); manual import via scripts/import_manual_jobs.py only.
 
 ## Phase 5: CV Matching & Ranking (Rule-based baseline -- DO NOT REMOVE)
 - [x] 5.1 Define `cv_profile.json` structure for candidate skills and preferences.

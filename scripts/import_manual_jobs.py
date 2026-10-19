@@ -118,7 +118,7 @@ def import_manual_jobs(
                         VALUES (%s, %s, %s)
                         ON CONFLICT (source, external_id) DO UPDATE SET
                             payload = EXCLUDED.payload,
-                            retrieved_at = NOW();
+                            fetched_at = NOW();
                         """,
                         (source, ext_id, Jsonb(raw_record)),
                     )
@@ -167,42 +167,56 @@ def import_manual_jobs(
             if not filter_res.passed:
                 stats["hard_filter_disqualified"] += 1
                 logger.info("HardFilter DISQUALIFIED '%s': %s (%s)", title, filter_res.reason, filter_res.detail)
-                # Disqualify in job_matches
                 with get_connection(autocommit=True) as conn:
                     with conn.cursor() as cur:
                         cur.execute(
                             """
-                            INSERT INTO job_matches (job_id, final_score, is_passed, disqualification_reason)
-                            VALUES (%s, 0.0, FALSE, %s)
+                            INSERT INTO job_matches (
+                                job_id, match_score, matched_skills, missing_skills,
+                                score_breakdown, reason_code, scored_at
+                            )
+                            VALUES (%s, 0.0, %s, %s, %s, %s, NOW())
                             ON CONFLICT (job_id) DO UPDATE SET
-                                final_score = 0.0,
-                                is_passed = FALSE,
-                                disqualification_reason = EXCLUDED.disqualification_reason;
+                                match_score = 0.0,
+                                matched_skills = EXCLUDED.matched_skills,
+                                missing_skills = EXCLUDED.missing_skills,
+                                score_breakdown = EXCLUDED.score_breakdown,
+                                reason_code = EXCLUDED.reason_code,
+                                scored_at = NOW();
                             """,
-                            (job_id, filter_res.reason.value),
+                            (
+                                job_id,
+                                [],
+                                [],
+                                Jsonb({"hard_filter": filter_res.reason.value, "detail": filter_res.detail}),
+                                filter_res.reason.value,
+                            ),
                         )
             else:
                 stats["hard_filter_passed"] += 1
                 score, matched, missing, breakdown = scorer.score_job(job_dict)
-                is_passed = score >= 60.0
-                disq = None if is_passed else "LOW_SCORE"
+                reason_code = None
+                if "PLACEHOLDER" in breakdown.get("flags", []):
+                    reason_code = "PLACEHOLDER"
+                elif "NO_TECH_SIGNAL" in breakdown.get("flags", []):
+                    reason_code = "NO_TECH_SIGNAL"
 
                 with get_connection(autocommit=True) as conn:
                     with conn.cursor() as cur:
                         cur.execute(
                             """
                             INSERT INTO job_matches (
-                                job_id, final_score, matched_skills, missing_skills,
-                                score_breakdown, is_passed, disqualification_reason
+                                job_id, match_score, matched_skills, missing_skills,
+                                score_breakdown, reason_code, scored_at
                             )
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            VALUES (%s, %s, %s, %s, %s, %s, NOW())
                             ON CONFLICT (job_id) DO UPDATE SET
-                                final_score = EXCLUDED.final_score,
+                                match_score = EXCLUDED.match_score,
                                 matched_skills = EXCLUDED.matched_skills,
                                 missing_skills = EXCLUDED.missing_skills,
                                 score_breakdown = EXCLUDED.score_breakdown,
-                                is_passed = EXCLUDED.is_passed,
-                                disqualification_reason = EXCLUDED.disqualification_reason;
+                                reason_code = EXCLUDED.reason_code,
+                                scored_at = NOW();
                             """,
                             (
                                 job_id,
@@ -210,12 +224,11 @@ def import_manual_jobs(
                                 matched,
                                 missing,
                                 Jsonb(breakdown),
-                                is_passed,
-                                disq,
+                                reason_code,
                             ),
                         )
                 stats["matches_scored"] += 1
-                logger.info("Scored '%s' -> %s (score=%.1f, matched=%s)", title, "PASSED" if is_passed else "LOW_SCORE", score, matched)
+                logger.info("Scored '%s' -> %s (score=%.1f, matched=%s)", title, "PASSED" if not reason_code and score >= 60.0 else "FILTERED/LOW", score, matched)
 
     return stats
 
