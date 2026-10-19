@@ -911,17 +911,36 @@ class JobServerHandler(BaseHTTPRequestHandler):
             "rating": rating,
         }
 
+        gate_failed = data.get("gate_failed")
+        workplace_type = data.get("workplace_type")
+        country_restriction = data.get("country_restriction")
+        seniority = data.get("seniority")
+        degree_required = str(data.get("degree_required")) if data.get("degree_required") is not None else None
+        years_required = data.get("years_required")
+        pay_type = data.get("pay_type")
+        tz_overlap_required = data.get("tz_overlap_required")
+
         try:
             with get_connection(autocommit=True) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
                         INSERT INTO laya_labels
-                            (job_id, label, notes, metadata, sampling_stratum, label_guideline_version, labeled_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                            (job_id, label, notes, metadata, sampling_stratum, label_guideline_version,
+                             gate_failed, workplace_type, country_restriction, seniority, degree_required,
+                             years_required, pay_type, tz_overlap_required, labeled_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                         ON CONFLICT (job_id, labeled_at) DO UPDATE SET
                             label = EXCLUDED.label,
                             notes = EXCLUDED.notes,
-                            metadata = EXCLUDED.metadata;
+                            metadata = EXCLUDED.metadata,
+                            gate_failed = EXCLUDED.gate_failed,
+                            workplace_type = EXCLUDED.workplace_type,
+                            country_restriction = EXCLUDED.country_restriction,
+                            seniority = EXCLUDED.seniority,
+                            degree_required = EXCLUDED.degree_required,
+                            years_required = EXCLUDED.years_required,
+                            pay_type = EXCLUDED.pay_type,
+                            tz_overlap_required = EXCLUDED.tz_overlap_required;
                     """, (
                         str(job_uuid),
                         label,
@@ -929,6 +948,14 @@ class JobServerHandler(BaseHTTPRequestHandler):
                         json.dumps(metadata),
                         "web_ui",
                         "v1",
+                        gate_failed,
+                        workplace_type,
+                        country_restriction,
+                        seniority,
+                        degree_required,
+                        years_required,
+                        pay_type,
+                        tz_overlap_required,
                     ))
             return {
                 "success": True,
