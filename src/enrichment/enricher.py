@@ -58,6 +58,31 @@ LANGUAGE_STOPWORDS = {
     "english": {"the", "and", "to", "of", "a", "in", "is", "that", "for", "you", "it", "with", "on", "as", "are", "be", "this", "our", "we", "from", "at", "or", "your", "all", "have", "new", "more", "an", "was", "by"},
 }
 
+ALLOWED_COUNTRIES = frozenset({"nepal", "npl"})
+
+ALLOWED_REMOTE_TAGS = frozenset({
+    "worldwide", "global", "anywhere", "apac", "asia", "south asia", "nepal"
+})
+
+GLOBAL_HIRER_COMPANIES = frozenset({
+    "supabase", "gitlab", "automattic", "doist", "zapier", "buffer", "toggl",
+    "hotjar", "remote.com", "remote", "deel", "close", "help scout", "sourcegraph",
+    "grafana labs", "grafana", "elastic", "canonical", "wikimedia", "mozilla",
+    "duckduckgo", "bitwarden", "discourse", "ghost", "mattermost", "aha!", "aha"
+})
+
+COUNTRY_LOCK_RE = re.compile(
+    r"\b(must (?:be )?(?:reside|live|located|based) in|"
+    r"authori[sz]ed to work in|us citizen|green card|"
+    r"w-?2 only|security clearance)\b",
+    re.IGNORECASE,
+)
+
+TZ_US_WEST_RE = re.compile(
+    r"\b(?:pst|pacific)\b.{0,40}\b(?:hours|overlap|core)\b",
+    re.IGNORECASE,
+)
+
 
 class JobEnricher:
     """Enriches job records with computed metadata."""

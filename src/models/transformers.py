@@ -21,6 +21,24 @@ _ATS_LINK_PATTERNS = [
     re.compile(r"https?://apply\.workable\.com/[^\s\"\'<>]+"),
 ]
 
+COUNTRY_LOCK_RE = re.compile(
+    r"\b(must (?:be )?(?:reside|live|located|based) in|"
+    r"authori[sz]ed to work in|us citizen|green card|"
+    r"w-?2 only|security clearance)\b",
+    re.IGNORECASE,
+)
+
+
+def extract_country_restriction(content: Optional[str], location_raw: Optional[str] = None) -> Optional[str]:
+    """Extract explicit country or citizenship restriction from text or location."""
+    combined = f"{location_raw or ''} {content or ''}".strip()
+    if not combined:
+        return None
+    match = COUNTRY_LOCK_RE.search(combined)
+    if match:
+        return match.group(0)
+    return None
+
 
 def extract_direct_ats_link(content: Optional[str]) -> Optional[str]:
     """Scan HTML or text for known ATS links and return the first clean match."""
@@ -664,6 +682,11 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         ats_link = extract_direct_ats_link(job.description_html) or extract_direct_ats_link(job.description_text)
         if ats_link:
             job.apply_url = ats_link
+
+    # Extract explicit country restrictions (e.g. US citizen only, must reside in)
+    country_lock = extract_country_restriction(job.description_text, job.location_raw)
+    if country_lock and (not job.remote_restriction or job.remote_restriction == "unspecified"):
+        job.remote_restriction = f"locked: {country_lock}"
 
     return job
 
