@@ -311,8 +311,9 @@ class JobEnricher:
         title_upper = (title or "").upper()
         loc = (location_raw or "").strip()
         restr = (remote_restriction or "").strip()
-        desc = (description or "").lower()
-        combined_loc = f"{loc} {restr}".lower()
+        desc = (description or "").lower().replace("\u00a0", " ").replace("&nbsp;", " ")
+        desc = re.sub(r"\s+", " ", desc)
+        combined_loc = re.sub(r"\s+", " ", f"{loc} {restr}".lower().replace("\u00a0", " ").replace("&nbsp;", " "))
 
         # 1. Legal / Clearance / Citizen Requirements (in title, desc, or location)
         if re.search(r"\bITAR\b", f"{title} {description}", re.I):

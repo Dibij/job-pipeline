@@ -244,3 +244,29 @@ def test_reachability_duna_remote_unknown():
     assert reason == "no_location_restriction_stated"
 
 
+def test_reachability_determinism_same_location_different_signals():
+    """Verify that reachability is deterministic: identical inputs yield identical outputs,
+    and same location 'United Kingdom' with different execution clauses correctly yields
+    accessible (globally) vs blocked (regional)."""
+    loc = "United Kingdom"
+    restr = "United Kingdom"
+
+    # Job A: UK HQ but global execution clause -> accessible
+    desc_global = "This role is remote and can be executed globally. London office available."
+    res1 = JobEnricher.detect_reachability("Full-Stack Engineer", desc_global, loc, restr, True)
+    res2 = JobEnricher.detect_reachability("Full-Stack Engineer", desc_global, loc, restr, True)
+    assert res1 == res2 == ("accessible", "can_be_executed_globally")
+
+    # Job B: UK HQ with Europe-only execution clause -> blocked
+    desc_europe = "This role can be executed from anywhere in Europe, with GMT overlap."
+    res3 = JobEnricher.detect_reachability("Applied AI Engineer", desc_europe, loc, restr, True)
+    res4 = JobEnricher.detect_reachability("Applied AI Engineer", desc_europe, loc, restr, True)
+    assert res3 == res4 == ("blocked", "regional_restriction_excludes_nepal")
+
+    # Job C: UK HQ with no execution clause in desc -> blocked by country location
+    desc_generic = "Join our team to build next-gen AI systems."
+    res5 = JobEnricher.detect_reachability("Safety Engineer", desc_generic, loc, restr, True)
+    assert res5 == ("blocked", "location_excludes_nepal")
+
+
+
