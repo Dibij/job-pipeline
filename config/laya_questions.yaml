@@ -49,10 +49,9 @@ gate_questions:
     instructions: "Does this job require residency or work authorization in a specific country?"
     bad_answer: true
     reason_code: "REGION_LOCKED"
-  unpaid_or_commission_only:
-    instructions: "Is this job unpaid, volunteer, or commission-only?"
-    bad_answer: true
-    reason_code: "UNPAID"
+  # NOTE: unpaid_or_commission_only removed.
+  # Unpaid/volunteer/commission-only is evaluated deterministically by regex hard filter (_check_unpaid)
+  # in src/matching/hard_filter.py to prevent zero-shot false positives on real paid jobs with stipends.
   # NOTE: requires_other_language removed (Task gate-cleanup).
   # Language is detected deterministically by enrichment (detected_language column)
   # and filtered by plain-code hard filters. No Laya question needed.
