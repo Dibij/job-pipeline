@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 import laya
+from src.matching.hard_filter import _check_non_technical
 from src.matching.jd_extractor import JDSections, extract_sections
 from src.matching.jd_truncator import build_truncated_laya_state
 from src.models.job import build_job_text
@@ -155,6 +156,10 @@ class LayaScorer:
 
         # 2. Run Laya inference
         job_questions, match_questions = self._get_question_subsets()
+        if not _check_non_technical(title).passed:
+            # Deterministically skip role_type choice inference for known non-technical roles
+            job_questions = {k: v for k, v in job_questions.items() if k != "role_type"}
+
         if job_questions and match_questions:
             # Pure job state without candidate summary for role_type and gate questions
             state_job = {k: v for k, v in state_match.items() if k != "candidate_summary"}
@@ -335,6 +340,20 @@ class LayaScorer:
                 confidence=float(conf),
                 answer_confidence=float(answer_conf),
                 probabilities=probs
+            )
+
+        # Non-technical pre-check (Step 3): If title matches HardFilter non-technical blocklist,
+        # never allow a technical role assignment (e.g. Paralegal, Payroll, SDR -> non_tech).
+        if not _check_non_technical(title).passed:
+            role_type = "non_tech"
+            role_bonus = 0.0
+            question_results["role_type"] = LayaQuestionResult(
+                question_type="choice",
+                raw_value="non_tech",
+                normalized_value=0.0,
+                confidence=1.0,
+                answer_confidence=1.0,
+                probabilities={"non_tech": 1.0}
             )
 
         # --- E. Final Calculation ---

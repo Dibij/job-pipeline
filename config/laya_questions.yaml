@@ -76,12 +76,14 @@ choice_questions:
       mobile: "Mobile application developer"
       devops: "DevOps, SRE, or infrastructure engineer"
       admin_ops: "Administrative assistant, customer operations, or support"
-      other: "Language specialist, translator, linguist, copywriter, writer, marketing, sales, or non-developer role"
+      non_tech: "Paralegal, payroll, content editor, account executive, SDR, sales, marketing, finance, FP&A, linguist, copywriter, or other non-technical role"
+      other: "Role that does not fit any of the above categories"
     bonus:
       web_fullstack: 5
       backend: 5
       ai_ml: 5
       frontend: 3
+      non_tech: 0
 
 
 confidence_threshold: 0.65

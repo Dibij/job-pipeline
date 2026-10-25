@@ -113,15 +113,13 @@ def test_scorer_disqualifies_when_warn_only_false_and_above_threshold(mock_score
 # ---------------------------------------------------------------------------
 
 def test_gate_polarity_pin_down(mock_scorer):
-    """Verifies polarity direction for both bad_answer=True and bad_answer=False gates.
-    requires_other_language is gone from config; only the 4 remaining gates are tested."""
+    """Verifies polarity direction for both bad_answer=True and bad_answer=False gates."""
     mock_scorer.gates_warn_only = False
 
     base_values = {
         "is_real_job": {"noul": 0.95},
         "remote_from_nepal": {"noul": 0.95},
         "needs_work_authorization": {"noul": 0.05},
-        "unpaid_or_commission_only": {"noul": 0.05},
         "skills_match": {"score": 3.0},
         "seniority_fit": {"score": 3.0},
         "domain_fit": {"score": 3.0},
@@ -132,22 +130,23 @@ def test_gate_polarity_pin_down(mock_scorer):
     }
     high_conf = {k: 0.9 for k in base_values}
 
-    # 1. Test bad_answer=True: unpaid_or_commission_only with high noul (0.95) -> bad!
-    val2 = dict(base_values, unpaid_or_commission_only={"noul": 0.95})
-    res2 = mock_scorer._evaluate_decision("id2", "Dev", "Acme", MockDecisionResult(val2, {k: 0.9 for k in val2}, {}))
-    assert res2.is_passed is False
-    assert res2.disqualification_reason == "UNPAID"
-
-    # 2. Test bad_answer=True: needs_work_authorization with high noul (0.95) -> bad!
+    # 1. Test bad_answer=True: needs_work_authorization with high noul (0.95) -> bad!
     val_wa = dict(base_values, needs_work_authorization={"noul": 0.95})
     res_wa = mock_scorer._evaluate_decision("id_wa", "Dev", "Acme", MockDecisionResult(val_wa, {k: 0.9 for k in val_wa}, {}))
     assert res_wa.is_passed is False
     assert res_wa.disqualification_reason == "REGION_LOCKED"
 
-    # 3. Test bad_answer=False: is_real_job with low noul (0.05) -> bad!
+    # 2. Test bad_answer=False: is_real_job with low noul (0.05) -> bad!
     val3 = dict(base_values, is_real_job={"noul": 0.05})
     res3 = mock_scorer._evaluate_decision("id3", "Dev", "Acme", MockDecisionResult(val3, {k: 0.9 for k in val3}, {}))
     assert res3.is_passed is False
+    assert res3.disqualification_reason == "NOT_REAL_JOB"
+
+    # 3. Test bad_answer=False: remote_from_nepal with low noul (0.05) -> bad!
+    val4 = dict(base_values, remote_from_nepal={"noul": 0.05})
+    res4 = mock_scorer._evaluate_decision("id4", "Dev", "Acme", MockDecisionResult(val4, {k: 0.9 for k in val4}, {}))
+    assert res4.is_passed is False
+    assert res4.disqualification_reason == "NOT_ACCESSIBLE"
     assert res3.disqualification_reason == "NOT_REAL_JOB"
 
     # 4. Test bad_answer=False: remote_from_nepal with low noul (0.05) -> bad!
@@ -298,4 +297,48 @@ def test_get_question_subsets(mock_scorer):
     assert "growth_fit" in match_q
     # Score questions must not leak into job questions
     assert "skills_match" not in job_q
+
+
+# ---------------------------------------------------------------------------
+# Step 3: Non-technical role precheck
+# ---------------------------------------------------------------------------
+
+def test_non_technical_role_precheck(mock_scorer):
+    """Paralegal, Payroll, Content Editor, Account Executive, SDR, Linguist, Impact Producer, FP&A
+    must never be assigned a technical role even if Laya outputs one."""
+    non_tech_titles = [
+        "Junior Paralegal",
+        "Junior Payroll Assistant",
+        "Content Editor",
+        "Enterprise Account Executive",
+        "Graduate Sales Development Representative",
+        "Graduate SDR Role",
+        "Linguist - Japanese - UI Technical",
+        "Impact Producer",
+        "FP&A Lead",
+    ]
+
+    base_values = {
+        "is_real_job": {"noul": 0.95},
+        "remote_from_nepal": {"noul": 0.95},
+        "needs_work_authorization": {"noul": 0.05},
+        "skills_match": {"score": 3.0},
+        "seniority_fit": {"score": 3.0},
+        "domain_fit": {"score": 3.0},
+        "growth_fit": {"score": 3.0},
+        "fixed_overlap_hours": {"noul": 0.05},
+        "needs_multi_years": {"noul": 0.05},
+        "role_type": {"choice": "devops"}  # Model mistakenly chose devops
+    }
+    mock_res = MockDecisionResult(base_values, {k: 0.9 for k in base_values}, {})
+
+    for title in non_tech_titles:
+        res = mock_scorer._evaluate_decision("test-id", title, "Acme", mock_res)
+        assert res.role_type == "non_tech", f"Failed for title: {title}, got {res.role_type}"
+        assert res.questions["role_type"].normalized_value == 0.0
+
+    # Tech role must keep its classification
+    res_tech = mock_scorer._evaluate_decision("test-id-tech", "Backend Engineer", "Acme", mock_res)
+    assert res_tech.role_type == "devops"  # As mock returned
+
 
