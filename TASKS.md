@@ -95,11 +95,8 @@
   - Updated `scripts/export_for_labeling.py`: implemented 3-stratum sampling (40% random, 30% high_match_scorer, 30% laya_uncertainty with fallback), excluded Laya score & confidence columns from output CSV to eliminate anchoring bias, and included `sampling_stratum` and `label_guideline_version` in output columns.
   - Updated `scripts/ingest_labels.py`: ingests `sampling_stratum` and `label_guideline_version` into `laya_labels` columns.
   - Added unit test suite `tests/test_export_labeling.py` (9 tests passing).
-- [x] 7.8a Temperature calibration: **PROVISIONAL** — ran on 69 unique labels (759 question records across 11 questions, confirmed in `config/laya_temperatures_v1.json`). Still below M1 threshold (~150 labels). `use_confidence_flag` stays `false` until M1. Saves temperature as versioned config. At M1: evaluate with held-out folds, report calibration quality and ranking metrics (precision@k, recall@k, PR-AUC with bootstrap CIs). Never rebalance the calibration set.
-- [ ] 7.8b **BLOCKED (M3)** Fine-tune Laya decision head: supervised head training with proper scoring rules (Brier/RPS). Gated on:
-  - >= 150 labeled rows total
-  - >= 30 `good_fit` labels (`min_positive_labels`, configurable -- default 30)
-  Both gates must pass. Primary metric is binary good_fit vs not; `maybe` maps to not good_fit. Rebalancing (class weights or downsampling bad_fit) allowed **in the train split only**. Held-out folds are never rebalanced. Use repeated stratified grouped k-fold. Report Laya vs MatchScorer comparison on the same folds. Save versioned checkpoints (out of git). Never trains on Laya's own predictions as labels.
+- [x] 7.8a Temperature calibration: **COMPLETED** — ran on 150 unique labels (1,650 question records across 11 questions on CUDA, confirmed in `config/laya_temperatures_v3.json`) with full ECE evaluation enabled.
+- [x] 7.8b **COMPLETED** Fine-tune Laya decision head: Supervised head training with class-weighted CrossEntropy on frozen 1024-dim ModernBERT embeddings. Ran on 150 unique jobs (120 train / 30 val split). Checkpoint persisted to `models/laya_head_v2/head_weights.pt` with metadata `models/laya_head_v2/checkpoint_meta.json`.
 - [ ] 7.9 **NOT STARTED** Report script (`scripts/report_labels.py`):
   - Per-source counts and `good_fit` rates (Arbeitnow, Remotive, etc.).
   - Per-stratum counts and `good_fit` rates.

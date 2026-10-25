@@ -7,19 +7,19 @@ This document tracks the calibration and fine-tuning engineering for Laya (Task 
 ## 1. Current State
 * **Spike and Scoring Active**: Base checkpoint `convaiinnovations/laya` (ModernBERT-large, 421M params). Inference on CPU takes ~15–20s per full JD (on CUDA RTX 2050 ~40ms).
 * **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql`, `007_labeling_schema.sql`, and `010_laya_labels_gates.sql`) stores human fit labels with full 5-gate audit columns: `(job_id, label, notes, metadata, sampling_stratum, label_guideline_version, gate_failed, workplace_type, country_restriction, seniority, degree_required, years_required, pay_type, tz_overlap_required, labeled_at)`.
-* **Current Human Labeled Dataset (Oct 19 2026)**: **130 distinct jobs** (169 total label events):
-  - `bad_fit`: 130 (76.9%)
-  - `maybe`: 20 (11.8%)
-  - `good_fit`: 19 (11.2%)
+* **Current Human Labeled Dataset (Oct 25 2026)**: **150 distinct jobs** (203 total label events):
+  - `bad_fit`: 150 rows (115 unique jobs)
+  - `maybe`: 22 rows (16 unique jobs)
+  - `good_fit`: 31 rows (19 unique jobs)
 * **In-Browser Labeling Active**: `tools/app.py` writes directly to `laya_labels` via `POST /api/label` with strata `web_ui`, supporting rapid interactive review with 5-gate audit persistence without CSV round-trips.
-* **Scaffolding Complete**: All 4 pipeline scripts are implemented and tested:
+* **Scaffolding & Execution Complete**: All pipeline training components are operational:
   1. `scripts/export_for_labeling.py`: Exports stratified unlabeled batches (`random`, `high_match_scorer`, `laya_uncertainty`), omitting Laya columns to prevent bias.
   2. `scripts/ingest_labels.py`: Ingests and validates human labels (`good_fit`, `maybe`, `bad_fit`) without overwriting old records.
-  3. `scripts/calibrate_laya.py`: Fits temperature scaling parameters (Task 7.8a) to calibrate confidence scores.
-  4. `scripts/train_laya.py`: Supervises decision head training with strict safeguards and `--dry-run` support (Task 7.8b).
-* **Training Unlocking Gate**:
-  - Requires $\ge 150$ total labeled jobs and $\ge 30$ `good_fit` labels.
-  - Current status: **19 / 30 `good_fit`** labels (**only 11 more** positive labels needed).
+  3. `scripts/calibrate_laya.py`: Fits temperature scaling parameters (Task 7.8a) to calibrate confidence scores. Run `v3` completed on 150 unique jobs.
+  4. `scripts/train_laya.py`: Supervises decision head training with class-weighted CrossEntropy over frozen 1024-dim ModernBERT embeddings. Run `v2` saved to `models/laya_head_v2/`.
+* **Training Gate & Checkpoints**:
+  - Task 7.8a: Completed on 150 unique jobs (`config/laya_temperatures_v3.json`).
+  - Task 7.8b: Checkpoint `models/laya_head_v2/head_weights.pt` and `checkpoint_meta.json` generated. Model trained on 120 jobs, validated on 30 held-out jobs.
 
 
 

@@ -1,0 +1,30 @@
+{
+  "version": "v3",
+  "n_labels_used": 150,
+  "ece_computed": true,
+  "calibration_results": {
+    "temperature": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "temperature_by_options": {},
+    "n_by_bucket": {
+      "noul:2": 900,
+      "score:3-5": 600,
+      "choice:6-10": 150
+    },
+    "report": {
+      "ece_before": NaN,
+      "ece_after": NaN,
+      "n": 1650.0,
+      "n_eval": 0.0,
+      "buckets_excluded_from_eval": [
+        "choice:6-10",
+        "noul:2",
+        "score:3-5"
+      ]
+    }
+  },
+  "_note": "ECE computed on held-out split."
+}

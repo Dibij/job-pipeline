@@ -1,0 +1,19 @@
+{
+  "version": "v2",
+  "n_labels_used": 135,
+  "ece_computed": false,
+  "calibration_results": {
+    "temperature": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "temperature_by_options": {},
+    "n_by_bucket": {
+      "noul:2": 810,
+      "score:3-5": 540,
+      "choice:6-10": 135
+    }
+  },
+  "_note": "ECE skipped: only 135 labels (need 150). Temperatures fitted on full labeled set \u2014 usable but unvalidated by ECE."
+}

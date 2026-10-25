@@ -132,6 +132,8 @@ main{flex:1;overflow-y:auto;padding:20px 24px}
 .score-high{background:rgba(74,222,128,.15);color:var(--green);border:1px solid rgba(74,222,128,.3)}
 .score-mid{background:rgba(251,191,36,.15);color:var(--amber);border:1px solid rgba(251,191,36,.3)}
 .score-low{background:rgba(148,163,184,.1);color:var(--muted);border:1px solid var(--border)}
+.score-laya{background:rgba(192,132,252,.15);color:var(--purple);border:1px solid rgba(192,132,252,.35)}
+.scores-container{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 
 .job-title{font-size:1.05rem;font-weight:700;line-height:1.35;color:var(--text)}
 
@@ -321,6 +323,7 @@ main{flex:1;overflow-y:auto;padding:20px 24px}
       <div class="filter-group">
         <select id="sortSelect" onchange="applyFilters()">
           <option value="match_desc">Highest Match Score First</option>
+          <option value="laya_desc">Highest Laya Score First</option>
           <option value="newest">Newest First</option>
           <option value="company">Company A–Z</option>
           <option value="unlabeled_first">Unlabeled First</option>
@@ -465,6 +468,7 @@ function applyFilters() {
   // Sort
   filtered.sort((a, b) => {
     if (sort === 'match_desc') return (b.match_score || 0) - (a.match_score || 0);
+    if (sort === 'laya_desc') return (b.laya_score || 0) - (a.laya_score || 0);
     if (sort === 'newest') return (b.posted_at || '').localeCompare(a.posted_at || '');
     if (sort === 'company') return (a.company_name || '').localeCompare(b.company_name || '');
     if (sort === 'unlabeled_first') {
@@ -527,11 +531,20 @@ function buildCard(j) {
   card.className = cardClass;
   card.id = `card-${j.id}`;
 
-  // Score Badge
+  // Score Badges (Rule-based MatchScorer + Laya Decision Model)
   let scoreClass = 'score-low';
   if (j.match_score >= 60) scoreClass = 'score-high';
   else if (j.match_score >= 35) scoreClass = 'score-mid';
-  const scoreBadge = `<span class="score-badge ${scoreClass}">🎯 ${Math.round(j.match_score)}% Match</span>`;
+  const matchScoreBadge = `<span class="score-badge ${scoreClass}" title="Rule-based CV Match Score">🎯 ${Math.round(j.match_score)}% Match</span>`;
+
+  let layaBadge = '';
+  if (j.laya_score !== null && j.laya_score !== undefined) {
+    const layaScore = Math.round(j.laya_score);
+    const layaRole = j.laya_role ? ` (${escHtml(j.laya_role)})` : '';
+    layaBadge = `<span class="score-badge score-laya" title="Laya Neural Decision Model Score">🧠 ${layaScore}% Laya${layaRole}</span>`;
+  }
+
+  const scoreBadgesHtml = `<div class="scores-container">${matchScoreBadge}${layaBadge}</div>`;
 
   // Remote badge
   const remBadge = j.is_remote
@@ -578,7 +591,7 @@ function buildCard(j) {
   card.innerHTML = `
     <div class="card-top">
       <span class="company">${escHtml((j.company_name || 'Unknown').slice(0, 30))}</span>
-      ${scoreBadge}
+      ${scoreBadgesHtml}
     </div>
     <div class="job-title">${escHtml(j.title || 'Untitled')}</div>
     <div class="meta-row">${remBadge}${reachBadge}${expBadge}</div>
@@ -983,12 +996,21 @@ class JobServerHandler(BaseHTTPRequestHandler):
                             COALESCE(m.match_score, 0.0) as match_score,
                             COALESCE(m.matched_skills, '{}') as matched_skills,
                             m.score_breakdown,
+                            ls.final_score as laya_score,
+                            ls.role_type as laya_role,
                             lbl.label as user_label,
                             lbl.notes as user_notes,
                             lbl.metadata as user_metadata,
                             lbl.labeled_at as user_labeled_at
                         FROM jobs j
                         LEFT JOIN job_matches m ON m.job_id = j.id
+                        LEFT JOIN LATERAL (
+                            SELECT final_score, role_type
+                            FROM laya_job_scores
+                            WHERE job_id = j.id
+                            ORDER BY scored_at DESC
+                            LIMIT 1
+                        ) ls ON TRUE
                         LEFT JOIN LATERAL (
                             SELECT label, notes, metadata, labeled_at
                             FROM laya_labels
@@ -1034,6 +1056,8 @@ class JobServerHandler(BaseHTTPRequestHandler):
                     "tech_tags": tech,
                     "match_score": float(r["match_score"]),
                     "matched_skills": r["matched_skills"] or [],
+                    "laya_score": float(r["laya_score"]) if r.get("laya_score") is not None else None,
+                    "laya_role": r.get("laya_role") or "",
                     "flags": flags,
                     "posted_at": posted,
                     "user_label": r.get("user_label"),

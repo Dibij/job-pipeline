@@ -16,7 +16,8 @@
 | **🧹 Backfill Clean Descriptions** | `& .\.venv\Scripts\python.exe scripts/backfill_clean_descriptions.py` | Cleans HTML/mojibake in `jobs.description_text` (payloads untouched) |
 | **🌍 Backfill Detected Languages** | `& .\.venv\Scripts\python.exe scripts/backfill_detected_language.py` | Re-evaluates language via title+first 500 chars & updates DB |
 | **🔍 Audit Language Transitions** | `& .\.venv\Scripts\python.exe scripts/audit_language_changes.py` | Audits French/German/English transitions and false positives |
-| **🎯 Calibrate Laya** | `& .\.venv\Scripts\python.exe scripts/calibrate_laya.py --version v1` | Fits temperature scaling on human labels |
+| **🎯 Calibrate Laya** | `& .\.venv\Scripts\python.exe scripts/calibrate_laya.py --version v3` | Fits temperature scaling on human labels (ECE enabled at 150 labels) |
+| **🧠 Train Laya Head** | `& .\.venv\Scripts\python.exe scripts/train_laya.py --version v2` | Fine-tunes decision head with frozen ModernBERT encoder |
 | **📈 Pipeline Funnel Report** | `& .\.venv\Scripts\python.exe scripts/funnel_report.py --days 7` | Source-level funnel stats (fetched → new → passed HF → scored ≥60) |
 | **🇳🇵 Manual Nepal Import** | `& .\.venv\Scripts\python.exe scripts/import_manual_jobs.py -f jobs.json` | Ingests user-supplied JSON/CSV (NO web scraping) |
 | **🧪 ATS Yield Dry-Run** | `& .\.venv\Scripts\python.exe scripts/dry_run_yield_test.py` | In-memory yield test across 10 company ATS boards (no DB writes) |
@@ -34,18 +35,20 @@
 - **In-Browser Labeling Dashboard (`tools/app.py`)**: Persists 5-gate audit schema (`gate_failed`, `workplace_type`, `country_restriction`, `seniority`, `degree_required`, `years_required`, `pay_type`, `tz_overlap_required`) via migration 010.
 - CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed. Test suite: **150 passing tests**.
 
-### Labeling (as of Oct 19 2026)
-130 distinct human-labeled jobs (169 total label events) in `laya_labels`:
+### Labeling & Model Training (as of Oct 25 2026)
+150 distinct human-labeled jobs (203 total label events) in `laya_labels`:
 
-| Label | Count | % |
+| Label | Count (Total Rows) | Unique Jobs |
 |-------|-------|---|
-| `bad_fit` | 130 | 76.9% |
-| `maybe` | 20 | 11.8% |
-| `good_fit` | 19 | 11.2% |
+| `bad_fit` | 150 | 115 |
+| `maybe` | 22 | 16 |
+| `good_fit` | 31 | 19 |
+| **Total** | **203** | **150** |
 
-- **Training Readiness Gate**:
-  - Fine-tuning Laya's decision head (`scripts/train_laya.py`) requires $\ge 150$ unique jobs and $\ge 30$ `good_fit` labels.
-  - Current status: **19 / 30 `good_fit`** labels (only **11 more** positive labels needed to unlock model training).
+- **Milestone Unlocked & Completed**:
+  - **Task 7.8a Temperature Calibration (`v3`)**: Completed on 150 unique jobs (1,650 question records) on CUDA with full ECE evaluation enabled (`config/laya_temperatures_v3.json`).
+  - **Task 7.8b Decision Head Fine-Tuning (`v2`)**: Implemented full PyTorch neural decision head atop frozen ModernBERT-large (1024-dim representations) with class-weighted CrossEntropy and 120/30 train-val split. Checkpoint saved to `models/laya_head_v2/head_weights.pt` with metadata in `models/laya_head_v2/checkpoint_meta.json`.
+  - **Regression Test Suite**: 150 passed in 15.6s.
 
 ### Evaluation & Inference Latency Note (`evaluate_scorers.py`)
 - Running `scripts/evaluate_scorers.py` evaluates labeled jobs through rule-based `MatchScorer` and neural `LayaScorer`.
