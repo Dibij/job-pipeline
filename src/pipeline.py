@@ -171,6 +171,11 @@ class JobPipeline:
             payload = item["payload"]
             try:
                 norm_job = transform_raw_listing(source, payload)
+                if norm_job is None:
+                    # Raw listing was rejected by transformer (e.g. invalid header or title looks like location/compensation)
+                    processed_ids.append(raw_id)
+                    continue
+
                 # Task 6d: Run enrichment inside normalization pipeline
                 enrichment = JobEnricher.enrich_job(norm_job.model_dump())
                 norm_job.experience_level = enrichment["experience_level"]

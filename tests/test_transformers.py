@@ -282,20 +282,63 @@ def test_hackernews_transformation():
         "id": 49926618,
         "by": "futohq",
         "time": 1727730000,
-        "text": 'FUTO | <a href="https://futo.tech/" rel="nofollow">https://futo.tech/</a> | Austin, TX | REMOTE(Worldwide) or ONSITE | Full Time<p>FUTO is an organization dedicated to open software.</p>',
+        "text": 'FUTO | Software Engineer | <a href="https://futo.tech/" rel="nofollow">https://futo.tech/</a> | Austin, TX | REMOTE(Worldwide) or ONSITE | Full Time<p>FUTO is an organization dedicated to open software.</p>',
     }
 
     job = transform_hackernews(raw_payload)
     assert job.source == "hackernews"
     assert job.external_id == "49926618"
     assert job.company_name == "FUTO"
+    assert job.title == "Software Engineer"
     assert job.is_remote is True
     assert job.remote_restriction == "Worldwide"
-    assert job.location_raw == "Worldwide"
+    assert job.location_raw == "Austin, TX"
     assert "FUTO is an organization" in job.description_text
     assert job.posted_at is not None
     assert job.apply_url == "https://futo.tech/"
     assert job.fingerprint_hash is not None
+
+
+def test_hackernews_unswaps_hifi_labs():
+    """Verify title, location, compensation are correctly unswapped when order is non-standard."""
+    from src.models.transformers import transform_hackernews
+
+    raw_payload = {
+        "id": 49920001,
+        "by": "hifilabs",
+        "time": 1727730000,
+        "text": 'HIFI Labs (<a href="https://hifilabs.co" rel="nofollow">https://hifilabs.co</a>) | Equity + Salary | San Francisco / Remote (PST) | Senior Fullstack Engineer / Engineering Manager Americas<p>Join HIFI Labs.</p>',
+    }
+
+    job = transform_hackernews(raw_payload)
+    assert job is not None
+    assert job.company_name == "HIFI Labs"
+    assert job.title == "Senior Fullstack Engineer / Engineering Manager Americas"
+    assert job.location_raw == "San Francisco / Remote (PST)"
+    assert job.is_remote is True
+
+
+def test_hackernews_rejects_location_or_compensation_as_title():
+    """Verify HN listings where title would look like location or compensation are rejected."""
+    from src.models.transformers import transform_hackernews
+
+    # Cardog pattern: title would be Toronto, Ontario
+    cardog_payload = {
+        "id": 49920002,
+        "by": "cardog",
+        "time": 1727730000,
+        "text": 'Cardog | Toronto, Ontario | ONSITE, HYBRID, REMOTE (role-dependent) | Full-time | <a href="https://cardog.app/careers" rel="nofollow">https://cardog.app/careers</a><p>Cardog turns raw vehicle data into facts.</p>',
+    }
+    assert transform_hackernews(cardog_payload) is None
+
+    # Compensation only pattern: title would be Equity + Salary
+    comp_payload = {
+        "id": 49920003,
+        "by": "acme",
+        "time": 1727730000,
+        "text": 'Acme | Equity + Salary | Remote | Full Time<p>Work at Acme.</p>',
+    }
+    assert transform_hackernews(comp_payload) is None
 
 
 def test_hackernews_transformation_dash_delimiter():

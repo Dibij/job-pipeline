@@ -32,6 +32,9 @@ def main() -> None:
             try:
                 payload = json.loads(raw_payload) if isinstance(raw_payload, str) else raw_payload
                 job = transform_raw_listing(source, payload)
+                if job is None:
+                    skipped += 1
+                    continue
                 enrichment = JobEnricher.enrich_job(job.model_dump())
 
                 cur.execute(

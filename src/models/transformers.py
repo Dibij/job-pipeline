@@ -1,11 +1,14 @@
 """Transformers converting source-specific raw payloads into NormalizedJob models."""
 import email.utils
+import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from bs4 import BeautifulSoup
 
 from src.models.job import NormalizedJob
+
+logger = logging.getLogger(__name__)
 
 
 import html
@@ -375,8 +378,44 @@ def transform_jobicy(payload: Dict[str, Any]) -> NormalizedJob:
     )
 
 
-def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
-    """Transform Hacker News Who is hiring comment into NormalizedJob."""
+# Patterns for parsing Hacker News "Who is hiring?" thread headers
+_HN_URL_EMAIL_RE = re.compile(
+    r"^https?://|[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+|\.(?:com|org|net|io|ai|tech|co|app|dev|me)(?:/|$)",
+    re.IGNORECASE,
+)
+_HN_COMPENSATION_RE = re.compile(
+    r"[$€£¥]"
+    r"|\b(?:salary|equity|equity\s*\+?\s*salary|salary\s*\+?\s*equity|equity\s+only|doe|d\.o\.e\.|competitive\s+compensation|negotiable)\b"
+    r"|\b\d+k\s*[-–/]\s*\d+k\b"
+    r"|\b\d+[-–]\d+k\b"
+    r"|\b\d+\s*k\s*(?:usd|eur|gbp|/year|/yr)\b",
+    re.IGNORECASE,
+)
+_HN_WORK_TYPE_RE = re.compile(
+    r"^(?:remote|onsite|hybrid|full[- ]?time|part[- ]?time|contract|contractor|freelance|internship|intern|visa|visa\s+sponsorship)$",
+    re.IGNORECASE,
+)
+_HN_LOCATION_HINTS_RE = re.compile(
+    r"\b(?:san francisco|sf|bay area|new york|nyc|london|berlin|toronto|austin|seattle|boston|zurich|amsterdam|paris|tokyo|chicago|los angeles|vancouver|montreal)\b"
+    r"|,\s*(?:[A-Z]{2}\b|ontario|quebec|bc|alberta)"
+    r"|\b(?:usa|us|uk|united states|united kingdom|canada|germany|france|netherlands|switzerland|australia|spain|ireland|poland|austria)\b"
+    r"|\b(?:cet|cest|est|edt|pst|pdt|cst|cdt|gmt|utc)(?:\s*[±+-]\s*\d+)?\b"
+    r"|\btime\s*zones?\b|\bhours\b"
+    r"|\b(?:remote|onsite|hybrid)\s*\([^)]+\)",
+    re.IGNORECASE,
+)
+_HN_ROLE_SIGNALS_RE = re.compile(
+    r"\b(?:engineer|developer|programmer|architect|scientist|lead|manager|director|head of|vp|designer|specialist|analyst|cto|founder|co-founder|evaluator|sourcer|fellow)\b",
+    re.IGNORECASE,
+)
+
+
+def transform_hackernews(payload: Dict[str, Any]) -> Optional[NormalizedJob]:
+    """Transform Hacker News Who is hiring comment into NormalizedJob.
+
+    Parses pipe- or dash-separated header into company, title, location, and remote status.
+    Rejects rows where no valid role title exists (e.g. title looks like location or compensation).
+    """
     raw_html = payload.get("text", "")
     plain_desc = strip_html(raw_html)
 
@@ -411,23 +450,42 @@ def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
         if comp_candidate:
             company_name = comp_candidate
 
-        # Find title among remaining parts
-        title_found = False
-        for p in parts[1:]:
-            p_lower = p.lower()
-            # Skip pure URLs
-            if p_lower.startswith("http://") or p_lower.startswith("https://") or any(ext in p_lower for ext in [".com", ".tech", ".io", ".ai", ".org", ".co"]):
-                continue
-            # Skip if this part is just generic status
-            if p_lower in ["remote", "onsite", "hybrid", "full-time", "part-time", "contract"]:
-                continue
-            if not title_found:
-                title = p
-                title_found = True
-                break
+        # Classify remaining parts to unswap title, location, compensation
+        role_candidates: List[str] = []
+        location_candidates: List[str] = []
+        other_candidates: List[str] = []
 
-        if not title_found and len(parts) > 1:
-            title = parts[1]
+        for p in parts[1:]:
+            if _HN_URL_EMAIL_RE.search(p):
+                continue
+            if _HN_COMPENSATION_RE.search(p):
+                continue
+            if _HN_WORK_TYPE_RE.match(p):
+                continue
+            if _HN_ROLE_SIGNALS_RE.search(p):
+                role_candidates.append(p)
+                continue
+            if _HN_LOCATION_HINTS_RE.search(p):
+                location_candidates.append(p)
+                continue
+            other_candidates.append(p)
+
+        if role_candidates:
+            title = role_candidates[0]
+        elif other_candidates:
+            cand = other_candidates[0]
+            if _HN_LOCATION_HINTS_RE.search(cand) or _HN_COMPENSATION_RE.search(cand):
+                # Candidate title looks like location or compensation string — reject row instead of guessing
+                logger.info("Rejecting HN item %s: title candidate looks like location/compensation: %r", payload.get("id"), cand)
+                return None
+            title = cand
+        else:
+            # All parts were location, compensation, work_type, or URL — no valid title found
+            logger.info("Rejecting HN item %s: no role title found in header: %r", payload.get("id"), header)
+            return None
+
+        if location_candidates:
+            location_raw = location_candidates[0]
     else:
         # No clean header: fallback title, full text only in description
         title = "Hacker News Role"
@@ -448,24 +506,24 @@ def transform_hackernews(payload: Dict[str, Any]) -> NormalizedJob:
         m2 = re.search(r"remote\s*[-–—:]\s*([A-Za-z\s,]{2,40})", header, re.IGNORECASE)
         if m_prefix and len(m_prefix.group(1).strip()) <= 100:
             remote_restriction = m_prefix.group(1).strip()
-            location_raw = remote_restriction
+            if location_raw == "Remote":
+                location_raw = remote_restriction
         elif m_paren and len(m_paren.group(1).strip()) <= 100:
             remote_restriction = m_paren.group(1).strip()
-            location_raw = remote_restriction
+            if location_raw == "Remote":
+                location_raw = remote_restriction
         elif m2 and len(m2.group(1).strip()) <= 100:
             remote_restriction = m2.group(1).strip()
-            location_raw = remote_restriction
-        else:
-            location_raw = "Remote"
-            remote_restriction = "unspecified"
+            if location_raw == "Remote":
+                location_raw = remote_restriction
     elif "onsite" in full_text_lower:
         is_remote = False
-        location_raw = "Onsite"
-        remote_restriction = "unspecified"
+        if location_raw == "Remote":
+            location_raw = "Onsite"
     else:
         is_remote = False
-        location_raw = "Unspecified"
-        remote_restriction = "unspecified"
+        if location_raw == "Remote":
+            location_raw = "Unspecified"
 
     # Extract apply link
     apply_url = ""
@@ -687,7 +745,7 @@ def transform_manual_nepal(payload: Dict[str, Any], source: str = "manual:nepal"
     )
 
 
-def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob:
+def transform_raw_listing(source: str, payload: Dict[str, Any]) -> Optional[NormalizedJob]:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
     if source_lower == "arbeitnow":
@@ -710,6 +768,9 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> NormalizedJob
         job = transform_manual_nepal(payload, source=source_lower)
     else:
         raise ValueError(f"No transformer registered for source: '{source}'")
+
+    if job is None:
+        return None
 
     # Task 9.8: If apply_url is not already an ATS link, check if description contains a direct ATS link
     if job.apply_url and not any(p.match(job.apply_url) for p in _ATS_LINK_PATTERNS):
