@@ -77,17 +77,26 @@ def apply_migration():
 
 
 def fetch_eligible_jobs(limit: int | None = None) -> list[dict]:
-    """Fetch jobs that pass the plain-code hard filters."""
-    limit_clause = f"LIMIT {limit}" if limit is not None else ""
-    rows = execute_query(f"""
-        SELECT id, title, company_name, location_raw, is_remote, description_text
+    """Fetch jobs that pass the plain-code hard filters (Task Step 6 pre-gate)."""
+    from src.matching.hard_filter import apply as hard_filter_apply
+
+    rows = execute_query("""
+        SELECT id, title, company_name, location_raw, is_remote, remote_restriction,
+               description_text, detected_language, is_unpaid, accessibility,
+               reachable_from_nepal, reachable_reason
         FROM jobs
-        WHERE detected_language = 'english'
-          AND nepal_accessible = true
-        ORDER BY id
-        {limit_clause};
+        ORDER BY id;
     """)
-    return rows or []
+    if not rows:
+        return []
+
+    eligible = []
+    for r in rows:
+        if hard_filter_apply(r).passed:
+            eligible.append(r)
+            if limit is not None and len(eligible) >= limit:
+                break
+    return eligible
 
 
 def fetch_already_scored(checkpoint: str, config_version: str) -> set[str]:

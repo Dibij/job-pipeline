@@ -59,7 +59,9 @@ EXPORT_FIELDNAMES = [
 
 
 def _fetch_eligible_jobs() -> List[Dict[str, Any]]:
-    """Return all unlabeled jobs that pass basic filters, with MatchScorer and Laya data."""
+    """Return all unlabeled jobs that pass HardFilter pre-gate, with MatchScorer and Laya data."""
+    from src.matching.hard_filter import apply as hard_filter_apply
+
     rows = execute_query("""
         SELECT
             j.id,
@@ -71,6 +73,12 @@ def _fetch_eligible_jobs() -> List[Dict[str, Any]]:
             j.is_remote,
             j.experience_level,
             j.accessibility,
+            j.description_text,
+            j.remote_restriction,
+            j.detected_language,
+            j.is_unpaid,
+            j.reachable_from_nepal,
+            j.reachable_reason,
             COALESCE(m.match_score, 0.0)        AS match_score,
             m.matched_skills,
             m.reason_code,
@@ -84,11 +92,13 @@ def _fetch_eligible_jobs() -> List[Dict[str, Any]]:
         WHERE lbl.id IS NULL
           AND j.canonical_job_id IS NULL
           AND j.is_remote = true
-          AND (j.detected_language IS NULL OR j.detected_language NOT IN ('french', 'german'))
-          AND j.is_unpaid = false
-          AND j.accessibility IN ('ACCESSIBLE', 'UNKNOWN')
         ORDER BY m.match_score DESC NULLS LAST
     """)
+    if not rows:
+        return []
+
+    # Step 6 Pre-gate: Only jobs clearing HardFilter are eligible for the labeling pool
+    rows = [r for r in rows if hard_filter_apply(r).passed]
     if not rows:
         return []
 
