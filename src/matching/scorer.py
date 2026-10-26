@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.enrichment.enricher import JobEnricher
 from src.matching.jd_extractor import extract_sections
+from src.matching.title_classifier import get_title_role_penalty
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +236,12 @@ class MatchScorer:
             breakdown["flags"].append("NO_TECH_SIGNAL")
             breakdown["reasons"].append("No matched skills and no technical title signal")
 
+        # Title role soft penalty (learned soft signal from Step 3)
+        role_penalty = get_title_role_penalty(title)
+        if role_penalty > 0:
+            breakdown["title_role_penalty"] = -role_penalty
+            breakdown["reasons"].append(f"Non-technical title soft penalty (-{role_penalty} pts)")
+
         # ── 4. TOTAL SCORE ─────────────────────────────────────────────────
         raw_total = (
             breakdown["skill_points"]
@@ -243,6 +250,7 @@ class MatchScorer:
             + breakdown["unpaid_adjustment"]
             + breakdown["location_adjustment"]
             + breakdown["remote_bonus"]
+            + breakdown.get("title_role_penalty", 0.0)
         )
 
         final_score = max(0.0, min(100.0, round(raw_total, 2)))
