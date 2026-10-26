@@ -53,7 +53,7 @@ class HimalayasExtractor(BaseExtractor):
     def fetch_raw(
         self,
         limit: int = 50,
-        max_pages: int = 1,
+        max_pages: int = 5,
     ) -> List[Dict[str, Any]]:
         """Fetch remote job listings from Himalayas API.
         

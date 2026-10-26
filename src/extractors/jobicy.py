@@ -51,65 +51,61 @@ class JobicyExtractor(BaseExtractor):
             return str(slug).strip()
         return ""
 
-    def fetch_raw(self, count: int = 50, max_pages: int = 1) -> List[Dict[str, Any]]:
+    def fetch_raw(self, count: int = 100, max_pages: int = 1) -> List[Dict[str, Any]]:
         """Fetch remote job listings from Jobicy API.
 
         Only returns jobs with worldwide or unspecified geo restrictions.
         Single-country jobs are discarded before staging.
+        Note: The free Jobicy API does not support offset/page pagination parameters (HTTP 400).
+        Count parameter accepts up to 100 listings.
 
         Args:
-            count: Number of jobs per page (max 50).
-            max_pages: Maximum number of pages to retrieve.
+            count: Number of jobs to fetch (max 100).
+            max_pages: Maintained for interface compatibility (always 1 for Jobicy free API).
         """
         collected: List[Dict[str, Any]] = []
 
-        for page in range(max_pages):
-            params: Dict[str, Any] = {"count": count}
-            logger.info(
-                "[%s] Fetching page %d (count=%d)",
-                self.source_name,
-                page + 1,
-                count,
+        params: Dict[str, Any] = {"count": count}
+        logger.info(
+            "[%s] Fetching jobs (count=%d)",
+            self.source_name,
+            count,
+        )
+        try:
+            response = self.session.get(
+                self.API_URL,
+                params=params,
+                timeout=config.REQUEST_TIMEOUT_SECONDS,
             )
-            try:
-                response = self.session.get(
-                    self.API_URL,
-                    params=params,
-                    timeout=config.REQUEST_TIMEOUT_SECONDS,
-                )
-                response.raise_for_status()
-                data = response.json()
-            except requests.exceptions.HTTPError as exc:
-                if response.status_code == 429:
-                    logger.warning("[%s] Rate limited (HTTP 429). Stopping.", self.source_name)
-                else:
-                    logger.error("[%s] HTTP error: %s", self.source_name, exc)
-                break
-            except requests.exceptions.RequestException as exc:
-                logger.error("[%s] Network error: %s", self.source_name, exc)
-                break
-            except ValueError as exc:
-                logger.error("[%s] JSON parse error: %s", self.source_name, exc)
-                break
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.HTTPError as exc:
+            if response.status_code == 429:
+                logger.warning("[%s] Rate limited (HTTP 429). Stopping.", self.source_name)
+            else:
+                logger.error("[%s] HTTP error: %s", self.source_name, exc)
+            return collected
+        except requests.exceptions.RequestException as exc:
+            logger.error("[%s] Network error: %s", self.source_name, exc)
+            return collected
+        except ValueError as exc:
+            logger.error("[%s] JSON parse error: %s", self.source_name, exc)
+            return collected
 
-            jobs = data.get("jobs", [])
-            if not jobs:
-                logger.info("[%s] No more jobs returned.", self.source_name)
-                break
+        jobs = data.get("jobs", [])
+        if not jobs:
+            logger.info("[%s] No jobs returned.", self.source_name)
+            return collected
 
-            before = len(jobs)
-            jobs = [j for j in jobs if _jobicy_geo_is_accessible(j)]
-            skipped_geo = before - len(jobs)
-            if skipped_geo:
-                logger.info(
-                    "[%s] Geo pre-filter: dropped %d/%d single-country jobs on page %d.",
-                    self.source_name, skipped_geo, before, page + 1,
-                )
+        before = len(jobs)
+        jobs = [j for j in jobs if _jobicy_geo_is_accessible(j)]
+        skipped_geo = before - len(jobs)
+        if skipped_geo:
+            logger.info(
+                "[%s] Geo pre-filter: dropped %d/%d single-country jobs.",
+                self.source_name, skipped_geo, before,
+            )
 
-            collected.extend(jobs)
-
-            if page < max_pages - 1:
-                self.polite_sleep()
-
+        collected.extend(jobs)
         logger.info("[%s] Retrieved %d accessible jobs total", self.source_name, len(collected))
         return collected

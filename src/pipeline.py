@@ -88,7 +88,7 @@ class JobPipeline:
         stats["himalayas"] = self._run_single_extractor(
             run_id, "himalayas",
             lambda: HimalayasExtractor(delay_seconds=2.0).stage_raw(
-                HimalayasExtractor(delay_seconds=2.0).fetch_raw(limit=50, max_pages=1)
+                HimalayasExtractor(delay_seconds=2.0).fetch_raw(limit=50, max_pages=5)
             )
         )
 
@@ -112,7 +112,7 @@ class JobPipeline:
         stats["jobicy"] = self._run_single_extractor(
             run_id, "jobicy",
             lambda: JobicyExtractor(delay_seconds=2.0).stage_raw(
-                JobicyExtractor(delay_seconds=2.0).fetch_raw(count=50, max_pages=1)
+                JobicyExtractor(delay_seconds=2.0).fetch_raw(count=100)
             )
         )
 
