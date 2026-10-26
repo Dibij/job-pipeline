@@ -59,6 +59,14 @@ def run_daily_pipeline():
     print(f"  4. Feed Output : Saved top matches to {feed_path}")
     print("=" * 65 + "\n")
 
+    return {
+        "duration": duration,
+        "extract_stats": extract_stats,
+        "norm_stats": norm_stats,
+        "match_stats": match_stats,
+        "feed_path": str(feed_path),
+    }
+
 
 if __name__ == "__main__":
     run_daily_pipeline()

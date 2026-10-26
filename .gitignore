@@ -47,6 +47,10 @@ tools/*.json
 # Archives & Legacy
 archive/
 
+# Logs
+logs/
+*.log
+
 # Testing & Linting
 .pytest_cache/
 .coverage
