@@ -52,9 +52,9 @@ _MOJIBAKE_PATTERN = re.compile(
 
 
 def _fix_mojibake(text: str) -> str:
-    """Recover UTF-8 byte sequences that were mistakenly decoded as latin-1."""
+    """Recover UTF-8 byte sequences that were mistakenly decoded as latin-1, stray Â, and artifacts."""
     if _HAS_FTFY:
-        return _ftfy.fix_text(text)
+        text = _ftfy.fix_text(text)
 
     def repl(match):
         s = match.group(0)
@@ -63,7 +63,23 @@ def _fix_mojibake(text: str) -> str:
         except UnicodeDecodeError:
             return s
 
-    return _MOJIBAKE_PATTERN.sub(repl, text)
+    text = _MOJIBAKE_PATTERN.sub(repl, text)
+    text = text.replace("\xc2\xa0", " ").replace("Â ", " ").replace("Â", "")
+    replacements = [
+        ("â€™", "'"),
+        ("â€˜", "'"),
+        ("â€œ", '"'),
+        ("â€\x9d", '"'),
+        ("â€“", "-"),
+        ("â€”", "-"),
+        ("â€¦", "..."),
+        ("â€¢", "*"),
+        ("â€", '"'),
+        ("\ufffd", ""),
+    ]
+    for bad, good in replacements:
+        text = text.replace(bad, good)
+    return text
 
 
 def clean_text(raw: str) -> tuple[str, dict[str, int]]:
@@ -131,6 +147,7 @@ def export(
             l.metadata,
             l.label_guideline_version,
             l.labeled_at,
+            COALESCE(l.exclude_reason, j.exclude_reason) AS exclude_reason,
             j.title,
             j.company_name,
             j.source,
@@ -243,6 +260,7 @@ def export(
                 "rating":                  rating,
                 "notes":                   notes,
                 "label_guideline_version": r.get("label_guideline_version"),
+                "exclude_reason":          r.get("exclude_reason"),
                 "description_clean":       r["description_clean"],
             }
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
@@ -250,9 +268,13 @@ def export(
     logger.info("Bookkeeping file written: %s (%d records)", bookkeeping_path, len(cleaned_records))
 
     # -----------------------------------------------------------------------
-    # Write training file (English only! Non-English excluded)
+    # Write training file (English only! Non-English & excluded rows omitted)
     # -----------------------------------------------------------------------
-    training_records = [r for r in cleaned_records if r["detected_lang_fresh"] == "english"]
+    excluded_for_training = [r for r in cleaned_records if r.get("exclude_reason")]
+    training_records = [
+        r for r in cleaned_records
+        if r["detected_lang_fresh"] == "english" and not r.get("exclude_reason")
+    ]
     training_label_counts: dict[str, int] = {}
 
     with open(training_path, "w", encoding="utf-8") as f:
@@ -269,8 +291,8 @@ def export(
             }
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
-    logger.info("Training file written: %s (%d records; %d non-English excluded)",
-                training_path, len(training_records), len(non_english))
+    logger.info("Training file written: %s (%d records; %d non-English excluded, %d excluded by reason)",
+                training_path, len(training_records), len(non_english), len(excluded_for_training))
 
     # -----------------------------------------------------------------------
     # Join check: old JSONL vs jobs table

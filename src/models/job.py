@@ -45,6 +45,7 @@ class NormalizedJob(BaseModel):
     posted_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     fingerprint_hash: Optional[str] = None
+    exclude_reason: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod

@@ -133,3 +133,29 @@ def test_laya_uncertainty_fallback_to_random_when_no_scored_jobs(monkeypatch):
         uncertainty_sample = _random.sample(pool, min(alloc["laya_uncertainty"], len(pool)))
 
     assert len(uncertainty_sample) > 0
+
+
+def test_export_labeling_batch_deduplicates_across_strata(tmp_path, monkeypatch):
+    """Verify that export_labeling_batch never outputs duplicate job_ids across strata."""
+    # Create 10 dummy jobs where some have high match score and low confidence
+    mock_jobs = [
+        make_job(str(i), match_score=100.0 - i, laya_conf=0.1 * i)
+        for i in range(10)
+    ]
+
+    monkeypatch.setattr(efl, "_fetch_eligible_jobs", lambda: mock_jobs)
+
+    out_file = tmp_path / "batch.csv"
+    out_path = efl.export_labeling_batch(batch_size=6, output_file=out_file)
+    assert out_path == out_file
+
+    import csv
+    with open(out_file, "r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        seen_ids = set()
+        for row in reader:
+            jid = row["job_id"]
+            assert jid not in seen_ids, f"Duplicate job_id {jid} found in batch output!"
+            seen_ids.add(jid)
+        assert len(seen_ids) == 6
+

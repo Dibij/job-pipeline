@@ -319,7 +319,7 @@ def test_hackernews_unswaps_hifi_labs():
 
 
 def test_hackernews_rejects_location_or_compensation_as_title():
-    """Verify HN listings where title would look like location or compensation are rejected."""
+    """Verify HN listings where title would look like location or compensation have exclude_reason set."""
     from src.models.transformers import transform_hackernews
 
     # Cardog pattern: title would be Toronto, Ontario
@@ -329,7 +329,9 @@ def test_hackernews_rejects_location_or_compensation_as_title():
         "time": 1727730000,
         "text": 'Cardog | Toronto, Ontario | ONSITE, HYBRID, REMOTE (role-dependent) | Full-time | <a href="https://cardog.app/careers" rel="nofollow">https://cardog.app/careers</a><p>Cardog turns raw vehicle data into facts.</p>',
     }
-    assert transform_hackernews(cardog_payload) is None
+    job = transform_hackernews(cardog_payload)
+    assert job is not None
+    assert job.exclude_reason == "unparseable_title"
 
     # Compensation only pattern: title would be Equity + Salary
     comp_payload = {
@@ -338,7 +340,9 @@ def test_hackernews_rejects_location_or_compensation_as_title():
         "time": 1727730000,
         "text": 'Acme | Equity + Salary | Remote | Full Time<p>Work at Acme.</p>',
     }
-    assert transform_hackernews(comp_payload) is None
+    comp_job = transform_hackernews(comp_payload)
+    assert comp_job is not None
+    assert comp_job.exclude_reason == "unparseable_title"
 
 
 def test_hackernews_transformation_dash_delimiter():
@@ -419,4 +423,57 @@ def test_field_truncation_255_chars(caplog):
     assert len(job.remote_restriction) == 255
     assert "Truncating title for job id 'ext-999'" in caplog.text
     assert "Truncating company_name for job id 'ext-999'" in caplog.text
+
+
+def test_fix_mojibake_artifacts():
+    """Verify fix_mojibake cleans stray Â, NBSP, smart punctuation, and latin-1 misdecoding."""
+    from src.models.transformers import fix_mojibake
+
+    # Stray Â before space and words
+    text1 = "AboutÂ theÂ Company: KodlandÂ isÂ anÂ internationalÂ onlineÂ coding school."
+    assert "Â" not in fix_mojibake(text1)
+    assert fix_mojibake(text1) == "About the Company: Kodland is an international online coding school."
+
+    # Smart quotes and dashes in mojibake
+    text2 = "Itâ€™s a great opportunity â€“ donâ€™t miss it!"
+    cleaned2 = fix_mojibake(text2)
+    assert "â€" not in cleaned2
+    assert cleaned2 == "It's a great opportunity - don't miss it!"
+
+    # UTF-8 misdecoded sequences
+    text3 = "Caf\xc3\xa9"
+    assert fix_mojibake(text3) == "Café"
+
+
+def test_hackernews_unparseable_titles():
+    """Verify HN parser flags location, timezone, URL, or placeholder titles with exclude_reason."""
+    from src.models.transformers import transform_hackernews, is_unparseable_hn_title
+
+    unparseable_samples = [
+        ("Toronto, Ontario", True),
+        ("GMT-2 <--> GMT+2", True),
+        ("Santa Clara, CA and Berlin, Germany", True),
+        ("Earth", True),
+        ("Equity + Salary", True),
+        ("https://innolitics.com/join", True),
+        ("Remote (see below)", True),
+        ("Hacker News Role", True),
+        ("Backend Software Engineer", False),
+        ("Machine Learning Engineer (Python, ML)", False),
+        ("Full-Stack Software Engineer", False),
+    ]
+
+    for title, expected in unparseable_samples:
+        assert is_unparseable_hn_title(title) is expected, f"Failed for {title}"
+
+    # Verify transform_hackernews populates exclude_reason
+    raw = {
+        "id": 12345,
+        "by": "test",
+        "time": 1727730000,
+        "text": "Cardog | Toronto, Ontario | Remote | $120k<p>We are building tech.</p>",
+    }
+    job = transform_hackernews(raw)
+    assert job.exclude_reason == "unparseable_title"
+
 

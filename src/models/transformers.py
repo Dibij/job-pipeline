@@ -58,14 +58,32 @@ def extract_direct_ats_link(content: Optional[str]) -> Optional[str]:
 
 
 def fix_mojibake(text: str) -> str:
-    """Recover UTF-8 byte sequences that were mistakenly decoded as latin-1."""
+    """Recover UTF-8 byte sequences that were mistakenly decoded as latin-1, stray Â, and artifacts."""
     def repl(match):
         s = match.group(0)
         try:
             return s.encode("latin-1").decode("utf-8")
         except UnicodeDecodeError:
             return s
-    return _MOJIBAKE_PATTERN.sub(repl, text)
+
+    text = _MOJIBAKE_PATTERN.sub(repl, text)
+    # Stray Â (U+00C2) preceding spaces, NBSP, or quotes from mis-decoded UTF-8
+    text = text.replace("\xc2\xa0", " ").replace("Â ", " ").replace("Â", "")
+    replacements = [
+        ("â€™", "'"),
+        ("â€˜", "'"),
+        ("â€œ", '"'),
+        ("â€\x9d", '"'),
+        ("â€“", "-"),
+        ("â€”", "-"),
+        ("â€¦", "..."),
+        ("â€¢", "*"),
+        ("â€", '"'),
+        ("\ufffd", ""),  # unicode replacement character
+    ]
+    for bad, good in replacements:
+        text = text.replace(bad, good)
+    return text
 
 
 def clean_description_text(content: Optional[str]) -> str:
@@ -408,6 +426,36 @@ _HN_ROLE_SIGNALS_RE = re.compile(
     r"\b(?:engineer|developer|programmer|architect|scientist|lead|manager|director|head of|vp|designer|specialist|analyst|cto|founder|co-founder|evaluator|sourcer|fellow)\b",
     re.IGNORECASE,
 )
+_HN_UNPARSEABLE_PATTERNS = [
+    re.compile(r"\b(?:GMT|UTC)[-+]?\d+", re.IGNORECASE),
+    re.compile(r"GMT\s*[-–—<>]+\s*GMT", re.IGNORECASE),
+    re.compile(r"^\s*(?:remote|onsite|hybrid|unspecified|role-dependent|see below)\s*$", re.IGNORECASE),
+    re.compile(r"^\s*(?:remote\s*\(.*?\)|onsite\s+in\s+.*?|\d+\s+days\s+hybrid\s+in\s+.*?)\s*$", re.IGNORECASE),
+    re.compile(r",\s*[A-Z]{2}\b"),  # e.g. Austin, TX; Santa Clara, CA; Toronto, Ontario
+    re.compile(r"\b(?:san francisco|new york|berlin|zurich|austin|toronto|seattle|london|tokyo|paris)\b", re.IGNORECASE),
+    re.compile(r"^\s*https?://", re.IGNORECASE),
+    re.compile(r"^\s*earth\s*$", re.IGNORECASE),
+    re.compile(r"^\s*hacker news role\s*$", re.IGNORECASE),
+    re.compile(r"^\s*multiple (?:roles|engineering)\b", re.IGNORECASE),
+    re.compile(r"^\s*(?:design,\s*engineering,\s*gtm,\s*sales|future shaprs|lkjlkjxcv)\s*$", re.IGNORECASE),
+]
+
+
+def is_unparseable_hn_title(title: str) -> bool:
+    """Check if HN title looks like a location, timezone, URL, or placeholder."""
+    t = (title or "").strip()
+    if not t or t.lower() in ("hacker news role", "earth", "remote", "see below", "equity + salary"):
+        return True
+    has_role = bool(_HN_ROLE_SIGNALS_RE.search(t))
+    for pat in _HN_UNPARSEABLE_PATTERNS:
+        if pat.search(t):
+            if not has_role or t.lower().startswith("remote (") or t.lower().startswith("onsite in ") or "days hybrid in" in t.lower() or t.startswith("http"):
+                return True
+            if not has_role:
+                return True
+    if not has_role and ("," in t or "/" in t or len(t) < 5):
+        return True
+    return False
 
 
 def transform_hackernews(payload: Dict[str, Any]) -> Optional[NormalizedJob]:
@@ -415,6 +463,7 @@ def transform_hackernews(payload: Dict[str, Any]) -> Optional[NormalizedJob]:
 
     Parses pipe- or dash-separated header into company, title, location, and remote status.
     Rejects rows where no valid role title exists (e.g. title looks like location or compensation).
+    Sets exclude_reason='unparseable_title' when title cannot be parsed cleanly.
     """
     raw_html = payload.get("text", "")
     plain_desc = strip_html(raw_html)
@@ -474,15 +523,10 @@ def transform_hackernews(payload: Dict[str, Any]) -> Optional[NormalizedJob]:
             title = role_candidates[0]
         elif other_candidates:
             cand = other_candidates[0]
-            if _HN_LOCATION_HINTS_RE.search(cand) or _HN_COMPENSATION_RE.search(cand):
-                # Candidate title looks like location or compensation string — reject row instead of guessing
-                logger.info("Rejecting HN item %s: title candidate looks like location/compensation: %r", payload.get("id"), cand)
-                return None
             title = cand
         else:
-            # All parts were location, compensation, work_type, or URL — no valid title found
-            logger.info("Rejecting HN item %s: no role title found in header: %r", payload.get("id"), header)
-            return None
+            # All parts were location, compensation, work_type, or URL — fallback title
+            title = "Hacker News Role"
 
         if location_candidates:
             location_raw = location_candidates[0]
@@ -544,6 +588,10 @@ def transform_hackernews(payload: Dict[str, Any]) -> Optional[NormalizedJob]:
     posted_at = parse_timestamp(payload.get("time"))
     item_id = str(payload.get("id", "")).strip()
 
+    exclude_reason = None
+    if is_unparseable_hn_title(title):
+        exclude_reason = "unparseable_title"
+
     return NormalizedJob(
         source="hackernews",
         external_id=item_id,
@@ -557,6 +605,7 @@ def transform_hackernews(payload: Dict[str, Any]) -> Optional[NormalizedJob]:
         apply_url=apply_url,
         tags=["HackerNews", "Who is Hiring"],
         posted_at=posted_at,
+        exclude_reason=exclude_reason,
     )
 
 

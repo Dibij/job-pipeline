@@ -92,6 +92,7 @@ def _fetch_eligible_jobs() -> List[Dict[str, Any]]:
         WHERE lbl.id IS NULL
           AND j.canonical_job_id IS NULL
           AND j.is_remote = true
+          AND j.exclude_reason IS NULL
         ORDER BY m.match_score DESC NULLS LAST
     """)
     if not rows:
@@ -164,40 +165,60 @@ def export_labeling_batch(
     logger.info("Stratum allocation: %s", alloc)
 
     selected: Dict[str, List[Dict]] = {}
+    selected_ids: set[str] = set()
 
     # 1. high_match_scorer: top by match_score
-    selected["high_match_scorer"] = _select_stratum(
+    top_matches = _select_stratum(
         all_jobs, alloc["high_match_scorer"],
         key_fn=lambda r: float(r["match_score"] or 0),
         ascending=False,
     )
+    selected["high_match_scorer"] = []
+    for r in top_matches:
+        jid = str(r["id"])
+        if jid not in selected_ids:
+            selected_ids.add(jid)
+            selected["high_match_scorer"].append(r)
 
     # 2. laya_uncertainty: lowest avg_confidence among jobs that HAVE a Laya score
-    #    Falls back to random sample when no scored jobs exist.
-    scored = [r for r in all_jobs if r.get("laya_avg_confidence") is not None]
+    #    Strictly exclude jobs already picked in high_match_scorer to prevent cross-strata duplicates.
+    scored = [r for r in all_jobs if r.get("laya_avg_confidence") is not None and str(r["id"]) not in selected_ids]
     if scored:
-        selected["laya_uncertainty"] = _select_stratum(
+        uncertain = _select_stratum(
             scored, alloc["laya_uncertainty"],
             key_fn=lambda r: float(r["laya_avg_confidence"] or 1.0),
             ascending=True,  # ascending → lowest confidence first
         )
     else:
         logger.info("No Laya-scored jobs found; laya_uncertainty falls back to random.")
-        selected["laya_uncertainty"] = random.sample(
-            all_jobs, min(alloc["laya_uncertainty"], len(all_jobs))
-        )
+        candidate_pool = [r for r in all_jobs if str(r["id"]) not in selected_ids]
+        uncertain = random.sample(
+            candidate_pool, min(alloc["laya_uncertainty"], len(candidate_pool))
+        ) if candidate_pool else []
+
+    selected["laya_uncertainty"] = []
+    for r in uncertain:
+        jid = str(r["id"])
+        if jid not in selected_ids:
+            selected_ids.add(jid)
+            selected["laya_uncertainty"].append(r)
 
     # 3. random: from what remains after the other two strata (de-duped by id)
-    used_ids = {str(r["id"]) for pool in selected.values() for r in pool}
-    remaining = [r for r in all_jobs if str(r["id"]) not in used_ids]
+    remaining = [r for r in all_jobs if str(r["id"]) not in selected_ids]
     n_random = min(alloc["random"], len(remaining))
     selected["random"] = random.sample(remaining, n_random) if remaining else []
+    for r in selected["random"]:
+        selected_ids.add(str(r["id"]))
 
-    # Flatten and tag with stratum
+    # Flatten and tag with stratum, guaranteeing strictly 0 duplicate job_ids
     entries = []
+    seen_entry_ids = set()
     for stratum, rows in selected.items():
         for r in rows:
-            entries.append((stratum, r))
+            jid = str(r["id"])
+            if jid not in seen_entry_ids:
+                seen_entry_ids.add(jid)
+                entries.append((stratum, r))
 
     logger.info(
         "Selected %d jobs  (%d random, %d high_match_scorer, %d laya_uncertainty)",
