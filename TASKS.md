@@ -168,3 +168,32 @@
 - [x] 10.5 **Audit Schema Migration 010**: Applied `010_laya_labels_gates.sql` adding 8 structured audit fields to `laya_labels`. Updated `tools/app.py` `_handle_label_job` to persist all 5 gates.
 - [x] 10.6 **Feed Regeneration & Verification**: Re-exported `FEED.md` with 27 verified accessible roles and 62 unknown. 150 automated tests passing.
 
+## Phase 12: Active Learning Pipeline & ATS Expansion (2026-10-29)
+- [x] 12.1 **Smart Triage Pipeline** (`scripts/smart_label_triage.py`):
+  - MatchScorer + stored Laya scores → 4 buckets: `STRONG_CAND` (MS≥70, Laya≥70), `CONFLICT` (MS/Laya disagree ≥30pt), `UNCERTAIN` (Laya 40–65), `OBVIOUS_BAD` (MS<25 + Laya<40).
+  - CONFLICT and UNCERTAIN jobs sent to Ollama `qwen2.5:3b` for label suggestion → saves `data/triage_suggestions_YYYYMMDD_HHMM.json`.
+  - `run_triage()` exported as importable function.
+  - Encoding: all print() output ASCII-safe for Windows cp1252 stdout.
+  - Decimal fix: PostgreSQL returns `laya_score` as `decimal.Decimal`; cast explicitly with `float()`.
+- [x] 12.2 **Ingest Review Tool** (`scripts/ingest_triage_suggestions.py`):
+  - Interactive human-review CLI: shows job title/company/Ollama suggestion/confidence → `y/n/s/q` to apply, skip, or quit.
+  - `--auto-ingest` flag for high-confidence (≥80%) batch apply without prompting.
+  - Never auto-writes without human confirmation (default mode).
+- [x] 12.3 **Integrate Triage as Step 4 in `scripts/run_daily.py`** (Fetch → Normalize → MatchScorer → **Triage** → FEED):
+  - Triage is non-critical: exceptions log but do not abort the pipeline.
+  - `--triage-ollama` flag enables Ollama GPU calls; default is triage-only (no GPU).
+  - `scripts/run_scheduled.py` updated to pass `--triage-ollama` when flag set.
+- [x] 12.4 **Enable 5 New ATS Boards** (`config/ats_boards.json`) — all verified live 2026-10-29:
+  - `canonical` (greenhouse, slug=`canonical`, 314 jobs)
+  - `mozilla` (greenhouse, slug=`mozilla`, 118 jobs)
+  - `elastic` (greenhouse, slug=`elastic`, 404 jobs)
+  - `grafanalabs` (greenhouse, slug=`grafanalabs`, 131 jobs) — NOT `grafana-labs`
+  - `wikimedia` (greenhouse, slug=`wikimedia`, 15 jobs)
+  - Rejected: PostHog/Linear (Ashby 0 results), Cohere/Replit/GitBook (HTTP 404).
+  - **982 new jobs ingested** → DB total: 7,436.
+  - **Ollama Model**: `qwen2.5:3b` (Q4_K_M, 1.9 GB). Runs on CPU (RTX 2050 OOMs at 1.9 GB VRAM idle ~2.2 GB). `ollama run qwen2.5:3b` verified working.
+- [ ] 12.5 **Label the 6 Ollama Suggestions** in `data/triage_suggestions_20261029_1242.json`:
+  - Run: `& .\.venv\Scripts\python.exe scripts\ingest_triage_suggestions.py data\triage_suggestions_20261029_1242.json`
+  - Note: Wikimedia Software Engineering Internship (MS=71) is strong `good_fit` candidate — Ollama said `maybe` citing location, which is irrelevant under v2.
+- [ ] 12.6 **Reach Training Gate** — currently **147/150 v2** (3 away), **5/30 `good_fit`** (25 away).
+

@@ -8,18 +8,22 @@ This document tracks the calibration and fine-tuning engineering for Laya (Task 
 * **Spike and Scoring Active**: Base checkpoint `convaiinnovations/laya` (ModernBERT-large, 421M params). Inference on CPU takes ~15–20s per full JD (on CUDA RTX 2050 ~40ms).
 * **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql`, `007_labeling_schema.sql`, `010_laya_labels_gates.sql`, `011_widen_label_stratum.sql`, and `012_add_exclude_reason.sql`) stores human fit labels with 5-gate audit columns and explicit `exclude_reason`.
 * **Current Human Labeled Dataset**:
-  - `v2_role_fit_only` (Active standard): **146 distinct jobs** (265 total label events):
-    - `bad_fit`: 200 rows (109 unique jobs)
+  - `v2_role_fit_only` (Active standard): **147 distinct jobs** (266 total label events, as of 2026-10-29):
+    - `bad_fit`: 201 rows (110 unique jobs)
     - `maybe`: 55 rows (32 unique jobs)
     - `good_fit`: 10 rows (5 unique jobs)
   - Legacy historical labels: 20 distinct `good_fit` jobs across `v1` and `None` guidelines available for re-evaluation under `v2_role_fit_only`.
+  - **6 Ollama suggestions** pending human review in `data/triage_suggestions_20261029_1242.json` (3 `maybe`, 3 `bad_fit`).
 * **In-Browser Labeling Active**: `app.py` writes directly to `laya_labels` stamped with `label_guideline_version="v2_role_fit_only"`, supporting rapid interactive review with Feed & Rejected tabs without CSV round-trips.
+* **Training Gate Status**: **147/150 v2 labels** (3 away from gate), **5/30 role-fit `good_fit`** (25 away). Use `app.py` or the triage ingestion flow to close the gap.
 * **Scaffolding & Execution Operational**:
   1. `scripts/make_labeling_batch.py`: Exports balanced batches (70% title-rule score, 30% random) with company historical caps ($\le 5$) stamped `v2_role_fit_only`.
   2. `scripts/ingest_labels.py`: Ingests and validates human labels (`good_fit`, `maybe`, `bad_fit`) without overwriting old records.
   3. `scripts/train_title_classifier.py`: Trains char n-gram TF-IDF title classifier (`src/matching/title_classifier.py`) providing soft role penalties (+12.7% recall over rigid blocklists, 0.000 FPR on `good_fit`).
   4. `scripts/train_ranker.py`: Trains production ranker strictly gated on $\ge 150$ v2 labels and $\ge 30$ role-fit `good_fit` positives with bootstrap 95% CIs and ElevenLabs ablation.
   5. `scripts/report_labels.py`: Comprehensive audit script reporting source yield, stratum yield, gate checks, and comparative model metrics (precision@10, recall@10, recall@20, PR-AUC).
+  6. `scripts/smart_label_triage.py`: Active-learning triage — buckets unlabeled eligible jobs by MatchScorer/Laya agreement, routes CONFLICT/UNCERTAIN to Ollama `qwen2.5:3b` for label suggestions. Output saved to `data/triage_suggestions_*.json`.
+  7. `scripts/ingest_triage_suggestions.py`: Interactive CLI to review Ollama label suggestions before any DB write. `--auto-ingest` for high-confidence (≥80%) batch apply.
 
 
 

@@ -6,7 +6,10 @@
 | :--- | :--- | :--- |
 | **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe app.py` | Open **http://localhost:5000** in browser (Feed & Rejected tabs, live labeling) |
 | **🚀 Generate FEED.md** | `& .\.venv\Scripts\python.exe scripts/export_feed.py` | Exports top matched jobs to `FEED.md` |
-| **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → Update FEED.md |
+| **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → **Triage** → Update FEED.md |
+| **🤖 Run Daily + Ollama Triage** | `& .\.venv\Scripts\python.exe scripts/run_daily.py --triage-ollama` | Same as above + Ollama labels CONFLICT/UNCERTAIN jobs |
+| **🔍 Smart Triage (standalone)** | `& .\.venv\Scripts\python.exe scripts/smart_label_triage.py --no-laya` | MatchScorer+Laya triage → Ollama on interesting jobs |
+| **📥 Ingest Triage Suggestions** | `& .\.venv\Scripts\python.exe scripts/ingest_triage_suggestions.py data/triage_suggestions_YYYYMMDD_HHMM.json` | Interactively review + ingest Ollama label suggestions |
 | **⏰ Run Scheduled Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_scheduled.py` | Wrapper with `pipeline.lock`, rotating log, telemetry |
 | **📦 Make Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/make_labeling_batch.py --batch-size 30` | 70% title-rule / 30% random, capped by company, v2 stamped |
 | **🏷️ Label Audit Report** | `& .\.venv\Scripts\python.exe scripts/report_labels.py` | Full yield by source/stratum & gate progress report (Task 7.9) |
@@ -33,32 +36,39 @@
 
 ### Infrastructure & Sources
 - Phase 1 through Phase 6, Phase 9, Phase 10, and Phase 11 (Overhaul Steps 0–7) complete.
-- **Candidate Sources Built & Ingested**: 4,596 unique jobs in PostgreSQL across 8 sources (Arbeitnow, Remote OK, We Work Remotely, Jobicy, Hacker News, Himalayas, Remotive, ATS Boards).
+- **Phase 12 Active Learning Pipeline** (2026-10-29): Smart triage + Ollama integrated into daily pipeline.
+- **Candidate Sources Built & Ingested**: **7,436 unique jobs** in PostgreSQL across **13 sources** (Arbeitnow, Remote OK, We Work Remotely, Jobicy, Hacker News, Himalayas, Remotive, + 5 ATS Boards: Supabase, ElevenLabs, GitLab, Canonical, Mozilla, Elastic, Grafana Labs, Wikimedia).
 - **Five-Gate Allowlist HardFilter & Eligibility Active**: Disqualifies non-remote foreign jobs (`NOT_REMOTE`), region locks outside Nepal (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`), senior roles (`TOO_SENIOR`), and hard degree / 3+ year experience requirements (`DEGREE_OR_EXP`). Unified through `src/matching/eligibility.py`.
 - **OpenAI Leak Purged**: 0 OpenAI jobs in `job_matches`. All 571 stored OpenAI jobs disqualified due to SF/NYC hybrid presence.
 - **Zero-Scraping Nepal Ingestion**: Built `scripts/import_manual_jobs.py` for candidate JSON/CSV imports. Zero web scraping of Nepali sites.
 - **In-Browser Feedback Dashboard (`app.py`)**: Root application providing Feed tab (ranked by title-rule score), Rejected tab (grouped by failure reason with trigger snippet), live labeling (`good_fit`, `maybe`, `bad_fit`, free text notes, "wrongly filtered" checkbox) writing directly to PostgreSQL `laya_labels` stamped with `label_guideline_version="v2_role_fit_only"`, and live training gate progress tracking.
 - **Automation & Scheduling**: `scripts/run_scheduled.py` daily runner protected by `data/pipeline.lock`, rotating log in `logs/scheduled_run.log`, recording to `source_runs`. Supported via Windows Task Scheduler (`scripts/install_schedule.ps1`) and Docker/Linux crontab (`docs/scheduled_run_docker.md`).
+- **Smart Active-Learning Triage Pipeline**:
+  - `scripts/smart_label_triage.py`: MatchScorer + stored Laya scores → 4 buckets (STRONG_CAND / CONFLICT / UNCERTAIN / OBVIOUS_BAD) → Ollama `qwen2.5:3b` labels non-obvious jobs → saves `data/triage_suggestions_*.json`.
+  - `scripts/ingest_triage_suggestions.py`: Interactive human review of Ollama suggestions before any DB write. `--auto-ingest` flag for high-confidence batch mode.
+  - **Integrated into daily pipeline** as Step 4 (between MatchScorer and FEED export). `--triage-ollama` flag enables Ollama; default is triage-only (no GPU call).
 - CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed. Test suite: **168+ passing tests**.
 - **Applied Migrations**: All 12 migrations applied up to `011_widen_label_stratum.sql` and `012_add_exclude_reason.sql`.
+- **Ollama Local LLM**: `qwen2.5:3b` (Q4_K_M, 1.9 GB) running at `http://localhost:11434`. Used as active-learning triage assistant — suggestions are never auto-inserted, always human-reviewed.
 
 ### Labeling & Model Training Status
-Human-labeled data in `laya_labels` (as reported by `scripts/report_labels.py`):
+Human-labeled data in `laya_labels` (as of 2026-10-29 from `scripts/report_labels.py`):
 
 | Guideline Version | Label | Rows | Distinct Jobs |
 |---|---|---|---|
-| `v2_role_fit_only` | `bad_fit` | 200 | 109 |
+| `v2_role_fit_only` | `bad_fit` | 201 | 110 |
 | `v2_role_fit_only` | `maybe` | 55 | 32 |
 | `v2_role_fit_only` | `good_fit` | 10 | 5 |
-| **v2 Subtotal** | | **265** | **146** |
+| **v2 Subtotal** | | **266** | **147** |
 | `v1` (legacy definition) | `bad_fit` / `maybe` / `good_fit` | 108 | 73 (8 good_fit) |
 | `v2` (pre-overhaul) | `bad_fit` / `good_fit` | 9 | 9 (6 good_fit) |
 | `None` (legacy draft) | `bad_fit` / `maybe` / `good_fit` | 86 | 69 (6 good_fit) |
 
 - **Training Gates**:
   - `scripts/train_ranker.py` and `scripts/train_laya.py` enforce strict safety gates: $\ge 150$ total v2 labels AND $\ge 30$ role-fit `good_fit` positives.
-  - Current status: **146 / 150 v2 labels** (4 away), **5 / 30 role-fit `good_fit` labels**.
+  - Current status: **147 / 150 v2 labels** (3 away), **5 / 30 role-fit `good_fit` labels** (25 away).
   - There are 20 historical `good_fit` jobs across legacy guidelines that can be re-evaluated under `v2_role_fit_only` in `app.py`.
+  - **6 Ollama suggestions** pending human review in `data/triage_suggestions_20261029_1242.json` (3 `maybe`, 3 `bad_fit` — Wikimedia SW Eng internship is a strong `good_fit` candidate).
 - **Learned Title Role-Type Classifier (`src/matching/title_classifier.py`)**:
   - Char n-gram (3-5) TF-IDF + LogisticRegression trained on weak + human labels.
   - Evaluated via 5-fold Grouped CV: achieved **0.872 recall** vs Blocklist **0.745 recall** (+12.7% recall improvement) with **0.000 FPR on `good_fit`** (0 good_fit killed).
@@ -238,7 +248,8 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
 ### 4. Targeted ATS Board Extractor Implementation (Task 9.7)
 - Built `src/extractors/ats_board.py` featuring `ATSBoardExtractor` supporting Greenhouse, Lever, and Ashby job boards.
 - Configurable via `config/ats_boards.json` (declarative list of boards, slugs, and platforms).
-- Initial production roster: `supabase` (ashby), `openai` (ashby), `runway-ml` (ashby), `elevenlabs` (ashby), `gitlab` (greenhouse).
+- Initial production roster: `supabase` (ashby), `elevenlabs` (ashby), `gitlab` (greenhouse). OpenAI and Runway ML were verified then **disabled** (`enabled: false`) because they do not hire globally/junior-friendly.
+- **Phase 12 expansion** (2026-10-29): Added 5 more boards — `canonical` (greenhouse, 314 jobs), `mozilla` (greenhouse, 118 jobs), `elastic` (greenhouse, 404 jobs), `grafanalabs` (greenhouse, 131 jobs), `wikimedia` (greenhouse, 15 jobs). **982 new jobs ingested.** Total active ATS boards: **8**.
 - Added per-platform normalizers (`transform_ats_greenhouse`, `transform_ats_lever`, `transform_ats_ashby`) and dispatched via `ats:*` in `src/models/transformers.py`.
 - Integrated directly into `JobPipeline.run_extractors()` with individual `source_runs` telemetry logging.
 - Verified live: fetched 1,304 items across the 5 target boards with 100% successful transformation, zero errors, and direct employer application links.
@@ -301,7 +312,16 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
 ---
 
 ## 🛠️ Next Action Items
-1. **Supply Side**: Add the 10 verified remote company boards into `config/ats_boards.json` to stream fresh junior-accessible tech postings.
-2. **Labeling Gate Progression**: Launch `python app.py` and review candidates (and re-evaluate the 20 legacy `good_fit` roles) to reach $\ge 30$ role-fit `good_fit` labels.
-3. **Train Ranker**: Once gate clears (30 `good_fit`), run `python scripts/train_ranker.py` to deploy the learned production ranker.
+
+1. **Ingest Triage Suggestions**: Review the 6 Ollama suggestions (3 `maybe`, 3 `bad_fit`) from `data/triage_suggestions_20261029_1242.json`:
+   ```powershell
+   & .\.venv\Scripts\python.exe scripts\ingest_triage_suggestions.py data\triage_suggestions_20261029_1242.json
+   ```
+   ⚠️ Wikimedia SW Eng internship (MatchScorer=71) is likely `good_fit` — Ollama said `maybe` due to location which is irrelevant under v2.
+
+2. **Labeling Gate Progression**: Launch `python app.py` and label candidates (re-evaluate 20 legacy `good_fit` roles under v2). Gate: **147/150 v2 labels** (3 away), **5/30 `good_fit`** (25 away).
+
+3. **Train Ranker**: Once gate clears ($\ge 150$ v2, $\ge 30$ `good_fit`), run `python scripts/train_ranker.py` to deploy the learned production ranker.
+
+4. **ATS Board Expansion (Next Round)**: PostHog, Linear (Ashby — currently 0 results), Cohere, Replit, GitBook returned 404. Monitor for new boards. Current active boards: Supabase, ElevenLabs, GitLab, Canonical, Mozilla, Elastic, Grafana Labs, Wikimedia (8 total).
 

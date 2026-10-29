@@ -3,7 +3,7 @@
 A modular data engineering pipeline that aggregates messy job listings from multiple sources, normalizes and deduplicates them into PostgreSQL, and scores them against a personal CV to surface relevant junior, remote, and local roles.
 
 ## Architecture
-- **Ingest**: Pluggable extractors managed via a unified `SOURCES` registry with isolated per-source failure boundaries (Arbeitnow, Remotive, Himalayas, WWR, Remote OK, Jobicy, Hacker News).
+- **Ingest**: Pluggable extractors managed via a unified `SOURCES` registry with isolated per-source failure boundaries (Arbeitnow, Remotive, Himalayas, WWR, Remote OK, Jobicy, Hacker News) + 8 direct ATS company boards (Supabase, ElevenLabs, GitLab, Canonical, Mozilla, Elastic, Grafana Labs, Wikimedia).
 - **Stage**: Raw JSON/HTML payloads preserved in `raw_job_listings` (ELT pattern) to guarantee zero data loss.
 - **Normalize & Enrich**: Pydantic models clean text, truncate fields to 255 chars with warnings, extract seniority levels (`junior`, `intern`), and classify reachability.
 - **Reachability & Five-Gate Eligibility Filter**: Evaluates candidate fit via strict allowlists (default-deny architecture):
@@ -18,9 +18,13 @@ A modular data engineering pipeline that aggregates messy job listings from mult
   - Rule-based weighted ranking (`MatchScorer`) with skill-requirement focusing.
   - Learned title role-type classifier (`src/matching/title_classifier.py`): Char n-gram TF-IDF + LogisticRegression providing calibrated soft penalties (+12.7% recall over rigid keyword blocklists, 0.000 FPR on `good_fit`).
   - Laya neural scorer (`convaiinnovations/laya`, ModernBERT-large) with temperature calibration.
-- **Output & Automation**:
+  - **Output & Automation**:
   - Daily markdown digest (`FEED.md`), interactive CLI review tool, and browser dashboard (`app.py`).
   - Automated execution via `scripts/run_scheduled.py` with file locking (`data/pipeline.lock`), rotating logs, and Windows Task Scheduler / Docker runners.
+- **Smart Active-Learning Triage Pipeline (Phase 12)**:
+  - `scripts/smart_label_triage.py`: MatchScorer + stored Laya scores → 4 buckets (STRONG_CAND / CONFLICT / UNCERTAIN / OBVIOUS_BAD) → Ollama `qwen2.5:3b` labels non-obvious jobs → saves `data/triage_suggestions_*.json`.
+  - `scripts/ingest_triage_suggestions.py`: Interactive human review before any DB write. `--auto-ingest` flag for high-confidence batch mode.
+  - **Integrated as Step 4** in `scripts/run_daily.py` (Fetch → Normalize → MatchScorer → **Triage** → FEED). `--triage-ollama` enables Ollama GPU calls.
 - **Labeling & Training Gates**:
   - Human-labeled dataset in `laya_labels` (PostgreSQL) stamped strictly with `label_guideline_version="v2_role_fit_only"`.
   - Enforced training gates: Refuses to train rankers when $< 150$ v2 labels or $< 30$ role-fit `good_fit` positives, protecting against overfitting on tiny positive splits. Strategy documented in [`TRAINING.md`](TRAINING.md).
@@ -32,7 +36,10 @@ A modular data engineering pipeline that aggregates messy job listings from mult
 | :--- | :--- | :--- |
 | **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe app.py` | Open **http://localhost:5000** in browser (Feed & Rejected tabs, live labeling) |
 | **🚀 Generate FEED.md** | `& .\.venv\Scripts\python.exe scripts/export_feed.py` | Exports top matched jobs to `FEED.md` |
-| **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → Update FEED.md |
+| **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → **Triage** → Update FEED.md |
+| **🤖 Run Daily + Ollama Triage** | `& .\.venv\Scripts\python.exe scripts/run_daily.py --triage-ollama` | Same as above + Ollama labels CONFLICT/UNCERTAIN jobs |
+| **🔍 Smart Triage (standalone)** | `& .\.venv\Scripts\python.exe scripts/smart_label_triage.py --no-laya` | MatchScorer+Laya triage → Ollama on interesting jobs |
+| **📥 Ingest Triage Suggestions** | `& .\.venv\Scripts\python.exe scripts/ingest_triage_suggestions.py data/triage_suggestions_YYYYMMDD_HHMM.json` | Interactively review + ingest Ollama label suggestions |
 | **⏰ Run Scheduled Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_scheduled.py` | Wrapper with `pipeline.lock`, rotating log, telemetry |
 | **📦 Make Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/make_labeling_batch.py --batch-size 30` | 70% title-rule / 30% random, capped by company, v2 stamped |
 | **🏷️ Label Audit Report** | `& .\.venv\Scripts\python.exe scripts/report_labels.py` | Full yield by source/stratum & gate progress report (Task 7.9) |
@@ -49,7 +56,7 @@ A modular data engineering pipeline that aggregates messy job listings from mult
 
 ## 🌐 Local Web Dashboard & In-Browser Labeling
 
-Launch the live visual web interface backed directly by your local PostgreSQL database (4,596 jobs across 8 active sources):
+Launch the live visual web interface backed directly by your local PostgreSQL database (7,436 jobs across 13 active sources):
 
 ```powershell
 & .\.venv\Scripts\python.exe app.py
