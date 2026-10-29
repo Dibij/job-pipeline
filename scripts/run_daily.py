@@ -4,9 +4,14 @@ Orchestrates full daily execution in sequence:
 1. Fetch raw job listings from API sources (Arbeitnow, Remotive, etc.)
 2. Normalize and deduplicate into jobs table
 3. Run baseline MatchScorer rule matching on all jobs
-4. Regenerate FEED.md with updated top recommendations
+4. Smart triage: score unlabeled jobs with MatchScorer+Laya, call Ollama on
+   interesting candidates, save suggestions JSON for human review in app.py.
+   (use_ollama=False by default -- enable manually or via --triage-ollama flag)
+5. Regenerate FEED.md with updated top recommendations
+
 Prints a clean summary block at the end.
 """
+import argparse
 import logging
 from pathlib import Path
 import sys
@@ -23,7 +28,19 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 
-def run_daily_pipeline():
+def run_daily_pipeline(
+    triage_limit: int = 500,
+    triage_use_ollama: bool = False,
+    triage_ollama_model: str = "qwen2.5:3b",
+):
+    """Run full daily pipeline.
+
+    Args:
+        triage_limit:       Max unlabeled jobs to pass to smart triage (default 500).
+        triage_use_ollama:  Call Ollama during triage (default False -- GPU-heavy,
+                            enable manually when you want active-learning suggestions).
+        triage_ollama_model: Ollama model tag (default qwen2.5:3b).
+    """
     start_time = time.time()
     logger.info("=" * 65)
     logger.info("  DAILY PIPELINE RUNNER (Task 6-3)")
@@ -31,32 +48,73 @@ def run_daily_pipeline():
 
     pipeline = JobPipeline()
 
-    # Phase 1: Fetch raw listings from API sources
-    logger.info("[Step 1/4] Running Job Fetchers...")
+    # Step 1: Fetch raw listings from API sources
+    logger.info("[Step 1/5] Running Job Fetchers...")
     extract_stats = pipeline.run_extractors()
 
-    # Phase 2: Normalize and deduplicate into jobs table
-    logger.info("[Step 2/4] Normalizing and Deduplicating Staged Listings...")
+    # Step 2: Normalize and deduplicate into jobs table
+    logger.info("[Step 2/5] Normalizing and Deduplicating Staged Listings...")
     norm_stats = pipeline.process_staged()
 
-    # Phase 3: Run baseline MatchScorer
-    logger.info("[Step 3/4] Scoring Jobs against Candidate Profile...")
+    # Step 3: Run baseline MatchScorer
+    logger.info("[Step 3/5] Scoring Jobs against Candidate Profile...")
     match_stats = score_all_jobs()
 
-    # Phase 4: Generate FEED.md
-    logger.info("[Step 4/4] Exporting FEED.md...")
+    # Step 4: Smart triage (active-learning pipeline)
+    logger.info("[Step 4/5] Running Smart Label Triage...")
+    triage_stats = {}
+    try:
+        from scripts.smart_label_triage import run_triage
+        triage_stats = run_triage(
+            limit=triage_limit,
+            use_laya=False,          # stored scores only -- safe for scheduled run
+            use_ollama=triage_use_ollama,
+            ollama_model=triage_ollama_model,
+        )
+    except Exception as e:
+        # Triage is non-critical: log but don't abort the pipeline
+        logger.warning("Smart triage failed (non-critical): %s", e)
+        triage_stats = {"error": str(e)}
+
+    # Step 5: Generate FEED.md
+    logger.info("[Step 5/5] Exporting FEED.md...")
     feed_path = export_feed(top_n=100)
 
     duration = time.time() - start_time
 
-    # Print Summary Block
+    # Summary block
     print("\n" + "=" * 65)
     print(f"  DAILY PIPELINE EXECUTION SUMMARY (Completed in {duration:.1f}s)")
     print("=" * 65)
     print(f"  1. Extraction  : {extract_stats}")
-    print(f"  2. Normalized  : Processed {norm_stats.get('processed', 0)} raw -> Upserted {norm_stats.get('jobs_upserted', 0)} jobs")
-    print(f"  3. MatchScorer : Scored {match_stats.get('total_scored', 0)} jobs -> {match_stats.get('high_matches', 0)} strong matches (score >= 60%)")
-    print(f"  4. Feed Output : Saved top matches to {feed_path}")
+    print(f"  2. Normalized  : Processed {norm_stats.get('processed', 0)} raw -> "
+          f"Upserted {norm_stats.get('jobs_upserted', 0)} jobs")
+    print(f"  3. MatchScorer : Scored {match_stats.get('total_scored', 0)} jobs -> "
+          f"{match_stats.get('high_matches', 0)} strong matches (score >= 60%)")
+
+    if "error" in triage_stats:
+        print(f"  4. Triage      : SKIPPED (error: {triage_stats['error']})")
+    else:
+        buckets = triage_stats.get("buckets", {})
+        suggestions = triage_stats.get("suggestions_count", 0)
+        eligible = triage_stats.get("eligible", 0)
+        out_path = triage_stats.get("out_path")
+        print(
+            f"  4. Triage      : {eligible} eligible unlabeled | "
+            f"STRONG={buckets.get('STRONG_CAND', 0)}  "
+            f"CONFLICT={buckets.get('CONFLICT', 0)}  "
+            f"UNCERTAIN={buckets.get('UNCERTAIN', 0)}  "
+            f"BAD={buckets.get('OBVIOUS_BAD', 0)}"
+        )
+        if suggestions:
+            print(f"     [!] {suggestions} Ollama suggestions -> {out_path}")
+            print(f"     Review: python scripts/ingest_triage_suggestions.py {out_path}")
+        elif triage_use_ollama:
+            print("     No Ollama suggestions generated.")
+        else:
+            print("     Ollama disabled (run with --triage-ollama to enable).")
+
+    print(f"  5. Feed Output : Saved top matches to {feed_path}")
     print("=" * 65 + "\n")
 
     return {
@@ -64,9 +122,29 @@ def run_daily_pipeline():
         "extract_stats": extract_stats,
         "norm_stats": norm_stats,
         "match_stats": match_stats,
+        "triage_stats": triage_stats,
         "feed_path": str(feed_path),
     }
 
 
 if __name__ == "__main__":
-    run_daily_pipeline()
+    parser = argparse.ArgumentParser(description="Run the daily job pipeline.")
+    parser.add_argument(
+        "--triage-ollama", action="store_true",
+        help="Enable Ollama during triage step (requires Ollama running locally).",
+    )
+    parser.add_argument(
+        "--triage-limit", type=int, default=500,
+        help="Max unlabeled jobs to triage per run (default: 500).",
+    )
+    parser.add_argument(
+        "--ollama-model", default="qwen2.5:3b",
+        help="Ollama model for triage (default: qwen2.5:3b).",
+    )
+    args = parser.parse_args()
+
+    run_daily_pipeline(
+        triage_limit=args.triage_limit,
+        triage_use_ollama=args.triage_ollama,
+        triage_ollama_model=args.ollama_model,
+    )

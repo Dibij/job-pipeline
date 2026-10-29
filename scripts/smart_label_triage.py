@@ -1,22 +1,26 @@
-"""scripts/smart_label_triage.py — Smart active-learning triage pipeline.
+"""scripts/smart_label_triage.py -- Smart active-learning triage pipeline.
 
 Strategy:
-  1. Run MatchScorer (fast, rule-based, no GPU load) on all unlabeled eligible jobs.
-  2. Run Laya scorer (GPU, ~40ms each on CUDA) on those same jobs.
+  1. Run MatchScorer (fast, rule-based, no GPU) on all unlabeled eligible jobs.
+  2. Laya scorer (GPU, ~40ms each on CUDA) on those same jobs.
   3. Triage each job into one of four buckets based on agreement / uncertainty:
 
-     OBVIOUS_BAD   — Both agree it's bad (MS < 35 AND Laya < 40). Skip Ollama.
-     STRONG_CAND   — Both agree it's good (MS >= 55 AND Laya >= 55). Send to Ollama.
-     CONFLICT      — Scorers disagree by > 25 points. Send to Ollama as tiebreaker.
-     UNCERTAIN     — Laya score is in uncertain zone (40–60). Send to Ollama.
+     OBVIOUS_BAD   -- Both agree it's bad (MS < 35 AND Laya < 40). Skip Ollama.
+     STRONG_CAND   -- Both agree it's good (MS >= 55 AND Laya >= 55). Send to Ollama.
+     CONFLICT      -- Scorers disagree by > 25 points. Send to Ollama as tiebreaker.
+     UNCERTAIN     -- Laya score is in uncertain zone (40-60). Send to Ollama.
 
   4. For all non-OBVIOUS_BAD jobs, call local Ollama qwen2.5:3b for a label suggestion.
   5. Save all suggestions as JSON for human review. Nothing auto-inserts into laya_labels.
 
-Usage:
+Used standalone:
     python scripts/smart_label_triage.py
     python scripts/smart_label_triage.py --limit 50 --no-laya
     python scripts/smart_label_triage.py --ollama-model qwen2.5:1.5b
+
+Used from daily pipeline (imported):
+    from scripts.smart_label_triage import run_triage
+    stats = run_triage(limit=300, use_ollama=True, ollama_model="qwen2.5:3b")
 """
 from __future__ import annotations
 
@@ -27,7 +31,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -37,7 +41,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.db.connection import get_connection
 from src.matching.scorer import MatchScorer
 from src.matching.eligibility import check_eligibility
-from src.matching.hard_filter import FilterReason
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -45,27 +48,34 @@ logger = logging.getLogger(__name__)
 DATA_DIR = PROJECT_ROOT / "data"
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Triage thresholds
-# ──────────────────────────────────────────────────────────────────────────────
-MS_HIGH = 50        # MatchScorer >= this → "high"
-LAYA_HIGH = 55      # Laya >= this → "high"
-LAYA_UNCERTAIN_LO = 38  # Laya in [lo, hi] → uncertain zone
+# ─────────────────────────────────────────────────────────────────────────────
+MS_HIGH = 50            # MatchScorer >= this -> "high"
+LAYA_HIGH = 55          # Laya >= this -> "high"
+LAYA_UNCERTAIN_LO = 38  # Laya in [lo, hi] -> uncertain zone
 LAYA_UNCERTAIN_HI = 62
-CONFLICT_GAP = 22   # |MS_norm - Laya| > this → conflict
+CONFLICT_GAP = 22       # |MS_norm - Laya| > this -> conflict
 
-# ──────────────────────────────────────────────────────────────────────────────
+BUCKET_LABELS = {
+    "STRONG_CAND": "Both Laya & MatchScorer agree: strong candidate",
+    "CONFLICT":    "Laya vs MatchScorer disagree significantly",
+    "UNCERTAIN":   "Laya is in uncertain zone (40-60)",
+    "OBVIOUS_BAD": "Both agree: likely bad (skipping Ollama)",
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Ollama prompt
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """
 You are a job relevance classifier for a junior/mid-level software developer based in Nepal.
-Use the v2_role_fit_only guideline — focus ONLY on whether the actual work and tech stack
+Use the v2_role_fit_only guideline -- focus ONLY on whether the actual work and tech stack
 suit a junior/mid Python, AI/ML, backend, or full-stack developer.
 
 Labels:
-  good_fit — Role and day-to-day work clearly suits a junior Python/AI/ML/full-stack developer.
-  maybe    — Borderline: partial overlap, ambiguous scope, or adjacent engineering domain.
-  bad_fit  — Non-technical, pure management, wrong domain, or irrelevant stack.
+  good_fit -- Role and day-to-day work clearly suits a junior Python/AI/ML/full-stack developer.
+  maybe    -- Borderline: partial overlap, ambiguous scope, or adjacent engineering domain.
+  bad_fit  -- Non-technical, pure management, wrong domain, or irrelevant stack.
 
 STRICT RULES:
   - IGNORE location, remote restrictions, work authorization, years-required. These are pre-filtered.
@@ -75,22 +85,20 @@ STRICT RULES:
 """.strip()
 
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # DB helpers
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 def fetch_unlabeled_jobs(limit: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Fetch eligible unlabeled jobs from DB with existing Laya scores if available."""
+    """Fetch unlabeled remote-eligible jobs from DB with stored Laya scores."""
     sql = """
         SELECT DISTINCT ON (j.id)
                j.id, j.title, j.company_name, j.description_text, j.location_raw,
                j.is_remote, j.remote_restriction, j.experience_level,
                j.detected_language, j.is_unpaid, j.reachable_from_nepal,
                j.reachable_reason, j.tags, j.source, j.apply_url, j.exclude_reason,
-               -- Existing Laya score if already scored
                ls.final_score  AS laya_score,
                ls.needs_review AS laya_needs_review,
                ls.disqualification_reason AS laya_disq,
-               -- Existing MatchScorer score
                COALESCE(jm.match_score, -1) AS match_score
         FROM jobs j
         LEFT JOIN laya_labels lbl ON j.id = lbl.job_id
@@ -101,9 +109,9 @@ def fetch_unlabeled_jobs(limit: Optional[int] = None) -> List[Dict[str, Any]]:
             ORDER BY scored_at DESC LIMIT 1
         ) ls ON true
         LEFT JOIN job_matches jm ON j.id = jm.job_id
-        WHERE lbl.job_id IS NULL       -- not yet labeled
-          AND j.exclude_reason IS NULL  -- not excluded by normalization
-          AND j.is_remote = TRUE        -- pre-filter obvious non-remote to reduce HardFilter waste
+        WHERE lbl.job_id IS NULL        -- not yet labeled
+          AND j.exclude_reason IS NULL   -- not excluded by normalization
+          AND j.is_remote = TRUE         -- pre-filter: skip obviously non-remote
         ORDER BY j.id, j.created_at DESC
     """
     if limit:
@@ -115,11 +123,11 @@ def fetch_unlabeled_jobs(limit: Optional[int] = None) -> List[Dict[str, Any]]:
             return cur.fetchall()
 
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Eligibility filter
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 def filter_eligible(jobs: List[Dict]) -> List[Dict]:
-    """Keep only jobs that pass HardFilter (using shared eligibility module)."""
+    """Keep only jobs that pass HardFilter."""
     passed = []
     blocked_counts: Dict[str, int] = {}
     for job in jobs:
@@ -136,11 +144,11 @@ def filter_eligible(jobs: List[Dict]) -> List[Dict]:
     return passed
 
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # MatchScorer pass
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 def run_match_scorer(jobs: List[Dict]) -> Dict[str, float]:
-    """Return map of job_id → normalized match score (0–100)."""
+    """Return map of job_id -> normalized match score (0-100)."""
     scorer = MatchScorer()
     scores = {}
     for job in jobs:
@@ -153,12 +161,11 @@ def run_match_scorer(jobs: List[Dict]) -> Dict[str, float]:
     return scores
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Laya pass (optional — skip if already scored or --no-laya)
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Laya scorer pass (optional)
+# ─────────────────────────────────────────────────────────────────────────────
 def run_laya_scorer(jobs: List[Dict]) -> Dict[str, float]:
-    """Return map of job_id → Laya final_score. Uses stored score if available."""
-    # Pre-populate with already-scored jobs
+    """Return map of job_id -> Laya final_score. Uses stored score if available."""
     laya_scores = {}
     needs_scoring = []
     for job in jobs:
@@ -188,22 +195,14 @@ def run_laya_scorer(jobs: List[Dict]) -> Dict[str, float]:
                 logger.warning("  Laya failed on %s: %s", job.get("title"), e)
                 laya_scores[str(job["id"])] = -1.0
     except Exception as e:
-        logger.warning("Could not load Laya scorer: %s — using stored scores only.", e)
+        logger.warning("Could not load Laya scorer: %s -- using stored scores only.", e)
 
     return laya_scores
 
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Triage logic
-# ──────────────────────────────────────────────────────────────────────────────
-BUCKET_LABELS = {
-    "STRONG_CAND": "Both Laya & MatchScorer agree: strong candidate",
-    "CONFLICT":    "Laya vs MatchScorer disagree significantly",
-    "UNCERTAIN":   "Laya is in uncertain zone (40-60)",
-    "OBVIOUS_BAD": "Both agree: likely bad (skipping Ollama)",
-}
-
-
+# ─────────────────────────────────────────────────────────────────────────────
 def triage(
     job: Dict,
     ms_score: float,
@@ -211,7 +210,7 @@ def triage(
     laya_needs_review: Optional[bool],
 ) -> str:
     """Assign a triage bucket to a job."""
-    ms_norm = ms_score  # already 0–100
+    ms_norm = float(ms_score)
     laya_val = float(laya_score) if laya_score is not None and float(laya_score) >= 0 else 0.0
 
     ms_high = ms_norm >= MS_HIGH
@@ -230,9 +229,9 @@ def triage(
     return "OBVIOUS_BAD"
 
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Ollama classifier
-# ──────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 def call_ollama(title: str, description: str, model: str) -> Optional[Dict]:
     """Call Ollama and return parsed JSON result or None on failure."""
     truncated_desc = (description or "")[:1800]
@@ -268,46 +267,55 @@ def call_ollama(title: str, description: str, model: str) -> Optional[Dict]:
         return None
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Main
-# ──────────────────────────────────────────────────────────────────────────────
-def main():
-    parser = argparse.ArgumentParser(description="Smart triage labeling pipeline.")
-    parser.add_argument("--limit", type=int, default=None, help="Max unlabeled jobs to process")
-    parser.add_argument("--no-laya", action="store_true", help="Skip fresh Laya scoring (use stored only)")
-    parser.add_argument("--ollama-model", default="qwen2.5:3b", help="Ollama model name")
-    parser.add_argument("--no-ollama", action="store_true", help="Triage only, skip Ollama calls")
-    args = parser.parse_args()
+# ─────────────────────────────────────────────────────────────────────────────
+# Public entry point (importable by run_daily.py)
+# ─────────────────────────────────────────────────────────────────────────────
+def run_triage(
+    limit: Optional[int] = None,
+    use_laya: bool = False,
+    use_ollama: bool = True,
+    ollama_model: str = "qwen2.5:3b",
+) -> Dict[str, Any]:
+    """Run the full triage pipeline and return a stats dict.
 
-    print("\n" + "=" * 72)
-    print("  SMART LABEL TRIAGE: MatchScorer + Laya -> Triage -> Ollama")
-    print("=" * 72)
+    Args:
+        limit:        Max unlabeled jobs to fetch (None = all remote-eligible).
+        use_laya:     If True, run fresh Laya scoring on unseen jobs (GPU).
+                      If False, use stored Laya scores only (safe for daily run).
+        use_ollama:   If True, call Ollama for non-obvious-bad jobs.
+                      If False, triage only -- no Ollama calls (fast, no GPU).
+        ollama_model: Ollama model tag (default: qwen2.5:3b).
 
-    # ── Step 1: Fetch unlabeled jobs ──────────────────────────────────────────
+    Returns:
+        dict: fetched, eligible, buckets (count per bucket), suggestions_count,
+              ollama_errors, out_path (str or None).
+    """
     logger.info("Fetching unlabeled eligible jobs from DB...")
-    all_jobs = fetch_unlabeled_jobs(limit=args.limit)
+    all_jobs = fetch_unlabeled_jobs(limit=limit)
     logger.info("Found %d unlabeled jobs total.", len(all_jobs))
 
-    # ── Step 2: Eligibility filter ────────────────────────────────────────────
     jobs = filter_eligible(all_jobs)
     if not jobs:
-        print("No eligible unlabeled jobs found. Run the daily pipeline first.")
-        return
+        logger.info("Triage: no eligible unlabeled jobs -- skipping.")
+        return {
+            "fetched": len(all_jobs), "eligible": 0,
+            "buckets": {}, "suggestions_count": 0,
+            "ollama_errors": 0, "out_path": None,
+        }
 
-    # ── Step 3: MatchScorer ───────────────────────────────────────────────────
-    logger.info("Running MatchScorer on %d jobs...", len(jobs))
+    # MatchScorer
     t0 = time.time()
     ms_scores = run_match_scorer(jobs)
     logger.info("MatchScorer done in %.1fs.", time.time() - t0)
 
-    # ── Step 4: Laya scorer ───────────────────────────────────────────────────
-    if args.no_laya:
-        logger.info("--no-laya: using stored Laya scores only.")
-        laya_scores = {str(j["id"]): float(j.get("laya_score") or -1.0) for j in jobs}
-    else:
+    # Laya scorer
+    if use_laya:
         laya_scores = run_laya_scorer(jobs)
+    else:
+        logger.info("Triage: using stored Laya scores only (use_laya=False).")
+        laya_scores = {str(j["id"]): float(j.get("laya_score") or -1.0) for j in jobs}
 
-    # ── Step 5: Triage ────────────────────────────────────────────────────────
+    # Triage into buckets
     buckets: Dict[str, List[Dict]] = {
         "STRONG_CAND": [], "CONFLICT": [], "UNCERTAIN": [], "OBVIOUS_BAD": [],
     }
@@ -315,36 +323,34 @@ def main():
         jid = str(job["id"])
         ms = ms_scores.get(jid, 0.0)
         ly = laya_scores.get(jid, -1.0)
-        needs_rev = job.get("laya_needs_review", False)
-        bucket = triage(job, ms, ly, needs_rev)
-        buckets[bucket].append({**job, "_ms_score": ms, "_laya_score": ly})
+        b = triage(job, ms, ly, job.get("laya_needs_review", False))
+        buckets[b].append({**job, "_ms_score": ms, "_laya_score": ly, "_bucket": b})
 
-    print("\n[TRIAGE RESULTS]")
-    print(f"{'Bucket':<14} {'Count':>6}  Description")
-    print("-" * 72)
-    for bname, blist in buckets.items():
-        print(f"{bname:<14} {len(blist):>6}  {BUCKET_LABELS[bname]}")
-    print("-" * 72)
-
-    # ── Step 6: Ollama classification ─────────────────────────────────────────
-    send_to_ollama = (
-        buckets["STRONG_CAND"] +
-        buckets["CONFLICT"] +
-        buckets["UNCERTAIN"]
+    logger.info(
+        "Triage: STRONG=%d  CONFLICT=%d  UNCERTAIN=%d  OBVIOUS_BAD=%d",
+        len(buckets["STRONG_CAND"]), len(buckets["CONFLICT"]),
+        len(buckets["UNCERTAIN"]), len(buckets["OBVIOUS_BAD"]),
     )
-    # Sort: STRONG_CAND first (most likely good_fit, most interesting)
+
+    # Ollama classification
+    send_to_ollama = (
+        buckets["STRONG_CAND"] + buckets["CONFLICT"] + buckets["UNCERTAIN"]
+    )
     priority_order = {"STRONG_CAND": 0, "CONFLICT": 1, "UNCERTAIN": 2}
     send_to_ollama.sort(key=lambda j: priority_order.get(j.get("_bucket", "UNCERTAIN"), 2))
 
-    suggestions = []
-    skipped = 0
+    suggestions: List[Dict] = []
+    ollama_errors = 0
 
-    if args.no_ollama:
-        print(f"\n--no-ollama: skipping Ollama calls. {len(send_to_ollama)} jobs queued.")
+    if not use_ollama:
+        logger.info(
+            "Triage: use_ollama=False -- skipping Ollama calls (%d jobs queued).",
+            len(send_to_ollama),
+        )
     else:
-        print(f"\n[OLLAMA] Classifying {len(send_to_ollama)} jobs with {args.ollama_model}...")
-        print("(OBVIOUS_BAD jobs are skipped — both scorers agree they're bad)\n")
-
+        logger.info(
+            "Triage: calling Ollama (%s) on %d jobs...", ollama_model, len(send_to_ollama)
+        )
         for i, job in enumerate(send_to_ollama, 1):
             jid = str(job["id"])
             title = job.get("title") or "Untitled"
@@ -352,24 +358,19 @@ def main():
             ms = job["_ms_score"]
             ly = job["_laya_score"]
 
-            result = call_ollama(title, job.get("description_text") or "", args.ollama_model)
+            result = call_ollama(title, job.get("description_text") or "", ollama_model)
             if result is None:
-                skipped += 1
+                ollama_errors += 1
                 continue
 
             label = result["label"]
             conf = result["confidence"]
-            reason = result["reason"]
-
-            # Visual indicator
             icon = {"good_fit": "[OK]", "maybe": "[?] ", "bad_fit": "[X] "}.get(label, "[ ]")
-            conf_str = f"{conf:.0%}"
-            print(
-                f"  [{i:3}/{len(send_to_ollama)}] {icon} {label:<10} ({conf_str}) "
-                f"MS={ms:.0f} Laya={ly:.0f}  {title[:45]:<45}  {company[:18]}"
+            logger.info(
+                "  [%d/%d] %s %s (%.0f%%) MS=%.0f Laya=%.0f  %s @ %s",
+                i, len(send_to_ollama), icon, label, conf * 100,
+                ms, ly, title[:40], company[:20],
             )
-            if label in ("good_fit", "maybe"):
-                print(f"           -> {reason}")
 
             suggestions.append({
                 "job_id": jid,
@@ -381,21 +382,72 @@ def main():
                 "laya_score": round(ly, 1),
                 "ollama_label": label,
                 "ollama_confidence": round(conf, 3),
-                "ollama_reason": reason,
-                "ollama_model": args.ollama_model,
+                "ollama_reason": result["reason"],
+                "ollama_model": ollama_model,
+                "triage_bucket": job.get("_bucket"),
                 "triaged_at": datetime.now(timezone.utc).isoformat(),
             })
 
-    # ── Step 7: Save suggestions ──────────────────────────────────────────────
-    out_path = DATA_DIR / f"triage_suggestions_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
-    out_path.write_text(json.dumps(suggestions, indent=2, ensure_ascii=False))
+    # Save suggestions file
+    out_path: Optional[Path] = None
+    if suggestions:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        out_path = DATA_DIR / f"triage_suggestions_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+        out_path.write_text(
+            json.dumps(suggestions, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        logger.info("Triage: %d suggestions saved -> %s", len(suggestions), out_path.name)
+        logger.info(
+            "[!] Review with: python scripts/ingest_triage_suggestions.py %s", out_path
+        )
+    else:
+        logger.info("Triage: no Ollama suggestions to save.")
+
+    return {
+        "fetched": len(all_jobs),
+        "eligible": len(jobs),
+        "buckets": {k: len(v) for k, v in buckets.items()},
+        "suggestions_count": len(suggestions),
+        "ollama_errors": ollama_errors,
+        "out_path": str(out_path) if out_path else None,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLI entry point
+# ─────────────────────────────────────────────────────────────────────────────
+def main():
+    parser = argparse.ArgumentParser(description="Smart triage labeling pipeline.")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Max unlabeled jobs to process")
+    parser.add_argument("--no-laya", action="store_true",
+                        help="Skip fresh Laya scoring (use stored scores only)")
+    parser.add_argument("--ollama-model", default="qwen2.5:3b",
+                        help="Ollama model name (default: qwen2.5:3b)")
+    parser.add_argument("--no-ollama", action="store_true",
+                        help="Triage only, skip Ollama calls")
+    args = parser.parse_args()
+
+    print("\n" + "=" * 72)
+    print("  SMART LABEL TRIAGE: MatchScorer + Laya -> Triage -> Ollama")
+    print("=" * 72)
+
+    stats = run_triage(
+        limit=args.limit,
+        use_laya=not args.no_laya,
+        use_ollama=not args.no_ollama,
+        ollama_model=args.ollama_model,
+    )
 
     print(f"\n{'=' * 72}")
-    print(f"  Done. {len(suggestions)} suggestions saved -> {out_path.name}")
-    print(f"  Skipped (Ollama error): {skipped}")
-    print(f"  Skipped (OBVIOUS_BAD):  {len(buckets['OBVIOUS_BAD'])}")
-    print(f"\n  [!] These are SUGGESTIONS -- review in app.py before inserting into laya_labels.")
-    print(f"  Run: python scripts/ingest_triage_suggestions.py {out_path.name}")
+    print(f"  Done.  Fetched={stats['fetched']}  Eligible={stats['eligible']}")
+    for bname in ("STRONG_CAND", "CONFLICT", "UNCERTAIN", "OBVIOUS_BAD"):
+        print(f"    {bname:<14}: {stats['buckets'].get(bname, 0)}")
+    print(f"  Ollama suggestions: {stats['suggestions_count']}")
+    print(f"  Ollama errors:      {stats['ollama_errors']}")
+    if stats.get("out_path"):
+        print(f"  File: {stats['out_path']}")
+        print(f"  Review: python scripts/ingest_triage_suggestions.py {stats['out_path']}")
     print("=" * 72 + "\n")
 
 

@@ -144,8 +144,11 @@ def main():
         sys.exit(2)
 
     try:
-        # Run daily pipeline (fetch, normalize, score, feed)
-        stats = run_daily_pipeline()
+        # Run daily pipeline (fetch, normalize, score, triage, feed)
+        stats = run_daily_pipeline(
+            triage_limit=500,
+            triage_use_ollama=False,  # keep scheduled run GPU-free; enable manually for active labeling
+        )
 
         extract_stats = stats.get("extract_stats", {})
         norm_stats = stats.get("norm_stats", {})
