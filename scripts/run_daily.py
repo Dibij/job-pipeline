@@ -30,15 +30,16 @@ logger = logging.getLogger(__name__)
 
 def run_daily_pipeline(
     triage_limit: int = 500,
-    triage_use_ollama: bool = False,
+    triage_use_ollama: bool = True,
     triage_ollama_model: str = "qwen2.5:3b",
 ):
     """Run full daily pipeline.
 
     Args:
         triage_limit:       Max unlabeled jobs to pass to smart triage (default 500).
-        triage_use_ollama:  Call Ollama during triage (default False -- GPU-heavy,
-                            enable manually when you want active-learning suggestions).
+        triage_use_ollama:  Call Ollama during triage (default True -- Ollama is the
+                            main active-learning engine; disable with --no-triage-ollama
+                            if Ollama is not running).
         triage_ollama_model: Ollama model tag (default qwen2.5:3b).
     """
     start_time = time.time()
@@ -130,8 +131,8 @@ def run_daily_pipeline(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the daily job pipeline.")
     parser.add_argument(
-        "--triage-ollama", action="store_true",
-        help="Enable Ollama during triage step (requires Ollama running locally).",
+        "--no-triage-ollama", action="store_true",
+        help="Disable Ollama during triage step (Ollama is ON by default).",
     )
     parser.add_argument(
         "--triage-limit", type=int, default=500,
@@ -145,6 +146,6 @@ if __name__ == "__main__":
 
     run_daily_pipeline(
         triage_limit=args.triage_limit,
-        triage_use_ollama=args.triage_ollama,
+        triage_use_ollama=not args.no_triage_ollama,
         triage_ollama_model=args.ollama_model,
     )

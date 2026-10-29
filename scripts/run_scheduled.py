@@ -2,6 +2,9 @@
 
 Features:
 - File lock prevents overlapping executions.
+- Once-per-day guard: writes a stamp file after a successful run; skips if already
+  ran today. This lets the task fire on every startup/logon (via Task Scheduler
+  AtLogon trigger) and still run at most once per calendar day.
 - Rotating log file handler in logs/scheduled_run.log.
 - Comprehensive error handling with non-zero exit on failure.
 - Records execution run metrics to PostgreSQL source_runs.
@@ -29,6 +32,8 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "scheduled_run.log"
 LOCK_FILE = PROJECT_ROOT / "data" / "pipeline.lock"
 LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+# Stamp file: last successful run date (YYYY-MM-DD). Written after a clean run.
+STAMP_FILE = PROJECT_ROOT / "data" / "last_successful_run.txt"
 
 # Configure rotating file logging
 file_handler = RotatingFileHandler(
@@ -136,6 +141,18 @@ def main():
     logger.info("  STARTING SCHEDULED PIPELINE RUN [%s]", run_id)
     logger.info("=" * 65)
 
+    # --- Once-per-day guard -------------------------------------------
+    # The Task Scheduler trigger fires on every startup/logon. We only
+    # want the pipeline to run once per calendar day (local date). If
+    # the stamp file says we already succeeded today, exit cleanly.
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if STAMP_FILE.exists():
+        last_run = STAMP_FILE.read_text().strip()
+        if last_run == today_str:
+            logger.info("Already ran successfully today (%s). Exiting.", today_str)
+            sys.exit(0)
+    # ------------------------------------------------------------------
+
     try:
         lock.acquire()
         logger.info("Lock acquired on %s", LOCK_FILE)
@@ -147,7 +164,7 @@ def main():
         # Run daily pipeline (fetch, normalize, score, triage, feed)
         stats = run_daily_pipeline(
             triage_limit=500,
-            triage_use_ollama=False,  # keep scheduled run GPU-free; enable manually for active labeling
+            triage_use_ollama=True,   # Ollama is the active-learning engine; always on in scheduled runs
         )
 
         extract_stats = stats.get("extract_stats", {})
@@ -169,6 +186,9 @@ def main():
             skipped=total_skipped,
             error=None,
         )
+
+        # Write success stamp so next startup skips if already ran today
+        STAMP_FILE.write_text(datetime.now().strftime("%Y-%m-%d"))
 
         logger.info("Scheduled pipeline completed successfully in %.1fs", (datetime.now(timezone.utc) - start_time).total_seconds())
         sys.exit(0)
