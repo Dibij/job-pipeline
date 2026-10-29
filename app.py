@@ -19,6 +19,8 @@ import urllib.parse
 import uuid
 from typing import Any
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import re
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
