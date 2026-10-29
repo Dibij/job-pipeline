@@ -6,20 +6,20 @@ This document tracks the calibration and fine-tuning engineering for Laya (Task 
 
 ## 1. Current State
 * **Spike and Scoring Active**: Base checkpoint `convaiinnovations/laya` (ModernBERT-large, 421M params). Inference on CPU takes ~15–20s per full JD (on CUDA RTX 2050 ~40ms).
-* **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql`, `007_labeling_schema.sql`, and `010_laya_labels_gates.sql`) stores human fit labels with full 5-gate audit columns: `(job_id, label, notes, metadata, sampling_stratum, label_guideline_version, gate_failed, workplace_type, country_restriction, seniority, degree_required, years_required, pay_type, tz_overlap_required, labeled_at)`.
-* **Current Human Labeled Dataset (Oct 25 2026)**: **150 distinct jobs** (203 total label events):
-  - `bad_fit`: 150 rows (115 unique jobs)
-  - `maybe`: 22 rows (16 unique jobs)
-  - `good_fit`: 31 rows (19 unique jobs)
-* **In-Browser Labeling Active**: `tools/app.py` writes directly to `laya_labels` via `POST /api/label` with strata `web_ui`, supporting rapid interactive review with 5-gate audit persistence without CSV round-trips.
-* **Scaffolding & Execution Complete**: All pipeline training components are operational:
-  1. `scripts/export_for_labeling.py`: Exports stratified unlabeled batches (`random`, `high_match_scorer`, `laya_uncertainty`), omitting Laya columns to prevent bias.
+* **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql`, `007_labeling_schema.sql`, `010_laya_labels_gates.sql`, `011_widen_label_stratum.sql`, and `012_add_exclude_reason.sql`) stores human fit labels with 5-gate audit columns and explicit `exclude_reason`.
+* **Current Human Labeled Dataset**:
+  - `v2_role_fit_only` (Active standard): **146 distinct jobs** (265 total label events):
+    - `bad_fit`: 200 rows (109 unique jobs)
+    - `maybe`: 55 rows (32 unique jobs)
+    - `good_fit`: 10 rows (5 unique jobs)
+  - Legacy historical labels: 20 distinct `good_fit` jobs across `v1` and `None` guidelines available for re-evaluation under `v2_role_fit_only`.
+* **In-Browser Labeling Active**: `app.py` writes directly to `laya_labels` stamped with `label_guideline_version="v2_role_fit_only"`, supporting rapid interactive review with Feed & Rejected tabs without CSV round-trips.
+* **Scaffolding & Execution Operational**:
+  1. `scripts/make_labeling_batch.py`: Exports balanced batches (70% title-rule score, 30% random) with company historical caps ($\le 5$) stamped `v2_role_fit_only`.
   2. `scripts/ingest_labels.py`: Ingests and validates human labels (`good_fit`, `maybe`, `bad_fit`) without overwriting old records.
-  3. `scripts/calibrate_laya.py`: Fits temperature scaling parameters (Task 7.8a) to calibrate confidence scores. Run `v3` completed on 150 unique jobs.
-  4. `scripts/train_laya.py`: Supervises decision head training with class-weighted CrossEntropy over frozen 1024-dim ModernBERT embeddings. Run `v2` saved to `models/laya_head_v2/`.
-* **Training Gate & Checkpoints**:
-  - Task 7.8a: Completed on 150 unique jobs (`config/laya_temperatures_v3.json`).
-  - Task 7.8b: Checkpoint `models/laya_head_v2/head_weights.pt` and `checkpoint_meta.json` generated. Model trained on 120 jobs, validated on 30 held-out jobs.
+  3. `scripts/train_title_classifier.py`: Trains char n-gram TF-IDF title classifier (`src/matching/title_classifier.py`) providing soft role penalties (+12.7% recall over rigid blocklists, 0.000 FPR on `good_fit`).
+  4. `scripts/train_ranker.py`: Trains production ranker strictly gated on $\ge 150$ v2 labels and $\ge 30$ role-fit `good_fit` positives with bootstrap 95% CIs and ElevenLabs ablation.
+  5. `scripts/report_labels.py`: Comprehensive audit script reporting source yield, stratum yield, gate checks, and comparative model metrics (precision@10, recall@10, recall@20, PR-AUC).
 
 
 
@@ -117,16 +117,24 @@ The ~10% `good_fit` rate is a **property of the data sources** (Arbeitnow, Remot
 - May be rebalanced using class weights or by downsampling `bad_fit`.
 - The **held-out fold** within 7.8b is never rebalanced -- same rule as the MEASURE set.
 
-### 6.3 Label Definitions
-> **DRAFT -- needs confirmation against `cv_profile.json` before use. Label guideline version: `v1-draft`.**
+### 6.3 Label Definitions: `v2_role_fit_only`
+> **CANONICAL STANDARD: All current and future labels are stamped `label_guideline_version="v2_role_fit_only"`.**
 
-| Label | Meaning |
-|-------|---------|
-| `good_fit` | Role matches candidate tech stack, is junior/mid level, is accessible from Nepal (remote-worldwide or Nepal-based), and is a paid position. |
-| `maybe` | Borderline -- one of the above criteria is unclear, seniority is ambiguous, or key details are missing. |
-| `bad_fit` | Senior-required, wrong primary language, US/EU/specific-country only, unpaid, or entirely non-technical. |
+#### Core Design Principle
+- **Facts about a job are RULES**: Unpaid status, language, remote/region locks, minimum years required, and extreme seniority words are handled deterministically by `HardFilter` rules (`src/matching/eligibility.py`).
+- **Judgments about whether a job suits me are LEARNED from my labels**: Role fit asks only: *"Does this kind of technical work and level suit me?"*
+- **Ignore location, work authorization, and years-required**: These are handled upstream by filters. Do not reject a job for being US-only or requiring 5 years of experience if the actual work is an ideal junior developer role.
 
-Each label row must include a `label_guideline_version` (stored in `metadata`) and the `labeled_at` timestamp already stored by the DB.
+| Label | Canonical Meaning under `v2_role_fit_only` |
+|---|---|
+| `good_fit` | The role, stack, and day-to-day work suit me (e.g. junior/entry/mid Python, AI/ML, backend, frontend, full-stack, data engineering). |
+| `maybe` | Borderline work fit: partial stack overlap, ambiguous technical scope, or adjacent engineering domain. |
+| `bad_fit` | Work does not suit me: pure management/director roles, non-technical positions (sales, recruiting, copywriter, customer support), or irrelevant technical domains (e.g. senior mainframe COBOL, hardware firmware). |
+
+#### Strict Label Hygiene Rules
+- **Exactly Three Classes**: Every label must be exactly `good_fit`, `maybe`, or `bad_fit`.
+- **Never add a fourth class**: Never use `drop`, `unknown`, `blank`, or `unusable` as label values.
+- **Exclusion Mechanism**: Unusable rows (e.g. corrupted text, unparseable HN comments, non-junior ATS boards) are flagged via the `exclude_reason` column (Migration 012), never by inventing a label. Excluded rows are omitted from training datasets.
 
 ### 6.4 Labeling Hygiene Rules
 - Every label comes from the human labeler. Accepting Laya's output as a default is **not allowed**.
@@ -202,15 +210,21 @@ After 7.8a:
 
 ## 9. Milestones & Training Roadmap
 
-With 4,596 jobs now across 8 active sources and 130 distinct jobs labeled, we are approaching the final fine-tuning gate:
+With 4,596 jobs across 8 active sources and 146 distinct jobs labeled under `v2_role_fit_only`:
 
 | Milestone | Target | Requirements | Status | Unlocks |
 |-----------|--------|--------------|:------:|---------|
-| **M1** | All deduplicated survivors labeled (~60–80 jobs) | Random stratum included; labels complete for current stream | **COMPLETED** | Provisional 7.8a calibration re-run; initial ranking report |
-| **M2** | ~150 labels | Onboarded ATS, Jobicy, WWR, Remote OK | **IN PROGRESS** (130 / 150 unique jobs) | Stratified cross-validation splits and evaluation harness |
-| **M3** | Decision Head Fine-Tuning | $\ge 150$ unique jobs AND $\ge 30$ `good_fit` positives | **19 / 30 positives** (Needs 11 more) | Unlocks `scripts/train_laya.py` for model head fine-tuning |
+| **M1** | Baseline Calibration & Evaluation | Random + High-Match strata labeled | **COMPLETED** | Temperature calibration `v3` (`config/laya_temperatures_v3.json`) |
+| **M2** | Total v2 Labels Gate | $\ge 150$ distinct jobs with `v2_role_fit_only` | **146 / 150** (4 away) | Stratified cross-validation splits and ranker evaluation |
+| **M3** | Production Ranker Training Gate | $\ge 150$ unique v2 jobs AND $\ge 30$ role-fit `good_fit` | **5 / 30 positives** (Needs 25 more; 20 legacy available to review) | Unlocks `scripts/train_ranker.py` and `scripts/train_laya.py` |
 
-> **Training Readiness**:
-> `scripts/train_laya.py` gates strictly on `min_positive_labels = 30` and `min_total_labels = 150`.
-> As soon as 11 more positive (`good_fit`) jobs are labeled in `http://localhost:5000` (or imported via `scripts/import_manual_jobs.py`), the safeguard will clear and Laya decision heads can be fine-tuned.
+> **Training Readiness & Safety Gates Enforced**:
+> `scripts/train_ranker.py` and `scripts/train_laya.py` strictly refuse to train or evaluate ranker models if:
+> 1. Total `v2_role_fit_only` unexcluded labels $< 150$.
+> 2. Total role-fit `good_fit` labels $< 30$.
+> 3. Any cross-validation fold contains fewer than 3 positive cases (`fold guard`).
+>
+> **Promotion Rule**: The learned ranker replaces the rule baseline only if its out-of-fold lower 95% bootstrap CI exceeds 0.70 AND outperforms the title-rule baseline by $\ge 0.05$ AUC.
+>
+> Re-evaluating the 20 legacy `good_fit` roles in `app.py` under the `v2_role_fit_only` definition, combined with reviewing fresh postings from the 10 verified ATS boards, will promptly clear the gate.
 

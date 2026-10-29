@@ -51,10 +51,16 @@ Filters `jobs.json` by region, salary, tech tags, or keywords, and outputs a for
 
 ---
 
-### 3. `app.py` — Local Web Dashboard
-A single-command, interactive local web server providing a visual dashboard to browse and filter jobs from your browser.
+### 3. `tools/app.py` — Offline Standalone Viewer (Prototype)
+A lightweight offline web server providing a visual dashboard to browse and filter offline jobs from `tools/jobs.json`.
 
-* **Command:**
+> [!NOTE]
+> For the **production database feedback dashboard** with the Feed and Rejected tabs, 5-gate HardFilter inspector, and live `v2_role_fit_only` PostgreSQL labeling, run the root application:
+> ```powershell
+> python D:\Code\Job\app.py
+> ```
+
+* **Command for offline viewer:**
   ```powershell
   python D:\Code\Job\tools\app.py
   ```
@@ -71,12 +77,22 @@ A single-command, interactive local web server providing a visual dashboard to b
 
 ## 🚀 Quick Start Workflow
 
+### Offline Standalone Utilities:
 ```powershell
-# Step 1: Refresh job listings from public APIs
+# Step 1: Refresh offline job listings from public APIs
 python D:\Code\Job\tools\fetch_jobs.py
 
-# Step 2: Launch your local visual dashboard
+# Step 2: Launch offline visual viewer
 python D:\Code\Job\tools\app.py
 
 # Step 3: Open http://localhost:5000 in your browser to inspect listings!
+```
+
+### Production Database Pipeline & Feedback Loop:
+```powershell
+# Run the daily ingestion, scoring & feed update
+python scripts/run_daily.py
+
+# Launch the production interactive feedback app (PostgreSQL backed)
+python app.py
 ```

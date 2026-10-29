@@ -14,23 +14,34 @@ A modular data engineering pipeline that aggregates messy job listings from mult
   - **Gate 5 (Skill Fit)**: Ranks match against Python/ML, Django, React/Next.js, Flutter, and SQL stack.
 - **Zero-Scraping Policy for Nepal**: Strictly respects ToS and legal prohibitions on scraping local job boards (Merojob, Kumarijob, etc.). Local listings enter exclusively through manual JSON/CSV imports via `scripts/import_manual_jobs.py` (`source = 'manual:nepal'`).
 - **Deduplicate**: SHA-256 content hashing collapses identical postings cross-posted across platforms.
-- **Match**: Weighted rule-based ranking (MatchScorer) and Laya neural scorer (`convaiinnovations/laya`, ModernBERT-large).
-- **Output**: Daily markdown digest (`FEED.md`), interactive CLI review tool, and local web dashboard.
-- **Labeling & Calibration**: Human-labeled dataset in `laya_labels` (PostgreSQL) with 5-gate audit schema (migration 010). Strategy, evaluation protocol, and milestones documented in [`TRAINING.md`](TRAINING.md).
+- **Match & Role Classification**:
+  - Rule-based weighted ranking (`MatchScorer`) with skill-requirement focusing.
+  - Learned title role-type classifier (`src/matching/title_classifier.py`): Char n-gram TF-IDF + LogisticRegression providing calibrated soft penalties (+12.7% recall over rigid keyword blocklists, 0.000 FPR on `good_fit`).
+  - Laya neural scorer (`convaiinnovations/laya`, ModernBERT-large) with temperature calibration.
+- **Output & Automation**:
+  - Daily markdown digest (`FEED.md`), interactive CLI review tool, and browser dashboard (`app.py`).
+  - Automated execution via `scripts/run_scheduled.py` with file locking (`data/pipeline.lock`), rotating logs, and Windows Task Scheduler / Docker runners.
+- **Labeling & Training Gates**:
+  - Human-labeled dataset in `laya_labels` (PostgreSQL) stamped strictly with `label_guideline_version="v2_role_fit_only"`.
+  - Enforced training gates: Refuses to train rankers when $< 150$ v2 labels or $< 30$ role-fit `good_fit` positives, protecting against overfitting on tiny positive splits. Strategy documented in [`TRAINING.md`](TRAINING.md).
 
 
 ## ⚡ Quick Commands Cheatsheet
 
 | Task | PowerShell Command | Note |
 | :--- | :--- | :--- |
-| **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe tools/app.py` | Open **http://localhost:5000** in browser |
+| **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe app.py` | Open **http://localhost:5000** in browser (Feed & Rejected tabs, live labeling) |
 | **🚀 Generate FEED.md** | `& .\.venv\Scripts\python.exe scripts/export_feed.py` | Exports top matched jobs to `FEED.md` |
 | **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → Update FEED.md |
+| **⏰ Run Scheduled Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_scheduled.py` | Wrapper with `pipeline.lock`, rotating log, telemetry |
+| **📦 Make Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/make_labeling_batch.py --batch-size 30` | 70% title-rule / 30% random, capped by company, v2 stamped |
+| **🏷️ Label Audit Report** | `& .\.venv\Scripts\python.exe scripts/report_labels.py` | Full yield by source/stratum & gate progress report (Task 7.9) |
+| **🔤 Train Title Classifier** | `& .\.venv\Scripts\python.exe scripts/train_title_classifier.py` | Char n-gram TF-IDF title classifier (0.872 recall, 0 FPR) |
+| **🎯 Train Production Ranker** | `& .\.venv\Scripts\python.exe scripts/train_ranker.py` | Gated on >=150 v2 labels & >=30 good_fit with bootstrap CI |
 | **🇳🇵 Manual Nepal Import** | `& .\.venv\Scripts\python.exe scripts/import_manual_jobs.py -f jobs.json` | Ingests user-supplied JSON/CSV (NO web scraping) |
 | **📋 Interactive CLI Review** | `& .\.venv\Scripts\python.exe scripts/review_jobs.py` | Review jobs (`y/n/s/q`), saves to `data/reviewed_jobs.json` |
-| **📥 Export Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/export_for_labeling.py --no-rescore --batch-size 30` | Creates `data/labeling_batch_YYYYMMDD.csv` |
 | **📤 Ingest Human Labels** | `& .\.venv\Scripts\python.exe scripts/ingest_labels.py data/labeling_batch_YYYYMMDD.csv` | Ingests CSV into `laya_labels` in Postgres |
-| **🎯 Calibrate Laya** | `& .\.venv\Scripts\python.exe scripts/calibrate_laya.py --version v1` | Fits temperature scaling on human labels |
+| **🎯 Calibrate Laya** | `& .\.venv\Scripts\python.exe scripts/calibrate_laya.py --version v3` | Fits temperature scaling on human labels |
 | **📈 Pipeline Funnel Report** | `& .\.venv\Scripts\python.exe scripts/funnel_report.py --days 7` | Source-level funnel stats (fetched → new → passed HF → scored ≥60) |
 | **🧪 ATS Yield Dry-Run** | `& .\.venv\Scripts\python.exe scripts/dry_run_yield_test.py` | In-memory yield test across 10 company ATS boards (no DB writes) |
 
@@ -38,18 +49,18 @@ A modular data engineering pipeline that aggregates messy job listings from mult
 
 ## 🌐 Local Web Dashboard & In-Browser Labeling
 
-Launch the live visual web interface backed directly by your local PostgreSQL database (2,609 jobs across 7 active sources):
+Launch the live visual web interface backed directly by your local PostgreSQL database (4,596 jobs across 8 active sources):
 
 ```powershell
-& .\.venv\Scripts\python.exe tools/app.py
+& .\.venv\Scripts\python.exe app.py
 ```
 
 Then open **[http://localhost:5000](http://localhost:5000)** in your browser.
 
-- **In-Browser Labeling & Rating**: Label jobs directly (`Good Fit`, `Maybe`, `Bad Fit`), rate with 1–5 stars, and save notes without touching Excel or CSV exports.
-- **Reachability & Clean Filters**: Filter by Nepal accessibility (90 accessible, 218 unknown, 2,301 blocked), seniority, language, and `⚡ Unlabeled Only`.
-- **Live Search & Tags**: Filter by keyword, tech stack tag (`Python`, `Django`, `React`, `AI`), and remote accessibility.
-- Interactive "Apply Now ↗" buttons link directly to original listings.
+- **Feed Tab**: Top passing jobs pre-ranked by title-rule score, showing MatchScorer points, tech role probability, and direct application links.
+- **Rejected Tab**: Full transparency into HardFilter decisions. Filterable by failure reason (`TOO_SENIOR`, `DEGREE_OR_EXP`, `REGION_LOCKED`, `NOT_REMOTE`, `NON_ENGLISH`, `NON_TECHNICAL`) with the exact snippet that triggered disqualification.
+- **Immediate Feedback Loop**: Label any job (`Good Fit`, `Maybe`, `Bad Fit`), enter a free-text fit reason, and check "Wrongly filtered" for false positives. Every label writes instantly to PostgreSQL `laya_labels` stamped `label_guideline_version="v2_role_fit_only"`.
+- **Live Header**: Displays last pipeline run time, 24h new jobs, active model version, and real-time progress toward the 150/30 ranker training gate (with stale run warning if > 36 hours).
 
 
 ## 📊 Database CLI Commands

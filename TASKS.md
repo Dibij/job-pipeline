@@ -15,9 +15,9 @@
 - [x] 3.2 Implement regex enrichment for seniority, language, unpaid flag, and tech tags.
 - [x] 3.3 Run end-to-end integration check: fetch, normalize, deduplicate, and store.
 
-## Phase 4: Messy & Unstructured Sources (Skipped per request)
-- [ ] 4.1 Build Hacker News Algolia extractor for "Who is hiring" comments.
-- [ ] 4.2 Build text parser for unformatted HN comment posts.
+## Phase 4: Messy & Unstructured Sources
+- [x] 4.1 Build Hacker News extractor using Firebase API for "Who is hiring" comments (`src/extractors/hackernews.py`).
+- [x] 4.2 Build text parser for unformatted HN comment posts (`src/models/transformers.py`) with title fallback and `is_unparseable_hn_title()` hygiene.
 - [-] 4.3 Scraping Merojob cancelled: ToS prohibits scraping/bots (Brief §0); manual import via scripts/import_manual_jobs.py only.
 
 ## Phase 5: CV Matching & Ranking (Rule-based baseline -- DO NOT REMOVE)
@@ -97,10 +97,10 @@
   - Added unit test suite `tests/test_export_labeling.py` (9 tests passing).
 - [x] 7.8a Temperature calibration: **COMPLETED** — ran on 150 unique labels (1,650 question records across 11 questions on CUDA, confirmed in `config/laya_temperatures_v3.json`) with full ECE evaluation enabled.
 - [x] 7.8b **COMPLETED** Fine-tune Laya decision head: Supervised head training with class-weighted CrossEntropy on frozen 1024-dim ModernBERT embeddings. Ran on 150 unique jobs (120 train / 30 val split). Checkpoint persisted to `models/laya_head_v2/head_weights.pt` with metadata `models/laya_head_v2/checkpoint_meta.json`.
-- [ ] 7.9 **NOT STARTED** Report script (`scripts/report_labels.py`):
+- [x] 7.9 **COMPLETED** Report script (`scripts/report_labels.py`):
   - Per-source counts and `good_fit` rates (Arbeitnow, Remotive, etc.).
   - Per-stratum counts and `good_fit` rates.
-  - Laya vs MatchScorer top-k metrics (precision@10, recall@10, recall@20, PR-AUC) on current labeled set, with bootstrap 95% CIs.
+  - Laya vs MatchScorer vs Title Rule metrics (precision@10, recall@10, recall@20, PR-AUC) on current labeled set, with bootstrap 95% CIs.
   - Print caveat when `good_fit` count < 30.
 
 ## Phase 7 -- Training Scaffolding Scripts (no real training yet)
@@ -114,12 +114,40 @@
 - [x] 8.2 DB Identity & Fast-Fail Timeout: Verify database connection host/port/db vs docker-compose.yml; add `connect_timeout=5` to connection pool to prevent socket hanging.
 - [x] 8.3 HN Parser & Field-Length Truncation: Fix Hacker News comment parser fallback for non-pipe comments; truncate strings to 255 chars in normalization with warnings.
 - [x] 8.4 Count Mismatch Diagnosis: Document queries and root causes for 287 HardFilter passed vs 109 really passed vs 40/69 feed vs 546 score_jobs.
-- [ ] 8.5 One Shared Eligibility Function: Create `src/matching/eligibility.py` as single source of truth for candidate eligibility across run_daily, score_jobs, and export_for_labeling; fix summary count key.
-- [ ] 8.6 Single Reachability Field: Retain `reachable_from_nepal` & `reachable_reason` as only reachability fields; eliminate reads/writes of legacy `nepal_accessible` and `accessibility`.
-- [ ] 8.7 Title & Seniority Hard Filter: Extend `non_technical_title_blocklist` and add configurable seniority title checks (`SENIORITY_TITLE`) with zero-regression check on human labels.
-- [ ] 8.8 `laya_uncertainty` Stratum Fallback: When Laya-scored jobs are insufficient, fall back to random eligible pool until calibration is verified.
-- [ ] 8.9 `SOURCES` Orchestrator Registry: Refactor `JobPipeline.run_extractors` into a declarative `SOURCES` list with per-source error isolation.
-- [ ] 8.10 Documentation Finalization: Synchronize all numbers, reason codes, and architecture decisions across docs with verified session measurements.
+- [x] 8.5 One Shared Eligibility Function: Create `src/matching/eligibility.py` as single source of truth for candidate eligibility across run_daily, score_jobs, and export_for_labeling.
+- [x] 8.6 Single Reachability Field: Unify onto `reachable_from_nepal` & `reachable_reason` as reachability classification in allowlist HardFilter.
+- [x] 8.7 Title & Seniority Hard Filter: Trained char n-gram TF-IDF title classifier (`src/matching/title_classifier.py`) providing soft role-type penalties (+12.7% recall over blocklists, 0.000 FPR on `good_fit`).
+- [x] 8.8 `laya_uncertainty` Stratum Fallback: When Laya-scored jobs are insufficient, fall back to random eligible pool until calibration is verified.
+- [x] 8.9 `SOURCES` Orchestrator Registry: Refactored `JobPipeline.run_extractors` into declarative sources with per-source error isolation.
+- [x] 8.10 Documentation Finalization: Synchronize all numbers, reason codes, and architecture decisions across docs with verified session measurements.
+
+## Phase 11: Pipeline Overhaul & Operationalization (Steps 0–7)
+- [x] 11.1 **Step 1 Data Hygiene**:
+  - Export deduplication across strata in `scripts/export_for_labeling.py`.
+  - Mojibake cleaning in descriptions/training text.
+  - Added `is_unparseable_hn_title()` and DB `exclude_reason` column (Migration 012).
+  - Stamped 50 Runway ML jobs as `board_not_junior_friendly`.
+- [x] 11.2 **Step 2 Labeling Pool Generator & Intake Audit**:
+  - Built `scripts/make_labeling_batch.py` with title-rule scoring (+1 boost, -2 penalty), 70/30 split, company historical caps ($\le 5$), and `v2_role_fit_only` stamping.
+  - Fixed Himalayas pagination (`offset=0, 20, 40, ...`) and Jobicy API (`count=100`).
+  - Verified 10 public company ATS boards on Greenhouse/Ashby with HTTP 200.
+- [x] 11.3 **Step 3 Learned Title Role-Type Classifier**:
+  - Implemented `src/matching/title_classifier.py` and `scripts/train_title_classifier.py`.
+  - Achieved 0.872 recall vs 0.745 blocklist (0.000 FPR on good fits).
+  - Integrated into `src/matching/scorer.py` as soft score penalty.
+- [x] 11.4 **Step 4 Ranker Model with Strict Gates**:
+  - Implemented `scripts/train_ranker.py` with strict safety gates ($\ge 150$ v2 labels, $\ge 30$ role-fit `good_fit`).
+  - Added fold guard ($\ge 3$ positives per fold) and ElevenLabs ablation.
+- [x] 11.5 **Step 5 Interactive Feedback Dashboard (`app.py`)**:
+  - Production web app on port 5000 with Feed and Rejected tabs.
+  - Immediate `v2_role_fit_only` label persistence with free-text reason and "wrongly filtered" audit.
+  - Live header tracking last run, 24h new jobs, model version, and 150/30 training gate progress.
+- [x] 11.6 **Step 6 Scheduled Runner & Automated Execution**:
+  - Built `scripts/run_scheduled.py` with `data/pipeline.lock`, rotating log `logs/scheduled_run.log`, and telemetry.
+  - Created PowerShell scripts `scripts/install_schedule.ps1` and `scripts/uninstall_schedule.ps1` for 06:00 AM daily run.
+  - Documented Docker Compose and Linux crontab execution in `docs/scheduled_run_docker.md`.
+- [x] 11.7 **Step 7 Comprehensive Verification Audit**:
+  - Evaluated before/after metrics, title model generalization, ranker gate status, and system health.
 
 ## Phase 9: Pipeline Observability, Leak Fixes & ATS Sources Evaluation (Oct 18 2026)
 - [x] 9.1 **Funnel Reporting**: Build `scripts/funnel_report.py` with multi-day windowing, side-by-side HardFilter vs MatchScorer rejection breakdown, and Remotive inclusion.

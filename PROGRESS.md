@@ -4,12 +4,17 @@
 
 | Task | PowerShell Command | Note |
 | :--- | :--- | :--- |
-| **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe tools/app.py` | Open **http://localhost:5000** in browser |
+| **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe app.py` | Open **http://localhost:5000** in browser (Feed & Rejected tabs, live labeling) |
 | **🚀 Generate FEED.md** | `& .\.venv\Scripts\python.exe scripts/export_feed.py` | Exports top matched jobs to `FEED.md` |
 | **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → Update FEED.md |
+| **⏰ Run Scheduled Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_scheduled.py` | Wrapper with `pipeline.lock`, rotating log, telemetry |
+| **📦 Make Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/make_labeling_batch.py --batch-size 30` | 70% title-rule / 30% random, capped by company, v2 stamped |
+| **🏷️ Label Audit Report** | `& .\.venv\Scripts\python.exe scripts/report_labels.py` | Full yield by source/stratum & gate progress report (Task 7.9) |
+| **🔤 Train Title Classifier** | `& .\.venv\Scripts\python.exe scripts/train_title_classifier.py` | Char n-gram TF-IDF title classifier (0.872 recall, 0 FPR) |
+| **🎯 Train Production Ranker** | `& .\.venv\Scripts\python.exe scripts/train_ranker.py` | Gated on >=150 v2 labels & >=30 good_fit with bootstrap CI |
 | **🧠 Score Jobs with Laya** | `& .\.venv\Scripts\python.exe scripts/score_jobs.py` | Batch scores eligible jobs using Laya neural decision engine |
 | **📋 Interactive CLI Review** | `& .\.venv\Scripts\python.exe scripts/review_jobs.py` | Review jobs (`y/n/s/q`), saves to `data/reviewed_jobs.json` |
-| **📥 Export Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/export_for_labeling.py --no-rescore --batch-size 30` | Creates `data/labeling_batch_YYYYMMDD.csv` |
+| **📥 Export Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/export_for_labeling.py --no-rescore --batch-size 30` | Legacy 3-stratum exporter |
 | **📤 Ingest Human Labels** | `& .\.venv\Scripts\python.exe scripts/ingest_labels.py data/labeling_batch_YYYYMMDD.csv` | Ingests CSV into `laya_labels` in Postgres |
 | **📦 Export Labeled Datasets** | `& .\.venv\Scripts\python.exe scripts/export_labeled_descriptions.py` | Exports bookkeeping and clean training JSONL |
 | **📊 5-Fold GroupKFold Splits** | `& .\.venv\Scripts\python.exe scripts/make_splits.py` | Generates 5 company-stratified cross-val folds in `data/splits/` |
@@ -24,69 +29,51 @@
 
 ---
 
-## Current State (Oct 19 2026)
+## Current State (Late Oct 2026)
 
 ### Infrastructure & Sources
-- Phase 1 through Phase 6, Phase 9, and Phase 10 complete.
+- Phase 1 through Phase 6, Phase 9, Phase 10, and Phase 11 (Overhaul Steps 0–7) complete.
 - **Candidate Sources Built & Ingested**: 4,596 unique jobs in PostgreSQL across 8 sources (Arbeitnow, Remote OK, We Work Remotely, Jobicy, Hacker News, Himalayas, Remotive, ATS Boards).
-- **Five-Gate Allowlist HardFilter Active**: Disqualifies non-remote foreign jobs (`NOT_REMOTE`), region locks outside Nepal (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`), senior roles (`TOO_SENIOR`), and hard degree / 3+ year experience requirements (`DEGREE_OR_EXP`).
+- **Five-Gate Allowlist HardFilter & Eligibility Active**: Disqualifies non-remote foreign jobs (`NOT_REMOTE`), region locks outside Nepal (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`), senior roles (`TOO_SENIOR`), and hard degree / 3+ year experience requirements (`DEGREE_OR_EXP`). Unified through `src/matching/eligibility.py`.
 - **OpenAI Leak Purged**: 0 OpenAI jobs in `job_matches`. All 571 stored OpenAI jobs disqualified due to SF/NYC hybrid presence.
 - **Zero-Scraping Nepal Ingestion**: Built `scripts/import_manual_jobs.py` for candidate JSON/CSV imports. Zero web scraping of Nepali sites.
-- **In-Browser Labeling Dashboard (`tools/app.py`)**: Persists 5-gate audit schema (`gate_failed`, `workplace_type`, `country_restriction`, `seniority`, `degree_required`, `years_required`, `pay_type`, `tz_overlap_required`) via migration 010.
-- CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed. Test suite: **150 passing tests**.
+- **In-Browser Feedback Dashboard (`app.py`)**: Root application providing Feed tab (ranked by title-rule score), Rejected tab (grouped by failure reason with trigger snippet), live labeling (`good_fit`, `maybe`, `bad_fit`, free text notes, "wrongly filtered" checkbox) writing directly to PostgreSQL `laya_labels` stamped with `label_guideline_version="v2_role_fit_only"`, and live training gate progress tracking.
+- **Automation & Scheduling**: `scripts/run_scheduled.py` daily runner protected by `data/pipeline.lock`, rotating log in `logs/scheduled_run.log`, recording to `source_runs`. Supported via Windows Task Scheduler (`scripts/install_schedule.ps1`) and Docker/Linux crontab (`docs/scheduled_run_docker.md`).
+- CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed. Test suite: **168+ passing tests**.
+- **Applied Migrations**: All 12 migrations applied up to `011_widen_label_stratum.sql` and `012_add_exclude_reason.sql`.
 
-### Labeling & Model Training (as of Oct 25 2026)
-150 distinct human-labeled jobs (203 total label events) in `laya_labels`:
+### Labeling & Model Training Status
+Human-labeled data in `laya_labels` (as reported by `scripts/report_labels.py`):
 
-| Label | Count (Total Rows) | Unique Jobs |
-|-------|-------|---|
-| `bad_fit` | 150 | 115 |
-| `maybe` | 22 | 16 |
-| `good_fit` | 31 | 19 |
-| **Total** | **203** | **150** |
+| Guideline Version | Label | Rows | Distinct Jobs |
+|---|---|---|---|
+| `v2_role_fit_only` | `bad_fit` | 200 | 109 |
+| `v2_role_fit_only` | `maybe` | 55 | 32 |
+| `v2_role_fit_only` | `good_fit` | 10 | 5 |
+| **v2 Subtotal** | | **265** | **146** |
+| `v1` (legacy definition) | `bad_fit` / `maybe` / `good_fit` | 108 | 73 (8 good_fit) |
+| `v2` (pre-overhaul) | `bad_fit` / `good_fit` | 9 | 9 (6 good_fit) |
+| `None` (legacy draft) | `bad_fit` / `maybe` / `good_fit` | 86 | 69 (6 good_fit) |
 
-- **Milestone Unlocked & Completed**:
-  - **Task 7.8a Temperature Calibration (`v3`)**: Completed on 150 unique jobs (1,650 question records) on CUDA with full ECE evaluation enabled (`config/laya_temperatures_v3.json`).
-  - **Task 7.8b Decision Head Fine-Tuning (`v2`)**: Implemented full PyTorch neural decision head atop frozen ModernBERT-large (1024-dim representations) with class-weighted CrossEntropy and 120/30 train-val split. Checkpoint saved to `models/laya_head_v2/head_weights.pt` with metadata in `models/laya_head_v2/checkpoint_meta.json`.
-  - **Regression Test Suite**: 150 passed in 15.6s.
-
-### Evaluation & Inference Latency Note (`evaluate_scorers.py`)
-- Running `scripts/evaluate_scorers.py` evaluates labeled jobs through rule-based `MatchScorer` and neural `LayaScorer`.
-- On CPU, Laya inference requires ~15–20 seconds per job description.
-- Running on CUDA (`device="cuda"`) reduces this to ~40ms per job.
-
-The ~11% `good_fit` rate reflects the source bias (Arbeitnow, Remotive skew senior/US/EU). This is not a labeling error.
-
-### Key Decisions Recorded (Oct 10-19 2026)
-See `TRAINING.md` for full rationale. Summary:
-
-1. **Default-Deny Allowlist**: Jobs are blocked by default unless explicitly tagged Worldwide, Global, Anywhere, APAC, South Asia, or Nepal.
-2. **Two datasets**: MEASURE/CALIBRATE set preserves natural distribution (never rebalanced). TRAIN set (7.8b only, train split only) may be rebalanced.
-3. **Training gated on both** total labels >= 150 AND `good_fit` >= 30 (`min_positive_labels`, configurable, default 30).
-4. **Binary primary view**: `good_fit` vs not. `maybe` = not good_fit. 3-class view reported as secondary.
-5. **Evaluation**: repeated stratified grouped k-fold; metrics are precision@k, recall@k, PR-AUC with bootstrap CIs. Primary metric is `recall@20`. Never report raw accuracy.
-6. **Labeling queue strata**: 40% random, 30% high MatchScorer, 30% Laya-uncertainty (last stratum deferred until 7.8a calibration is done).
-6. **No uncalibrated Laya gating**: raw probabilities (~0.10-0.26) are stored only; never used to discard jobs or decide labeling priority.
-7. **Label hygiene**: Laya columns must be hidden from the export CSV; accepting Laya's suggestion is not allowed. `label_guideline_version` must be recorded per row.
-8. **`noul` correction**: it is Laya's boolean primitive (P(yes)), not a nuance/variance signal. Checkpoint is uncalibrated until 7.8a; never call outputs "calibrated confidence" before that.
+- **Training Gates**:
+  - `scripts/train_ranker.py` and `scripts/train_laya.py` enforce strict safety gates: $\ge 150$ total v2 labels AND $\ge 30$ role-fit `good_fit` positives.
+  - Current status: **146 / 150 v2 labels** (4 away), **5 / 30 role-fit `good_fit` labels**.
+  - There are 20 historical `good_fit` jobs across legacy guidelines that can be re-evaluated under `v2_role_fit_only` in `app.py`.
+- **Learned Title Role-Type Classifier (`src/matching/title_classifier.py`)**:
+  - Char n-gram (3-5) TF-IDF + LogisticRegression trained on weak + human labels.
+  - Evaluated via 5-fold Grouped CV: achieved **0.872 recall** vs Blocklist **0.745 recall** (+12.7% recall improvement) with **0.000 FPR on `good_fit`** (0 good_fit killed).
+  - Integrated as soft score penalty (`get_title_role_penalty()`) in `src/matching/scorer.py`.
 
 ---
 
-## What's Broken / Incomplete (Phase 8 Issues from tmp/4.txt)
-- **DB Connection Timeout**: Pipeline lacks fast-fail on database connection (`connect_timeout=5`); when Docker Desktop is stopped, `run_daily.py` hangs for 4 minutes before failing with socket timeout.
-- **Hacker News Field-Length Parser Bug**: Comments lacking a clear "Company | Role | Location" header (e.g., #49924674) overflow the 255-character `VARCHAR(255)` constraint on `title`/`company_name`. Needs fallback title and string truncation to 255 chars in normalization.
-- **Eligibility Discrepancy (98 vs 161, 287 vs 546)**:
-  - `score_jobs.py` queries `WHERE detected_language = 'english' AND nepal_accessible = true` (546 jobs).
-  - `export_for_labeling.py` queries `WHERE accessibility IN ('ACCESSIBLE', 'UNKNOWN')` (267 jobs).
-  - Neither script executes `HardFilter`, leaking ITAR defense roles (e.g. Swarmaero), US-citizen-only restrictions, and non-technical jobs (e.g. Account Executives) into Laya scoring and the labeling queue.
-  - Solution: Create one shared `src/matching/eligibility.py` module backed by `HardFilter.apply`.
-- **Reachability Field Fragmentation**: Codebase reads from legacy `nepal_accessible` and `accessibility` columns alongside `reachable_from_nepal` & `reachable_reason`. Must unify onto `reachable_from_nepal` as single source of truth.
-- **Title & Seniority Gaps**: Out-of-range senior titles (Senior, Staff, Principal, Lead, VP, Director) and non-engineering titles (Recruiter, Sourcer, FP&A, Accounts Payable) pass through to scoring unless explicitly caught.
-- **`laya_uncertainty` Export Stratum**: Picks senior, score-0 jobs because Laya is not yet calibrated. Must fall back to the random pool until calibration is verified.
-- **Orchestrator Code Duplication**: `JobPipeline.run_extractors` repeats per-source try/except blocks; must be refactored into a declarative `SOURCES` registry with per-source error isolation.
-- **7.8a PROVISIONAL**: Calibration ran on 103 unique labeled jobs (1,133 records). ECE evaluation skipped until M1 (150 labels).
-- **Task 7.8b BLOCKED**: Needs M3 (150+ labels, 30+ `good_fit`).
-- **Task 7.9 NOT STARTED**: Report script (`scripts/report_labels.py`).
+## Resolved Architectural Items (Phase 8 & 11)
+- **DB Connection Timeout**: Fixed `connect_timeout=5` in connection pool to prevent socket hanging when DB is stopped.
+- **Hacker News Field-Length & Non-Pipe Parser**: Fixed in `src/models/transformers.py` via `is_unparseable_hn_title()`; records with location/timezone titles or missing pipes are stamped `exclude_reason="unparseable_title"`.
+- **Shared Eligibility Module (Task 8.5)**: Implemented in `src/matching/eligibility.py` wrapping `HardFilter.apply()` and `exclude_reason` checks.
+- **Labeling Report Script (Task 7.9)**: Implemented in `scripts/report_labels.py` providing source yield, stratum yield, gate checks, and bootstrap 95% CI ranking metrics.
+- **Mojibake Cleaning**: Resolved mojibake artifacts (`Â `, smart quotes, non-breaking spaces) in `src/models/transformers.py` and `scripts/export_labeled_descriptions.py`.
+- **Batch Pool Generator**: Implemented in `scripts/make_labeling_batch.py` with title-rule scoring, 70/30 rule-random split, company caps, and `v2_role_fit_only` stamping.
+- **Title Seniority Filter**: Upgraded from rigid keyword blocklists to learned char n-gram TF-IDF title classifier with soft penalties, preventing false positive kills on technical support/reviewer roles.
 
 ---
 
@@ -284,22 +271,37 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
 - **Audit Schema Migration 010**: Added `gate_failed`, `workplace_type`, `country_restriction`, `seniority`, `degree_required`, `years_required`, `pay_type`, and `tz_overlap_required` to `laya_labels`. Updated `tools/app.py` to persist all audit fields.
 - **Test Suite**: 150 passing tests.
 
+### 8. Phase 11: Pipeline Overhaul & Operationalization (Late Oct 2026)
+- **Step 1: Data Hygiene Prerequisites** (Commit `be83c9d`):
+  - Cross-strata deduplication in `scripts/export_for_labeling.py` preventing duplicate `job_id` exports across random, match scorer, and uncertainty strata.
+  - Mojibake cleaning in `src/models/transformers.py` and `scripts/export_labeled_descriptions.py` stripping `Â `, `\xc2\xa0`, and corrupted utf-8 characters.
+  - Added `is_unparseable_hn_title()` to classify location/timezone strings ("Santa Clara, CA", "GMT-2", "Hacker News Role") as `exclude_reason="unparseable_title"`.
+  - Stamped 50 Runway ML jobs as `exclude_reason="board_not_junior_friendly"`.
+  - Added migrations `011_widen_label_stratum.sql` and `012_add_exclude_reason.sql`.
+- **Step 2: Pool Generator & Intake Pagination** (Commit `0bdaf50`):
+  - Created `scripts/make_labeling_batch.py`: Title-rule scoring (+1 for developer/junior/python, -2 for senior/manager/support), 70% rule / 30% random pool, company cap (max 3/batch, drops historical $\ge 5$), `v2_role_fit_only` stamping.
+  - Fixed Himalayas pagination to 5 pages (`offset=0, 20, 40, ...`) and Jobicy to `count=100` (removed invalid `page` param).
+  - Verified 10 public company ATS boards on Greenhouse and Ashby with HTTP 200 (Canonical, Mozilla, Elastic, Grafana Labs, PostHog, Linear, Cohere, Replit, GitBook, Wikimedia).
+- **Step 3: Learned Title Role-Type Classifier** (Commit `0219404`):
+  - Trained char n-gram (3-5) TF-IDF + LogisticRegression on human + weak labels (`src/matching/title_classifier.py` and `scripts/train_title_classifier.py`).
+  - Evaluated via 5-fold Grouped CV: achieved **0.872 recall** vs Blocklist **0.745 recall** (+12.7% recall improvement) with **0.000 FPR on `good_fit`** (0 good_fit killed).
+  - Integrated into `src/matching/scorer.py` as soft score penalty.
+- **Step 4: Ranker Model with Strict Safety Gates** (Commit `cfcfa25`):
+  - Implemented `scripts/train_ranker.py`: Joined bookkeeping + training jsonl on `job_id`, strictly filtering `v2_role_fit_only` and unexcluded rows.
+  - Safety gates: Refuses to train or evaluate when $< 150$ v2 labels or $< 30$ role-fit `good_fit` positives. Refuses folds with $< 3$ positives.
+  - Added ElevenLabs ablation and promotion rule (lower CI $> 0.70$ and $\ge +0.05$ over rule baseline).
+- **Step 5: Interactive Feedback Dashboard** (Commit `43ae779`):
+  - Implemented `app.py`: Clean browser UI on port 5000 with Feed tab (ranked by title-rule score), Rejected tab (grouped by failure reason with trigger snippet), instant writes to `laya_labels` stamped with `label_guideline_version="v2_role_fit_only"`, and live header tracking.
+- **Step 6: Scheduled Daily Runner** (Commit `e58fb64`):
+  - Implemented `scripts/run_scheduled.py` protected by `data/pipeline.lock`, rotating log in `logs/scheduled_run.log`, recording to `source_runs`.
+  - Created PowerShell installer (`scripts/install_schedule.ps1`) for Windows Task Scheduler daily runs at 06:00 AM, and Docker setup guide (`docs/scheduled_run_docker.md`).
+- **Step 7 & Task 7.9: Audit & Label Reporting**:
+  - Implemented `src/matching/eligibility.py` (Task 8.5) and `scripts/report_labels.py` (Task 7.9).
+
 ---
 
-## 🛠️ Potential Things We May Need to Fix (Backlog / Roadmap)
-
-1. **Unified Eligibility Module (`src/matching/eligibility.py`)** [Task 8.5]:
-   - Create single authoritative candidate eligibility function wrapping `HardFilter.apply` to eliminate divergence between `run_daily.py`, `score_jobs.py`, and `export_for_labeling.py`.
-2. **Single Reachability Field** [Task 8.6]:
-   - Retain `reachable_from_nepal` & `reachable_reason` as the only reachability fields; eliminate legacy reads/writes of `nepal_accessible` and `accessibility`.
-3. **Title & Seniority Hard Filter** [Task 8.7]:
-   - Extend `non_technical_title_blocklist` and add configurable seniority title checks (`SENIORITY_TITLE`) with zero-regression check on human labels.
-4. **Fast-Fail DB Timeout & HN String Truncation** [Task 8.2 & 8.3]:
-   - Add `connect_timeout=5` to connection pool to prevent 4-minute hangs when Docker is stopped.
-   - Truncate long Hacker News comment titles/company names to 255 chars in normalization to prevent schema violations.
-
----
-
-## Next Step
-Proceed with Phase 8 architecture harmonization: building `src/matching/eligibility.py` (Task 8.5) and retiring legacy reachability columns (Task 8.6).
+## 🛠️ Next Action Items
+1. **Supply Side**: Add the 10 verified remote company boards into `config/ats_boards.json` to stream fresh junior-accessible tech postings.
+2. **Labeling Gate Progression**: Launch `python app.py` and review candidates (and re-evaluate the 20 legacy `good_fit` roles) to reach $\ge 30$ role-fit `good_fit` labels.
+3. **Train Ranker**: Once gate clears (30 `good_fit`), run `python scripts/train_ranker.py` to deploy the learned production ranker.
 
