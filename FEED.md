@@ -1,6 +1,6 @@
 # Job Feed — Top Matched Roles
 
-> **Total Unique Postings:** 6741 | **Verified Accessible:** 73 | **Location Not Stated / Unknown:** 81
+> **Total Unique Postings:** 7436 | **Verified Accessible:** 73 | **Location Not Stated / Unknown:** 82
 
 ## 🌐 Verified Accessible Jobs
 | Rank | Match | Laya | Reachability | Job Title | Company | Location | Matched Skills | Apply |
@@ -84,101 +84,102 @@
 
 | Rank | Match | Laya | Reachability | Job Title | Company | Location | Matched Skills | Apply |
 | :---: | :---: | :---: | :---: | :--- | :--- | :--- | :--- | :---: |
-| 1 | **65.0** | 35 | `unknown` | Software Engineer AI Coding Tasks | Askable | Remote (Remote) | `python`, `typescript`, `javascript`, `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-software-engineer-ai-coding-tasks-askable-1137538) |
-| 2 | **65.0** | 29 | `unknown` | Toronto, Ontario | Cardog | Remote (role-dependent) | `react`, `typescript`, `next.js`, `postgresql` | [Apply](https://news.ycombinator.com/item?id=49926872) |
-| 3 | **62.6** | 42 | `unknown` | Backend Engineer | Duna | Remote (Remote) | `typescript`, `node.js`, `postgresql`, `javascript` | [Apply](https://www.arbeitnow.nl/jobs/companies/duna/remote-backend-engineer-400498) |
-| 4 | **61.4** | 52 | `unknown` | Edge Functions Engineer | Supabase | Remote (Anywhere) | `typescript`, `postgresql`, `javascript`, `rest-api` | [Apply](https://jobicy.com/jobs/153452-edge-functions-engineer) |
-| 5 | **61.4** | 48 | `unknown` | Product Engineer | OpenSanctions | Remote (CET ±3 preferred) | `python`, `react`, `next.js`, `javascript` | [Apply](https://news.ycombinator.com/item?id=49922910) |
-| 6 | **60.5** | 57 | `unknown` | Technical Customer Support Specialist | Happyrobot.ai | Remote (Remote) | `python`, `react`, `typescript`, `node.js` | [Apply](https://www.arbeitnow.com/jobs/companies/happyrobotai/remote-technical-customer-support-specialist-148934) |
-| 7 | **59.4** | 66 | `unknown` | Equity + Salary | HIFI Labs | Remote (PST) | `react`, `typescript`, `next.js`, `javascript` | [Apply](https://news.ycombinator.com/item?id=49933969) |
-| 8 | **59.0** | 48 | `unknown` | Network Operation Engineer | Share | Remote (Remote) | `python`, `rest-api`, `ai/ml`, `llm` | [Apply](https://www.arbeitnow.ch/jobs/companies/share/remote-network-operation-engineer-411432) |
-| 9 | **57.9** | 51 | `unknown` | Software Engineer - Turso | Supabase | Remote (Remote, Global) | `postgresql`, `rest-api`, `ai/ml`, `llm` | [Apply](https://jobs.ashbyhq.com/supabase/7c5eb3fc-1087-4c1c-b3a2-a19fe01dd259) |
-| 10 | **55.5** | 35 | `unknown` | Ubuntu Security Engineer | Canonical | Remote (Anywhere) | `python`, `typescript`, `javascript`, `ai/ml` | [Apply](https://jobicy.com/jobs/149565-ubuntu-security-engineer) |
-| 11 | **54.3** | 56 | `unknown` | SDK Engineer - Python | Supabase | Remote (Remote, Global) | `python`, `postgresql`, `rest-api`, `ai/ml` | [Apply](https://jobs.ashbyhq.com/supabase/b65287c7-2071-4bc6-8717-58c090e2a372) |
-| 12 | **53.1** | 55 | `unknown` | Software Engineer - Functions (Compute) | Supabase | Remote (Remote, Global) | `typescript`, `postgresql`, `rest-api`, `ai/ml` | [Apply](https://jobs.ashbyhq.com/supabase/3ab0b926-c9b5-4197-aff2-88d5bf009e13) |
-| 13 | **50.7** | 48 | `unknown` | Containerization & Virtualisation Engineer | Canonical | Remote (Anywhere) | `python`, `rest-api`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/149576-containerization-virtualisation-engineer) |
-| 14 | **50.7** | — | `unknown` | Linux Software Engineer - Ubuntu for Next-Gen Silicon (multiple roles and seniority levels) | Canonical | Remote (Anywhere) | `python`, `rest-api`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/156997-linux-software-engineer-ubuntu-for-next-gen-silicon-multiple-roles-and-seniority-levels) |
-| 15 | **50.7** | 38 | `unknown` | Microservices Engineer | Canonical | Remote (Anywhere) | `python`, `rest-api`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/149558-microservices-engineer) |
-| 16 | **49.5** | 57 | `unknown` | Full-Stack Engineer (Backend Leaning) - Platform Engineering | ElevenLabs | Remote (Remote) | `python`, `rest-api`, `ai/ml`, `git` | [Apply](https://jobs.ashbyhq.com/elevenlabs/ce3d5a59-fb8c-482b-bc3f-60e44576c5e0) |
-| 17 | **47.1** | 56 | `unknown` | Platform Engineer - Compute Capacity | Supabase | Remote (Anywhere) | `python`, `typescript`, `postgresql` | [Apply](https://jobicy.com/jobs/156946-platform-engineer-compute-capacity) |
-| 18 | **47.1** | 49 | `unknown` | Full-Stack Developer (Node.js) | Trackerbot | Remote (Remote) | `node.js`, `postgresql`, `javascript`, `git` | [Apply](https://news.ycombinator.com/item?id=49926228) |
-| 19 | **46.0** | — | `unknown` | LLM Engineer (Large Language Model Engineer) | Nestifytech Solutions Private Limited | Remote (Remote) | `python`, `ai/ml`, `llm` | [Apply](https://himalayas.app/companies/nestifytech-solutions-private-limited/jobs/llm-engineer-large-language-model-engineer?utm_source=api) |
-| 20 | **44.8** | — | `unknown` | Distributed Systems Engineer | Canonical | Remote (Anywhere) | `python`, `rest-api`, `ai/ml` | [Apply](https://jobicy.com/jobs/156945-distributed-systems-engineer-3) |
-| 21 | **44.8** | 54 | `unknown` | Network Developer | Share | Remote (Remote) | `python`, `rest-api`, `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/share/remote-network-developer-269751) |
-| 22 | **42.8** | 57 | `unknown` | GTM Enablement - Partner Program | ElevenLabs | Remote (Remote) | `python`, `typescript`, `ai/ml`, `llm` | [Apply](https://jobs.ashbyhq.com/elevenlabs/820e5023-c637-4b36-91a9-f732f235998e) |
-| 23 | **42.4** | 51 | `unknown` | Python and Kubernetes Software Engineer - Data, Workflows, AI/ML & Analytics | Canonical | Remote (Anywhere) | `python`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/149563-python-and-kubernetes-software-engineer-data-workflows-ai-ml-analytics) |
-| 24 | **42.4** | 43 | `unknown` | Backend Software Engineer | Enveritas | Remote (Global) | `python`, `postgresql`, `docker` | [Apply](https://enveritas.org/jobs/) |
-| 25 | **41.2** | 50 | `unknown` | Full-stack Engineer (Elixir, Phoenix LiveView, React) | Treat Health | Remote (Remote) | `react`, `typescript`, `tailwind` | [Apply](https://news.ycombinator.com/item?id=50104234) |
-| 26 | **41.2** | 32 | `unknown` | Operations Engineer II | AWeber | Remote (Uluberia-II,) | `javascript`, `rest-api`, `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-operations-engineer-ii-aweber-1136778) |
-| 27 | **41.2** | 56 | `unknown` | Full-Stack Engineer (Backend Leaning) - Payments Engineering | ElevenLabs | Remote (Remote) | `python`, `ai/ml`, `git` | [Apply](https://jobs.ashbyhq.com/elevenlabs/e4e0450f-d139-4f8e-b210-2f326a680d90) |
-| 28 | **38.8** | 51 | `unknown` | Embedded & Desktop Linux Systems Engineer - Optimisation | Canonical | Remote (Anywhere) | `rest-api`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/149567-embedded-desktop-linux-systems-engineer-optimisation) |
-| 29 | **36.4** | 54 | `unknown` | Freelance Designer | Control Shift Video | Remote (Texas,) | `react`, `typescript` | [Apply](https://remoteOK.com/remote-jobs/remote-freelance-designer-control-shift-video-1136213) |
-| 30 | **36.4** | 53 | `unknown` | FinOps Engineer | Supabase | Remote (Remote, Global) | `python`, `postgresql` | [Apply](https://jobs.ashbyhq.com/supabase/fab1525f-3d89-4d1c-9094-84d21647415e) |
-| 31 | **36.4** | — | `unknown` | Puzzle Solver (Coding) - Remote - Contract | Xperteez Technology | Remote (Remote) | `python`, `ai/ml` | [Apply](https://himalayas.app/companies/xperteez-technology/jobs/puzzle-solver-coding-remote-contract?utm_source=api) |
-| 32 | **36.4** | 50 | `unknown` | Cloud Field Engineer | Canonical | Remote (Anywhere) | `python`, `ai/ml` | [Apply](https://jobicy.com/jobs/149523-cloud-field-engineer) |
-| 33 | **36.4** | 62 | `unknown` | Machine Learning Scientist | Nucs AI | Remote (Remote job) | `python`, `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/nucs-ai/remote-machine-learning-scientist-berlin-216070) |
-| 34 | **36.4** | 48 | `unknown` | Embedded Linux Field Engineer for Devices/IoT | Canonical | Remote (Anywhere) | `python`, `ai/ml` | [Apply](https://jobicy.com/jobs/149535-embedded-linux-field-engineer-for-devices-iot) |
-| 35 | **32.9** | 47 | `unknown` | iOS Developer (Radiotech) | Gismart | Remote (Remote) | `rest-api`, `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/gismart/remote-ios-developer-radiotech-406158) |
-| 36 | **32.9** | 67 | `unknown` | Remote (see below) | Runway | Remote (see below) | `rest-api`, `ai/ml` | [Apply](https://jobs.ashbyhq.com/runway-ml/8489a08a-f0cf-4418-968c-c7c803d538bc) |
-| 37 | **32.9** | 57 | `unknown` | GTM Enablement - Product | ElevenLabs | Remote (Remote) | `rest-api`, `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-gtm-enablement-product-455044) |
-| 38 | **32.9** | 47 | `unknown` | Data Analyst | SEAhub Asia | Remote (Kuala Lumpur, Kuala Lumpur, Wilayah Persekutuan Kuala Lumpur, Malaysia) | `python`, `sql` | [Apply](https://remoteOK.com/remote-jobs/remote-data-analyst-seahub-asia-1136222) |
-| 39 | **30.5** | 56 | `unknown` | Database Support Engineer (Japanese Speaking) | Supabase | Remote (Remote, APAC) | `postgresql`, `sql` | [Apply](https://jobs.ashbyhq.com/supabase/ab8d1463-bc97-417f-97b1-bfc1fe619b3e) |
-| 40 | **26.9** | 55 | `unknown` | APAC Python | Kodland | Remote (Remote) | `python` | [Apply](https://remoteOK.com/remote-jobs/remote-apac-python-kodland-1137534) |
-| 41 | **24.5** | — | `unknown` | Cinder Expert Network | Cinder | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/cinder/remote-cinder-expert-network-84072) |
-| 42 | **24.5** | 45 | `unknown` | AI Trainer Image QA Evaluator | iMerit Technology | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-ai-trainer-image-qa-evaluator-imerit-technology-1137398) |
-| 43 | **24.5** | 55 | `unknown` | Full-Stack Engineer (Frontend Leaning) - Studio | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://jobs.ashbyhq.com/elevenlabs/e6924f60-c8cc-42b3-9d05-2442ec30e12d) |
-| 44 | **24.5** | — | `unknown` | Multigres Deployment Engineer | Supabase | Remote (Remote, Global) | `postgresql` | [Apply](https://jobs.ashbyhq.com/supabase/f035bda1-b5d3-4c5b-8736-b9c335fe1c3b) |
-| 45 | **24.5** | 51 | `unknown` | Participate in the OpenAI Experience Lab – AI Enthusiasts Wanted! Location: London, UK (In-Person) Date: 9 November | Tester Work | Remote (Remote job) | `ai/ml` | [Apply](https://www.arbeitnow.co.uk/jobs/companies/tester-work/remote-participate-in-the-openai-experience-lab-ai-enthusiasts-wanted-location-london-uk-in-person-date-9-november-183782) |
-| 46 | **24.5** | 54 | `unknown` | Video Data Annotator | iMerit Technology | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-video-data-annotator-imerit-technology-1137428) |
-| 47 | **24.5** | 45 | `unknown` | AI Engineer Data APIs | Benzinga | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-ai-engineer-data-apis-benzinga-1137224) |
-| 48 | **24.5** | 48 | `unknown` | Software Engineer | Mirantis | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-software-engineer-mirantis-1137387) |
-| 49 | **24.5** | 58 | `unknown` | Full-stack Engineer - Creative Agents | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-full-stack-engineer-creative-agents-292788) |
-| 50 | **24.5** | 46 | `unknown` | Generalist (Groups) | Kairos Project | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/kairos-project/remote-generalist-groups-493165) |
-| 51 | **24.5** | 52 | `unknown` | Graphic Designer | HOPn UG | Remote (Puchheim) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/hopn-ug/graphic-designer-puchheim-347117) |
-| 52 | **24.5** | 52 | `unknown` | Platform Security Engineer (AMER/APAC) | Supabase | Remote (Remote, Global) | `postgresql` | [Apply](https://jobs.ashbyhq.com/supabase/8fa1c7a0-a85c-4562-a1f5-4dd22cadae27) |
-| 53 | **24.5** | 51 | `unknown` | iOS Engineer - Creative App | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-ios-engineer-creative-app-247930) |
-| 54 | **24.5** | 71 | `unknown` | Multiple roles - Software - AI - FDE - Cloud | Wipro.com | Remote (Remote) | `ai/ml` | [Apply](https://careers.wipro.com/) |
-| 55 | **24.5** | 52 | `unknown` | Postgres Engineer | Supabase | Remote (Anywhere) | `postgresql` | [Apply](https://jobicy.com/jobs/153321-postgres-engineer) |
-| 56 | **24.5** | 52 | `unknown` | Motion Designer (DanceBit) | Gismart | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/gismart/remote-motion-designer-dancebit-169389) |
-| 57 | **24.5** | 55 | `unknown` | Digital Designer | Who Gives A Crap | Remote (Philippines) | `ai/ml` | [Apply](https://jobicy.com/jobs/153327-digital-designer) |
-| 58 | **24.5** | 53 | `unknown` | Android Engineer - Creative App | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-android-engineer-creative-app-68934) |
-| 59 | **24.5** | — | `unknown` | Mantle Squad - Global | Windranger Labs | Remote (Anywhere) | `ai/ml` | [Apply](https://jobicy.com/jobs/153447-mantle-squad-global) |
-| 60 | **24.5** | 48 | `unknown` | Generalist (Workshops) | Kairos Project | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/kairos-project/remote-generalist-workshops-179126) |
-| 61 | **24.5** | 56 | `unknown` | Adoption Strategist - North America | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-adoption-strategist-north-america-250766) |
-| 62 | **24.5** | 65 | `unknown` | Golang Kubernetes Engineer | Arango | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-golang-kubernetes-engineer-arango-1137400) |
-| 63 | **24.5** | 54 | `unknown` | Full-Stack Engineer (Backend Leaning) - Creative Agents | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-full-stack-engineer-backend-leaning-creative-agents-323217) |
-| 64 | **24.3** | 50 | `unknown` | Technical Customer Support | QuickMail | Remote (Remote) | `ai/ml`, `git` | [Apply](https://remoteOK.com/remote-jobs/remote-technical-customer-support-quickmail-1137506) |
-| 65 | **24.0** | — | `unknown` | Security Risk Management Specialist | Canonical | Remote (Anywhere) | `ai/ml` | [Apply](https://jobicy.com/jobs/149564-security-risk-management-specialist) |
-| 66 | **23.3** | 53 | `unknown` | GTM Enablement - Global Onboarding & Operations | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-gtm-enablement-global-onboarding-operations-355228) |
-| 67 | **23.3** | 55 | `unknown` | Danish Speaking Solutions Consultant Work Sofia Bulgaria | Mercier Consultancy Group | Remote (Remote) | `rest-api` | [Apply](https://remoteOK.com/remote-jobs/remote-danish-speaking-solutions-consultant-work-sofia-bulgaria-mercier-consultancy-group-1137431) |
-| 68 | **23.2** | 51 | `unknown` | Santa Clara, CA and Berlin, Germany | QUOBYTE | Remote (Remote) | `ai/ml` | [Apply](https://news.ycombinator.com/item?id=49924972) |
-| 69 | **21.0** | 52 | `unknown` | Software Deployment Engineer | KPI Solutions | Remote (Cincinnati) | `sql` | [Apply](https://remoteOK.com/remote-jobs/remote-software-deployment-engineer-kpi-solutions-1137408) |
-| 70 | **20.9** | 74 | `unknown` | design, engineering, GTM, sales | Rootly | Remote (Remote) | `ai/ml` | [Apply](https://rootly.com/) |
-| 71 | **15.8** | 55 | `unknown` | Growth Marketer- Reception.ai | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-growth-marketer-receptionai-129653) |
-| 72 | **15.3** | 56 | `unknown` | Generalist (Special Projects) | Kairos Project | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/kairos-project/remote-generalist-special-projects-495738) |
-| 73 | **15.0** | 43 | `unknown` | Software Engineer | Prenosis | Remote (Remote) | — | [Apply](https://remoteOK.com/remote-jobs/remote-software-engineer-prenosis-1137427) |
-| 74 | **15.0** | 50 | `unknown` | Platform and Integration Engineer Security Telemetry | RedMimicry | Remote (Remote) | — | [Apply](https://remoteOK.com/remote-jobs/remote-platform-and-integration-engineer-security-telemetry-redmimicry-1137465) |
-| 75 | **15.0** | — | `unknown` | Engineer Estimator | Crystalia Glass LLC | Remote (Bishkek, Bishkek, Bishkek City, Kyrgyzstan) | — | [Apply](https://remoteOK.com/remote-jobs/remote-engineer-estimator-crystalia-glass-llc-1136878) |
-| 76 | **15.0** | 59 | `unknown` | Consultant Implementation Engineer | Harbor | Remote (Remote) | — | [Apply](https://remoteOK.com/remote-jobs/remote-consultant-implementation-engineer-harbor-1136987) |
-| 77 | **10.0** | — | `unknown` | Field Marketer - Middle East (Freelance) | ElevenLabs | Remote (UAE, Dubai, United Arab Emirates) | `ai/ml` | [Apply](https://jobs.ashbyhq.com/elevenlabs/e5bdb518-56fa-49dd-9075-360f3d51a3b7) |
-| 78 | **6.7** | — | `unknown` | Executive Assistant - India & Middle East | ElevenLabs | Remote (India) | `ai/ml` | [Apply](https://jobs.ashbyhq.com/elevenlabs/c4e0d704-c7eb-4d6d-b71b-23bfd86fe463) |
-| 79 | **6.6** | — | `unknown` | GTM Recruiter - Middle East | ElevenLabs | Remote (UAE, Dubai, United Arab Emirates) | `ai/ml` | [Apply](https://jobs.ashbyhq.com/elevenlabs/bb5b2422-918a-4805-ad8f-4ec3af650c11) |
-| 80 | **4.8** | 55 | `unknown` | Executive Assistant - APAC | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-executive-assistant-apac-203903) |
-| 81 | **1.8** | 50 | `unknown` | Recruiter | Kairos Project | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/kairos-project/remote-recruiter-361710) |
+| 1 | **71.2** | — | `unknown` | Software Engineering Internship Program (2027) | Wikimedia | Remote (Remote) | `python`, `javascript`, `sql` | [Apply](https://job-boards.greenhouse.io/wikimedia/jobs/8268853) |
+| 2 | **65.0** | 35 | `unknown` | Software Engineer AI Coding Tasks | Askable | Remote (Remote) | `python`, `typescript`, `javascript`, `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-software-engineer-ai-coding-tasks-askable-1137538) |
+| 3 | **65.0** | 29 | `unknown` | Toronto, Ontario | Cardog | Remote (role-dependent) | `react`, `typescript`, `next.js`, `postgresql` | [Apply](https://news.ycombinator.com/item?id=49926872) |
+| 4 | **62.6** | 42 | `unknown` | Backend Engineer | Duna | Remote (Remote) | `typescript`, `node.js`, `postgresql`, `javascript` | [Apply](https://www.arbeitnow.nl/jobs/companies/duna/remote-backend-engineer-400498) |
+| 5 | **61.4** | 52 | `unknown` | Edge Functions Engineer | Supabase | Remote (Anywhere) | `typescript`, `postgresql`, `javascript`, `rest-api` | [Apply](https://jobicy.com/jobs/153452-edge-functions-engineer) |
+| 6 | **61.4** | 48 | `unknown` | Product Engineer | OpenSanctions | Remote (CET ±3 preferred) | `python`, `react`, `next.js`, `javascript` | [Apply](https://news.ycombinator.com/item?id=49922910) |
+| 7 | **60.5** | 57 | `unknown` | Technical Customer Support Specialist | Happyrobot.ai | Remote (Remote) | `python`, `react`, `typescript`, `node.js` | [Apply](https://www.arbeitnow.com/jobs/companies/happyrobotai/remote-technical-customer-support-specialist-148934) |
+| 8 | **59.4** | 66 | `unknown` | Equity + Salary | HIFI Labs | Remote (PST) | `react`, `typescript`, `next.js`, `javascript` | [Apply](https://news.ycombinator.com/item?id=49933969) |
+| 9 | **59.0** | 48 | `unknown` | Network Operation Engineer | Share | Remote (Remote) | `python`, `rest-api`, `ai/ml`, `llm` | [Apply](https://www.arbeitnow.ch/jobs/companies/share/remote-network-operation-engineer-411432) |
+| 10 | **57.9** | 51 | `unknown` | Software Engineer - Turso | Supabase | Remote (Remote, Global) | `postgresql`, `rest-api`, `ai/ml`, `llm` | [Apply](https://jobs.ashbyhq.com/supabase/7c5eb3fc-1087-4c1c-b3a2-a19fe01dd259) |
+| 11 | **55.5** | 35 | `unknown` | Ubuntu Security Engineer | Canonical | Remote (Anywhere) | `python`, `typescript`, `javascript`, `ai/ml` | [Apply](https://jobicy.com/jobs/149565-ubuntu-security-engineer) |
+| 12 | **54.3** | 56 | `unknown` | SDK Engineer - Python | Supabase | Remote (Remote, Global) | `python`, `postgresql`, `rest-api`, `ai/ml` | [Apply](https://jobs.ashbyhq.com/supabase/b65287c7-2071-4bc6-8717-58c090e2a372) |
+| 13 | **53.1** | 55 | `unknown` | Software Engineer - Functions (Compute) | Supabase | Remote (Remote, Global) | `typescript`, `postgresql`, `rest-api`, `ai/ml` | [Apply](https://jobs.ashbyhq.com/supabase/3ab0b926-c9b5-4197-aff2-88d5bf009e13) |
+| 14 | **50.7** | 48 | `unknown` | Containerization & Virtualisation Engineer | Canonical | Remote (Anywhere) | `python`, `rest-api`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/149576-containerization-virtualisation-engineer) |
+| 15 | **50.7** | — | `unknown` | Linux Software Engineer - Ubuntu for Next-Gen Silicon (multiple roles and seniority levels) | Canonical | Remote (Anywhere) | `python`, `rest-api`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/156997-linux-software-engineer-ubuntu-for-next-gen-silicon-multiple-roles-and-seniority-levels) |
+| 16 | **50.7** | 38 | `unknown` | Microservices Engineer | Canonical | Remote (Anywhere) | `python`, `rest-api`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/149558-microservices-engineer) |
+| 17 | **49.5** | 57 | `unknown` | Full-Stack Engineer (Backend Leaning) - Platform Engineering | ElevenLabs | Remote (Remote) | `python`, `rest-api`, `ai/ml`, `git` | [Apply](https://jobs.ashbyhq.com/elevenlabs/ce3d5a59-fb8c-482b-bc3f-60e44576c5e0) |
+| 18 | **47.1** | 56 | `unknown` | Platform Engineer - Compute Capacity | Supabase | Remote (Anywhere) | `python`, `typescript`, `postgresql` | [Apply](https://jobicy.com/jobs/156946-platform-engineer-compute-capacity) |
+| 19 | **47.1** | 49 | `unknown` | Full-Stack Developer (Node.js) | Trackerbot | Remote (Remote) | `node.js`, `postgresql`, `javascript`, `git` | [Apply](https://news.ycombinator.com/item?id=49926228) |
+| 20 | **46.0** | — | `unknown` | LLM Engineer (Large Language Model Engineer) | Nestifytech Solutions Private Limited | Remote (Remote) | `python`, `ai/ml`, `llm` | [Apply](https://himalayas.app/companies/nestifytech-solutions-private-limited/jobs/llm-engineer-large-language-model-engineer?utm_source=api) |
+| 21 | **44.8** | — | `unknown` | Distributed Systems Engineer | Canonical | Remote (Anywhere) | `python`, `rest-api`, `ai/ml` | [Apply](https://jobicy.com/jobs/156945-distributed-systems-engineer-3) |
+| 22 | **44.8** | 54 | `unknown` | Network Developer | Share | Remote (Remote) | `python`, `rest-api`, `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/share/remote-network-developer-269751) |
+| 23 | **42.8** | 57 | `unknown` | GTM Enablement - Partner Program | ElevenLabs | Remote (Remote) | `python`, `typescript`, `ai/ml`, `llm` | [Apply](https://jobs.ashbyhq.com/elevenlabs/820e5023-c637-4b36-91a9-f732f235998e) |
+| 24 | **42.4** | 51 | `unknown` | Python and Kubernetes Software Engineer - Data, Workflows, AI/ML & Analytics | Canonical | Remote (Anywhere) | `python`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/149563-python-and-kubernetes-software-engineer-data-workflows-ai-ml-analytics) |
+| 25 | **42.4** | 43 | `unknown` | Backend Software Engineer | Enveritas | Remote (Global) | `python`, `postgresql`, `docker` | [Apply](https://enveritas.org/jobs/) |
+| 26 | **41.2** | 50 | `unknown` | Full-stack Engineer (Elixir, Phoenix LiveView, React) | Treat Health | Remote (Remote) | `react`, `typescript`, `tailwind` | [Apply](https://news.ycombinator.com/item?id=50104234) |
+| 27 | **41.2** | 32 | `unknown` | Operations Engineer II | AWeber | Remote (Uluberia-II,) | `javascript`, `rest-api`, `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-operations-engineer-ii-aweber-1136778) |
+| 28 | **41.2** | 56 | `unknown` | Full-Stack Engineer (Backend Leaning) - Payments Engineering | ElevenLabs | Remote (Remote) | `python`, `ai/ml`, `git` | [Apply](https://jobs.ashbyhq.com/elevenlabs/e4e0450f-d139-4f8e-b210-2f326a680d90) |
+| 29 | **38.8** | 51 | `unknown` | Embedded & Desktop Linux Systems Engineer - Optimisation | Canonical | Remote (Anywhere) | `rest-api`, `ai/ml`, `docker` | [Apply](https://jobicy.com/jobs/149567-embedded-desktop-linux-systems-engineer-optimisation) |
+| 30 | **36.4** | 54 | `unknown` | Freelance Designer | Control Shift Video | Remote (Texas,) | `react`, `typescript` | [Apply](https://remoteOK.com/remote-jobs/remote-freelance-designer-control-shift-video-1136213) |
+| 31 | **36.4** | 53 | `unknown` | FinOps Engineer | Supabase | Remote (Remote, Global) | `python`, `postgresql` | [Apply](https://jobs.ashbyhq.com/supabase/fab1525f-3d89-4d1c-9094-84d21647415e) |
+| 32 | **36.4** | — | `unknown` | Puzzle Solver (Coding) - Remote - Contract | Xperteez Technology | Remote (Remote) | `python`, `ai/ml` | [Apply](https://himalayas.app/companies/xperteez-technology/jobs/puzzle-solver-coding-remote-contract?utm_source=api) |
+| 33 | **36.4** | 50 | `unknown` | Cloud Field Engineer | Canonical | Remote (Anywhere) | `python`, `ai/ml` | [Apply](https://jobicy.com/jobs/149523-cloud-field-engineer) |
+| 34 | **36.4** | 62 | `unknown` | Machine Learning Scientist | Nucs AI | Remote (Remote job) | `python`, `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/nucs-ai/remote-machine-learning-scientist-berlin-216070) |
+| 35 | **36.4** | 48 | `unknown` | Embedded Linux Field Engineer for Devices/IoT | Canonical | Remote (Anywhere) | `python`, `ai/ml` | [Apply](https://jobicy.com/jobs/149535-embedded-linux-field-engineer-for-devices-iot) |
+| 36 | **32.9** | 47 | `unknown` | iOS Developer (Radiotech) | Gismart | Remote (Remote) | `rest-api`, `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/gismart/remote-ios-developer-radiotech-406158) |
+| 37 | **32.9** | 67 | `unknown` | Remote (see below) | Runway | Remote (see below) | `rest-api`, `ai/ml` | [Apply](https://jobs.ashbyhq.com/runway-ml/8489a08a-f0cf-4418-968c-c7c803d538bc) |
+| 38 | **32.9** | 57 | `unknown` | GTM Enablement - Product | ElevenLabs | Remote (Remote) | `rest-api`, `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-gtm-enablement-product-455044) |
+| 39 | **32.9** | 47 | `unknown` | Data Analyst | SEAhub Asia | Remote (Kuala Lumpur, Kuala Lumpur, Wilayah Persekutuan Kuala Lumpur, Malaysia) | `python`, `sql` | [Apply](https://remoteOK.com/remote-jobs/remote-data-analyst-seahub-asia-1136222) |
+| 40 | **30.5** | 56 | `unknown` | Database Support Engineer (Japanese Speaking) | Supabase | Remote (Remote, APAC) | `postgresql`, `sql` | [Apply](https://jobs.ashbyhq.com/supabase/ab8d1463-bc97-417f-97b1-bfc1fe619b3e) |
+| 41 | **26.9** | 55 | `unknown` | APAC Python | Kodland | Remote (Remote) | `python` | [Apply](https://remoteOK.com/remote-jobs/remote-apac-python-kodland-1137534) |
+| 42 | **24.5** | — | `unknown` | Cinder Expert Network | Cinder | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/cinder/remote-cinder-expert-network-84072) |
+| 43 | **24.5** | 45 | `unknown` | AI Trainer Image QA Evaluator | iMerit Technology | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-ai-trainer-image-qa-evaluator-imerit-technology-1137398) |
+| 44 | **24.5** | 55 | `unknown` | Full-Stack Engineer (Frontend Leaning) - Studio | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://jobs.ashbyhq.com/elevenlabs/e6924f60-c8cc-42b3-9d05-2442ec30e12d) |
+| 45 | **24.5** | — | `unknown` | Multigres Deployment Engineer | Supabase | Remote (Remote, Global) | `postgresql` | [Apply](https://jobs.ashbyhq.com/supabase/f035bda1-b5d3-4c5b-8736-b9c335fe1c3b) |
+| 46 | **24.5** | 51 | `unknown` | Participate in the OpenAI Experience Lab – AI Enthusiasts Wanted! Location: London, UK (In-Person) Date: 9 November | Tester Work | Remote (Remote job) | `ai/ml` | [Apply](https://www.arbeitnow.co.uk/jobs/companies/tester-work/remote-participate-in-the-openai-experience-lab-ai-enthusiasts-wanted-location-london-uk-in-person-date-9-november-183782) |
+| 47 | **24.5** | 54 | `unknown` | Video Data Annotator | iMerit Technology | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-video-data-annotator-imerit-technology-1137428) |
+| 48 | **24.5** | 45 | `unknown` | AI Engineer Data APIs | Benzinga | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-ai-engineer-data-apis-benzinga-1137224) |
+| 49 | **24.5** | 48 | `unknown` | Software Engineer | Mirantis | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-software-engineer-mirantis-1137387) |
+| 50 | **24.5** | 58 | `unknown` | Full-stack Engineer - Creative Agents | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-full-stack-engineer-creative-agents-292788) |
+| 51 | **24.5** | 46 | `unknown` | Generalist (Groups) | Kairos Project | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/kairos-project/remote-generalist-groups-493165) |
+| 52 | **24.5** | 52 | `unknown` | Graphic Designer | HOPn UG | Remote (Puchheim) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/hopn-ug/graphic-designer-puchheim-347117) |
+| 53 | **24.5** | 52 | `unknown` | Platform Security Engineer (AMER/APAC) | Supabase | Remote (Remote, Global) | `postgresql` | [Apply](https://jobs.ashbyhq.com/supabase/8fa1c7a0-a85c-4562-a1f5-4dd22cadae27) |
+| 54 | **24.5** | 51 | `unknown` | iOS Engineer - Creative App | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-ios-engineer-creative-app-247930) |
+| 55 | **24.5** | 71 | `unknown` | Multiple roles - Software - AI - FDE - Cloud | Wipro.com | Remote (Remote) | `ai/ml` | [Apply](https://careers.wipro.com/) |
+| 56 | **24.5** | 52 | `unknown` | Postgres Engineer | Supabase | Remote (Anywhere) | `postgresql` | [Apply](https://jobicy.com/jobs/153321-postgres-engineer) |
+| 57 | **24.5** | 52 | `unknown` | Motion Designer (DanceBit) | Gismart | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/gismart/remote-motion-designer-dancebit-169389) |
+| 58 | **24.5** | 55 | `unknown` | Digital Designer | Who Gives A Crap | Remote (Philippines) | `ai/ml` | [Apply](https://jobicy.com/jobs/153327-digital-designer) |
+| 59 | **24.5** | 53 | `unknown` | Android Engineer - Creative App | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-android-engineer-creative-app-68934) |
+| 60 | **24.5** | — | `unknown` | Mantle Squad - Global | Windranger Labs | Remote (Anywhere) | `ai/ml` | [Apply](https://jobicy.com/jobs/153447-mantle-squad-global) |
+| 61 | **24.5** | 48 | `unknown` | Generalist (Workshops) | Kairos Project | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/kairos-project/remote-generalist-workshops-179126) |
+| 62 | **24.5** | 56 | `unknown` | Adoption Strategist - North America | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-adoption-strategist-north-america-250766) |
+| 63 | **24.5** | 65 | `unknown` | Golang Kubernetes Engineer | Arango | Remote (Remote) | `ai/ml` | [Apply](https://remoteOK.com/remote-jobs/remote-golang-kubernetes-engineer-arango-1137400) |
+| 64 | **24.5** | 54 | `unknown` | Full-Stack Engineer (Backend Leaning) - Creative Agents | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-full-stack-engineer-backend-leaning-creative-agents-323217) |
+| 65 | **24.3** | 50 | `unknown` | Technical Customer Support | QuickMail | Remote (Remote) | `ai/ml`, `git` | [Apply](https://remoteOK.com/remote-jobs/remote-technical-customer-support-quickmail-1137506) |
+| 66 | **24.0** | — | `unknown` | Security Risk Management Specialist | Canonical | Remote (Anywhere) | `ai/ml` | [Apply](https://jobicy.com/jobs/149564-security-risk-management-specialist) |
+| 67 | **23.3** | 53 | `unknown` | GTM Enablement - Global Onboarding & Operations | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-gtm-enablement-global-onboarding-operations-355228) |
+| 68 | **23.3** | 55 | `unknown` | Danish Speaking Solutions Consultant Work Sofia Bulgaria | Mercier Consultancy Group | Remote (Remote) | `rest-api` | [Apply](https://remoteOK.com/remote-jobs/remote-danish-speaking-solutions-consultant-work-sofia-bulgaria-mercier-consultancy-group-1137431) |
+| 69 | **23.2** | 51 | `unknown` | Santa Clara, CA and Berlin, Germany | QUOBYTE | Remote (Remote) | `ai/ml` | [Apply](https://news.ycombinator.com/item?id=49924972) |
+| 70 | **21.0** | 52 | `unknown` | Software Deployment Engineer | KPI Solutions | Remote (Cincinnati) | `sql` | [Apply](https://remoteOK.com/remote-jobs/remote-software-deployment-engineer-kpi-solutions-1137408) |
+| 71 | **20.9** | 74 | `unknown` | design, engineering, GTM, sales | Rootly | Remote (Remote) | `ai/ml` | [Apply](https://rootly.com/) |
+| 72 | **15.8** | 55 | `unknown` | Growth Marketer- Reception.ai | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.ch/jobs/companies/elevenlabs/remote-growth-marketer-receptionai-129653) |
+| 73 | **15.3** | 56 | `unknown` | Generalist (Special Projects) | Kairos Project | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/kairos-project/remote-generalist-special-projects-495738) |
+| 74 | **15.0** | 43 | `unknown` | Software Engineer | Prenosis | Remote (Remote) | — | [Apply](https://remoteOK.com/remote-jobs/remote-software-engineer-prenosis-1137427) |
+| 75 | **15.0** | 50 | `unknown` | Platform and Integration Engineer Security Telemetry | RedMimicry | Remote (Remote) | — | [Apply](https://remoteOK.com/remote-jobs/remote-platform-and-integration-engineer-security-telemetry-redmimicry-1137465) |
+| 76 | **15.0** | — | `unknown` | Engineer Estimator | Crystalia Glass LLC | Remote (Bishkek, Bishkek, Bishkek City, Kyrgyzstan) | — | [Apply](https://remoteOK.com/remote-jobs/remote-engineer-estimator-crystalia-glass-llc-1136878) |
+| 77 | **15.0** | 59 | `unknown` | Consultant Implementation Engineer | Harbor | Remote (Remote) | — | [Apply](https://remoteOK.com/remote-jobs/remote-consultant-implementation-engineer-harbor-1136987) |
+| 78 | **10.0** | — | `unknown` | Field Marketer - Middle East (Freelance) | ElevenLabs | Remote (UAE, Dubai, United Arab Emirates) | `ai/ml` | [Apply](https://jobs.ashbyhq.com/elevenlabs/e5bdb518-56fa-49dd-9075-360f3d51a3b7) |
+| 79 | **6.7** | — | `unknown` | Executive Assistant - India & Middle East | ElevenLabs | Remote (India) | `ai/ml` | [Apply](https://jobs.ashbyhq.com/elevenlabs/c4e0d704-c7eb-4d6d-b71b-23bfd86fe463) |
+| 80 | **6.6** | — | `unknown` | GTM Recruiter - Middle East | ElevenLabs | Remote (UAE, Dubai, United Arab Emirates) | `ai/ml` | [Apply](https://jobs.ashbyhq.com/elevenlabs/bb5b2422-918a-4805-ad8f-4ec3af650c11) |
+| 81 | **4.8** | 55 | `unknown` | Executive Assistant - APAC | ElevenLabs | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/elevenlabs/remote-executive-assistant-apac-203903) |
+| 82 | **1.8** | 50 | `unknown` | Recruiter | Kairos Project | Remote (Remote) | `ai/ml` | [Apply](https://www.arbeitnow.com/jobs/companies/kairos-project/remote-recruiter-361710) |
 
 ---
 ### 📊 Disqualification Breakdown
 | Reason | Count | Example Titles |
 | :--- | :---: | :--- |
-| `NOT_REMOTE` | 5081 | People & Operations Associate; Head of Engineering; Growth - Digital Marketing (Business) |
+| `NOT_REMOTE` | 5590 | People & Operations Associate; Head of Engineering; Growth - Digital Marketing (Business) |
 | `NON_ENGLISH` | 143 | Technicien de maintenance d'instruments ; Consultor/a de Gobierno y Controles de T; Weiterbildung zum Visual & Audio Designe |
-| `UNPAID` | 1 | (Unpaid) Mandatory Internship : Software |
-| `REGION_LOCKED` | 237 | Regional Child Support Enforcement Progr; REMOTE (US or Canada) or San Francisco, ; Recruiter, Mission & Business Operations |
-| `NON_TECHNICAL` | 95 | Account Executive, B2B; Mid-Market Account Executive, EMEA; Proposal Writer |
+| `UNPAID` | 2 | Wikimania Scholarships and Event Coordin; (Unpaid) Mandatory Internship : Software |
+| `REGION_LOCKED` | 240 | Regional Child Support Enforcement Progr; REMOTE (US or Canada) or San Francisco, ; Recruiter, Mission & Business Operations |
+| `NON_TECHNICAL` | 103 | Account Executive, B2B; Mid-Market Account Executive, EMEA; Proposal Writer |
 | `SENIOR` | 4 | ServiceNow AI Architect; System Architect Lifecycle Marketing; Sr Solutions Architect |
 | `LOW_SCORE` | 5 | Onboarding Coach; Marketing and Sales Administrator; Forward Deployed Engineer - Software Eng |
 | `NO_TECH_SIGNAL` | 57 | Junior Digital Assets Operations Analyst; CRM Retention Junior; Junior Crypto Analyst & Trader |
-| `OTHER` | 964 | Engineering Manager, Knowledge Graph Pla; Strategic Account Executive - Saudi Arab; Public Sector Partnerships Lead - Europe |
+| `OTHER` | 1137 | Engineering Manager, Knowledge Graph Pla; Strategic Account Executive - Saudi Arab; Public Sector Partnerships Lead - Europe |
 
 *Ranked by MatchScorer. Laya score shown for reference only (uncalibrated until M1).*
 *Generated by `scripts/export_feed.py`.*
