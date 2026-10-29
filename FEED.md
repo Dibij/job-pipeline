@@ -1,6 +1,6 @@
 # Job Feed — Top Matched Roles
 
-> **Total Unique Postings:** 6736 | **Verified Accessible:** 73 | **Location Not Stated / Unknown:** 81
+> **Total Unique Postings:** 6741 | **Verified Accessible:** 73 | **Location Not Stated / Unknown:** 81
 
 ## 🌐 Verified Accessible Jobs
 | Rank | Match | Laya | Reachability | Job Title | Company | Location | Matched Skills | Apply |
@@ -170,7 +170,7 @@
 ### 📊 Disqualification Breakdown
 | Reason | Count | Example Titles |
 | :--- | :---: | :--- |
-| `NOT_REMOTE` | 5076 | People & Operations Associate; Head of Engineering; Growth - Digital Marketing (Business) |
+| `NOT_REMOTE` | 5081 | People & Operations Associate; Head of Engineering; Growth - Digital Marketing (Business) |
 | `NON_ENGLISH` | 143 | Technicien de maintenance d'instruments ; Consultor/a de Gobierno y Controles de T; Weiterbildung zum Visual & Audio Designe |
 | `UNPAID` | 1 | (Unpaid) Mandatory Internship : Software |
 | `REGION_LOCKED` | 237 | Regional Child Support Enforcement Progr; REMOTE (US or Canada) or San Francisco, ; Recruiter, Mission & Business Operations |
