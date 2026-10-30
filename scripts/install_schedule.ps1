@@ -35,8 +35,13 @@ $Action = New-ScheduledTaskAction `
     -Argument "scripts\run_scheduled.py" `
     -WorkingDirectory $RepoDir
 
-# Trigger: fire at every logon of the current user
-$Trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+# Trigger: fire daily at 06:00 AM (with catch-up on wake) AND at logon
+# Note: StartWhenAvailable in Task Scheduler applies to time triggers (-Daily).
+# Including both ensures the task catches up after sleep/missed start AND boots on login.
+$Trigger = @(
+    New-ScheduledTaskTrigger -Daily -At 06:00,
+    New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+)
 
 # Settings:
 #   - StartWhenAvailable: if the laptop was off when the task was due, run it on next boot

@@ -998,7 +998,7 @@ def main():
         ensure_docker_and_postgres()
 
     port = args.port
-    server = HTTPServer(("", port), AppServerHandler)
+    server = HTTPServer(("127.0.0.1", port), AppServerHandler)
     print("=" * 65)
     print(f"  JOB RADAR FEEDBACK LOOP DASHBOARD (app.py)")
     print(f"  Serving on: http://localhost:{port}")
