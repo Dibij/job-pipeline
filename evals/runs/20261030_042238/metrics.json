@@ -1,0 +1,379 @@
+{
+  "timestamp": "2026-10-30T04:22:26.476930+00:00",
+  "git_sha": "43472a56bafb95769be25802cae528fd2e60434d",
+  "gold_dataset": {
+    "path": "D:\\Code\\Job\\evals\\gold\\gold_latest.csv",
+    "sha256": "04ba4a3b388dd9a97d534dd88d70cc693bb8c06822c71914693f4518915434e6",
+    "total_records": 147,
+    "class_distribution": {
+      "good_fit": 5,
+      "maybe": 32,
+      "bad_fit": 110
+    }
+  },
+  "gate_status": {
+    "passed": false,
+    "status": "BLOCKED",
+    "total_labels": 147,
+    "total_required": 150,
+    "good_fit_count": 5,
+    "good_fit_required": 30,
+    "fold_positives_min_required": 3,
+    "reasons": [
+      "Total distinct v2 labels (147/150) below requirement",
+      "Distinct good_fit labels (5/30) below requirement",
+      "Fold positive count (0/3) below minimum"
+    ]
+  },
+  "cv_config": {
+    "n_splits": 5,
+    "grouping": "company",
+    "fold_positives": [
+      4,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  "models": {
+    "title_keyword_rule": {
+      "model_version": "1.0",
+      "is_trainable": false,
+      "full_dataset_metrics": {
+        "n": 147,
+        "n_positives": 5,
+        "positive_rate": 0.034013605442176874,
+        "roc_auc": {
+          "estimate": 0.9753521126760564,
+          "ci_lower": 0.9545454545454546,
+          "ci_upper": 0.9896658006613133
+        },
+        "pr_auc": {
+          "estimate": 0.4166666666666667,
+          "ci_lower": 0.14285714285714285,
+          "ci_upper": 0.7
+        },
+        "precision@5": {
+          "estimate": 0.4,
+          "ci_lower": 0.0,
+          "ci_upper": 0.8
+        },
+        "recall@5": {
+          "estimate": 0.4,
+          "ci_lower": 0.0,
+          "ci_upper": 1.0
+        },
+        "precision@10": {
+          "estimate": 0.4,
+          "ci_lower": 0.1,
+          "ci_upper": 0.7
+        },
+        "recall@10": {
+          "estimate": 0.8,
+          "ci_lower": 0.4,
+          "ci_upper": 1.0
+        },
+        "precision@25": {
+          "estimate": 0.2,
+          "ci_lower": 0.04,
+          "ci_upper": 0.36
+        },
+        "recall@25": {
+          "estimate": 1.0,
+          "ci_lower": 1.0,
+          "ci_upper": 1.0
+        },
+        "cohen_kappa": {
+          "estimate": 0.006808778086209832,
+          "ci_lower": 0.0015554518587650445,
+          "ci_upper": 0.014986567293635244,
+          "threshold_used": 0.5
+        },
+        "confusion_matrix_at_threshold": [
+          [
+            13,
+            129
+          ],
+          [
+            0,
+            5
+          ]
+        ],
+        "threshold_classification": {
+          "threshold": 0.5,
+          "precision": 0.03731343283582089,
+          "recall": 1.0,
+          "f1": 0.07194244604316546
+        }
+      },
+      "grouped_cv_folds": [
+        {
+          "n": 60,
+          "n_positives": 4,
+          "positive_rate": 0.06666666666666667,
+          "roc_auc": {
+            "estimate": 0.9553571428571428,
+            "ci_lower": 0.9165607344632769,
+            "ci_upper": 0.9909090909090909
+          },
+          "pr_auc": {
+            "estimate": 0.4444444444444444,
+            "ci_lower": 0.14285714285714285,
+            "ci_upper": 0.8333333333333334
+          },
+          "precision@5": {
+            "estimate": 0.6,
+            "ci_lower": 0.0,
+            "ci_upper": 0.8149999999999977
+          },
+          "recall@5": {
+            "estimate": 0.75,
+            "ci_lower": 0.0,
+            "ci_upper": 1.0
+          },
+          "precision@10": {
+            "estimate": 0.4,
+            "ci_lower": 0.1,
+            "ci_upper": 0.7
+          },
+          "recall@10": {
+            "estimate": 1.0,
+            "ci_lower": 0.6,
+            "ci_upper": 1.0
+          },
+          "precision@25": {
+            "estimate": 0.16,
+            "ci_lower": 0.04,
+            "ci_upper": 0.32
+          },
+          "recall@25": {
+            "estimate": 1.0,
+            "ci_lower": 1.0,
+            "ci_upper": 1.0
+          },
+          "cohen_kappa": {
+            "estimate": 0.004914004914004844,
+            "ci_lower": 0.0,
+            "ci_upper": 0.014173072314697064,
+            "threshold_used": 0.5
+          },
+          "confusion_matrix_at_threshold": [
+            [
+              2,
+              54
+            ],
+            [
+              0,
+              4
+            ]
+          ],
+          "threshold_classification": {
+            "threshold": 0.5,
+            "precision": 0.06896551724137931,
+            "recall": 1.0,
+            "f1": 0.12903225806451613
+          },
+          "fold": 1
+        },
+        {
+          "fold": 2,
+          "status": "insufficient_positives",
+          "n_test": 24,
+          "positives": 0,
+          "required_positives": 3
+        },
+        {
+          "fold": 3,
+          "status": "insufficient_positives",
+          "n_test": 23,
+          "positives": 0,
+          "required_positives": 3
+        },
+        {
+          "fold": 4,
+          "status": "insufficient_positives",
+          "n_test": 20,
+          "positives": 0,
+          "required_positives": 3
+        },
+        {
+          "fold": 5,
+          "status": "insufficient_positives",
+          "n_test": 20,
+          "positives": 1,
+          "required_positives": 3
+        }
+      ]
+    },
+    "char_ngram_title_clf": {
+      "model_version": "1.0",
+      "is_trainable": true,
+      "full_dataset_metrics": {
+        "n": 147,
+        "n_positives": 5,
+        "positive_rate": 0.034013605442176874,
+        "roc_auc": {
+          "estimate": 0.9028169014084507,
+          "ci_lower": 0.8014111532109199,
+          "ci_upper": 0.9794520547945206
+        },
+        "pr_auc": {
+          "estimate": 0.23041638276932397,
+          "ci_lower": 0.06021978021978023,
+          "ci_upper": 0.6679166666666665
+        },
+        "precision@5": {
+          "estimate": 0.4,
+          "ci_lower": 0.0,
+          "ci_upper": 0.8
+        },
+        "recall@5": {
+          "estimate": 0.4,
+          "ci_lower": 0.0,
+          "ci_upper": 1.0
+        },
+        "precision@10": {
+          "estimate": 0.2,
+          "ci_lower": 0.0,
+          "ci_upper": 0.5
+        },
+        "recall@10": {
+          "estimate": 0.4,
+          "ci_lower": 0.0,
+          "ci_upper": 1.0
+        },
+        "precision@25": {
+          "estimate": 0.16,
+          "ci_lower": 0.04,
+          "ci_upper": 0.28
+        },
+        "recall@25": {
+          "estimate": 0.8,
+          "ci_lower": 0.3333333333333333,
+          "ci_upper": 1.0
+        },
+        "cohen_kappa": {
+          "estimate": 0.014327468622843842,
+          "ci_lower": 0.003360954974792829,
+          "ci_upper": 0.030237039216060312,
+          "threshold_used": 0.5
+        },
+        "confusion_matrix_at_threshold": [
+          [
+            25,
+            117
+          ],
+          [
+            0,
+            5
+          ]
+        ],
+        "threshold_classification": {
+          "threshold": 0.5,
+          "precision": 0.040983606557377046,
+          "recall": 1.0,
+          "f1": 0.07874015748031496
+        }
+      },
+      "grouped_cv_folds": [
+        {
+          "n": 60,
+          "n_positives": 4,
+          "positive_rate": 0.06666666666666667,
+          "roc_auc": {
+            "estimate": 0.6741071428571428,
+            "ci_lower": 0.47912759628957446,
+            "ci_upper": 0.8994666861484509
+          },
+          "pr_auc": {
+            "estimate": 0.12777777777777777,
+            "ci_lower": 0.05430658051625794,
+            "ci_upper": 0.3656175322693179
+          },
+          "precision@5": {
+            "estimate": 0.0,
+            "ci_lower": 0.0,
+            "ci_upper": 0.4
+          },
+          "recall@5": {
+            "estimate": 0.0,
+            "ci_lower": 0.0,
+            "ci_upper": 0.5
+          },
+          "precision@10": {
+            "estimate": 0.1,
+            "ci_lower": 0.0,
+            "ci_upper": 0.3
+          },
+          "recall@10": {
+            "estimate": 0.25,
+            "ci_lower": 0.0,
+            "ci_upper": 1.0
+          },
+          "precision@25": {
+            "estimate": 0.08,
+            "ci_lower": 0.0,
+            "ci_upper": 0.24
+          },
+          "recall@25": {
+            "estimate": 0.5,
+            "ci_lower": 0.0,
+            "ci_upper": 1.0
+          },
+          "cohen_kappa": {
+            "estimate": -0.027397260273972712,
+            "ci_lower": -0.06666666666666665,
+            "ci_upper": 0.0,
+            "threshold_used": 0.5
+          },
+          "confusion_matrix_at_threshold": [
+            [
+              55,
+              1
+            ],
+            [
+              4,
+              0
+            ]
+          ],
+          "threshold_classification": {
+            "threshold": 0.5,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "fold": 1
+        },
+        {
+          "fold": 2,
+          "status": "insufficient_positives",
+          "n_test": 24,
+          "positives": 0,
+          "required_positives": 3
+        },
+        {
+          "fold": 3,
+          "status": "insufficient_positives",
+          "n_test": 23,
+          "positives": 0,
+          "required_positives": 3
+        },
+        {
+          "fold": 4,
+          "status": "insufficient_positives",
+          "n_test": 20,
+          "positives": 0,
+          "required_positives": 3
+        },
+        {
+          "fold": 5,
+          "status": "insufficient_positives",
+          "n_test": 20,
+          "positives": 1,
+          "required_positives": 3
+        }
+      ]
+    }
+  }
+}

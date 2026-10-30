@@ -1,0 +1,17 @@
+{
+  "timestamp": "2026-10-30T04:21:25.363360+00:00",
+  "git_sha": "43472a56bafb95769be25802cae528fd2e60434d",
+  "gold_sha256": "04ba4a3b388dd9a97d534dd88d70cc693bb8c06822c71914693f4518915434e6",
+  "n_records": 147,
+  "models_evaluated": [
+    "char_ngram_title_clf",
+    "composite_match_title",
+    "composite_rule_title",
+    "laya",
+    "match_scorer",
+    "ollama_triage",
+    "tfidf_lr",
+    "title_keyword_rule"
+  ],
+  "gate_status": "BLOCKED"
+}

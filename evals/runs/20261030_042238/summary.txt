@@ -1,0 +1,12 @@
+=====================================================================================
+ EVALUATION RESULTS SUMMARY
+ Git SHA: 43472a56 | Timestamp: 2026-10-30T04:22:26.476930+00:00
+ Gate Status: BLOCKED (n=147, pos=5)
+=====================================================================================
+Model                    | ROC-AUC [95% CI]     | PR-AUC [95% CI]      | P@10 [95% CI]     
+-------------------------------------------------------------------------------------------
+title_keyword_rule       | 0.975 [0.955-0.990]  | 0.417 [0.143-0.700]  | 0.400 [0.100-0.700]
+char_ngram_title_clf     | 0.903 [0.801-0.979]  | 0.230 [0.060-0.668]  | 0.200 [0.000-0.500]
+=====================================================================================
+ Note: Metrics computed with 1,000 bootstrap resamples on frozen gold dataset.
+ Training gate status: BLOCKED - minimum 30 good_fit labels required for official training unlocks.
