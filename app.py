@@ -990,7 +990,12 @@ class AppServerHandler(BaseHTTPRequestHandler):
 def main():
     parser = argparse.ArgumentParser(description="Start the Job Radar labeling feedback loop web app.")
     parser.add_argument("--port", type=int, default=5000, help="Port to serve on (default: 5000)")
+    parser.add_argument("--no-docker-start", action="store_true", help="Skip automatic Docker/PostgreSQL startup.")
     args = parser.parse_args()
+
+    if not args.no_docker_start:
+        from src.db.docker_control import ensure_docker_and_postgres
+        ensure_docker_and_postgres()
 
     port = args.port
     server = HTTPServer(("", port), AppServerHandler)

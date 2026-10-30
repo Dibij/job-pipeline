@@ -22,6 +22,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.pipeline import JobPipeline
 from src.matching.service import score_all_jobs
+from src.db.docker_control import ensure_docker_and_postgres
 from scripts.export_feed import export_feed
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -32,6 +33,7 @@ def run_daily_pipeline(
     triage_limit: int = 500,
     triage_use_ollama: bool = True,
     triage_ollama_model: str = "qwen2.5:3b",
+    auto_start_docker: bool = True,
 ):
     """Run full daily pipeline.
 
@@ -41,11 +43,20 @@ def run_daily_pipeline(
                             main active-learning engine; disable with --no-triage-ollama
                             if Ollama is not running).
         triage_ollama_model: Ollama model tag (default qwen2.5:3b).
+        auto_start_docker:  Automatically launch Docker Desktop and start PostgreSQL
+                            container if not running (default True).
     """
     start_time = time.time()
     logger.info("=" * 65)
     logger.info("  DAILY PIPELINE RUNNER (Task 6-3)")
     logger.info("=" * 65)
+
+    # Step 0: Ensure Docker Desktop is open and PostgreSQL is healthy
+    if auto_start_docker:
+        logger.info("[Step 0/5] Checking Docker & PostgreSQL Services...")
+        if not ensure_docker_and_postgres():
+            logger.error("Could not ensure Docker/PostgreSQL are running. Aborting pipeline.")
+            raise RuntimeError("Docker / PostgreSQL unavailable. Could not establish database connection.")
 
     pipeline = JobPipeline()
 
@@ -135,6 +146,10 @@ if __name__ == "__main__":
         help="Disable Ollama during triage step (Ollama is ON by default).",
     )
     parser.add_argument(
+        "--no-docker-start", action="store_true",
+        help="Disable automatic Docker Desktop launching if Docker is stopped.",
+    )
+    parser.add_argument(
         "--triage-limit", type=int, default=500,
         help="Max unlabeled jobs to triage per run (default: 500).",
     )
@@ -148,4 +163,5 @@ if __name__ == "__main__":
         triage_limit=args.triage_limit,
         triage_use_ollama=not args.no_triage_ollama,
         triage_ollama_model=args.ollama_model,
+        auto_start_docker=not args.no_docker_start,
     )

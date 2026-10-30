@@ -196,4 +196,9 @@
   - Run: `& .\.venv\Scripts\python.exe scripts\ingest_triage_suggestions.py data\triage_suggestions_20261029_1242.json`
   - Note: Wikimedia Software Engineering Internship (MS=71) is strong `good_fit` candidate — Ollama said `maybe` citing location, which is irrelevant under v2.
 - [ ] 12.6 **Reach Training Gate** — currently **147/150 v2** (3 away), **5/30 `good_fit`** (25 away).
+- [x] 12.7 **Automatic Docker Desktop & PostgreSQL Lifecycle** (`src/db/docker_control.py`):
+  - Automatically launches Docker Desktop if daemon is not running when pipeline starts (doesn't just passively wait).
+  - Runs `docker compose up -d postgres` and polls until PostgreSQL is healthy and accepting connections.
+  - Integrated into `scripts/run_daily.py` (Step 0) and `app.py` startup, with fast-path (<50ms) when already healthy and `--no-docker-start` override.
+  - Unit test suite `tests/test_docker_control.py` (6 tests passing).
 
