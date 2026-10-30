@@ -142,8 +142,8 @@ def run_daily_pipeline(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the daily job pipeline.")
     parser.add_argument(
-        "--no-triage-ollama", action="store_true",
-        help="Disable Ollama during triage step (Ollama is ON by default).",
+        "--no-llm", "--no-triage-ollama", action="store_true", dest="no_llm",
+        help="Disable Ollama / LLM calls across the daily pipeline (LLM is ON by default).",
     )
     parser.add_argument(
         "--no-docker-start", action="store_true",
@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     run_daily_pipeline(
         triage_limit=args.triage_limit,
-        triage_use_ollama=not args.no_triage_ollama,
+        triage_use_ollama=not args.no_llm,
         triage_ollama_model=args.ollama_model,
         auto_start_docker=not args.no_docker_start,
     )

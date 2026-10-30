@@ -523,6 +523,13 @@ function renderCard(j, viewMode) {
         <div class="job-company">🏢 <strong>${escapeHtml(j.company)}</strong></div>
         <div class="job-location">📍 ${escapeHtml(j.location || 'Remote')} &bull; 🌐 ${escapeHtml(j.source || '')}</div>
         <div class="tags-row">${boostTags || '<span class="muted-tag">No boosts</span>'} ${penaltyTags}</div>
+        ${j.explanation ? `
+          <div style="margin-top:8px;padding:8px 10px;background:rgba(56,189,248,0.08);border-left:3px solid var(--accent);border-radius:4px;font-size:0.78rem;line-height:1.4">
+            <div style="color:var(--accent);font-weight:600;margin-bottom:2px">💡 Fit Breakdown</div>
+            <div style="color:#f1f5f9;margin-bottom:2px"><strong>Why:</strong> ${escapeHtml(j.explanation.why_fits || '')}</div>
+            <div style="color:#cbd5e1"><strong>Missing/Risks:</strong> ${escapeHtml(j.explanation.what_missing || '')}</div>
+          </div>
+        ` : ''}
       </div>
 
       <!-- Col 2: Scores & Filters -->
@@ -735,6 +742,15 @@ class AppServerHandler(BaseHTTPRequestHandler):
         """Top unlabeled jobs that pass HardFilter with scores and Ollama triage verdict."""
         try:
             triage_map = load_all_triage_suggestions()
+            exp_rows = execute_query("""
+                SELECT job_id, json_data 
+                FROM job_llm_features 
+                WHERE feature_type = 'explanation';
+            """)
+            exp_map = {
+                str(r["job_id"]): (r["json_data"] if isinstance(r["json_data"], dict) else json.loads(r["json_data"]))
+                for r in exp_rows
+            }
             rows = execute_query("""
                 SELECT
                     j.id, j.title, j.company_name, j.location_raw, j.source, j.apply_url,
@@ -802,6 +818,7 @@ class AppServerHandler(BaseHTTPRequestHandler):
                     "hf_reason": hf_res.reason.value,
                     "hf_detail": hf_res.detail,
                     "triage": triage_payload,
+                    "explanation": exp_map.get(jid_str),
                 })
 
             feed_items.sort(key=lambda x: x["title_score"], reverse=True)
