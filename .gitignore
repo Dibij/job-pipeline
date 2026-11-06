@@ -71,3 +71,8 @@ SESSION.md
 # Reports & evaluation output
 reports/
 
+
+# Safety ignores for migration
+*.env
+*.pyc
+node_modules/

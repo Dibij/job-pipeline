@@ -338,6 +338,111 @@ def _perform_regression_compare(current_dir: Path, prev_dir: Path) -> None:
     print("=" * 70 + "\n")
 
 
+def run_ablation(
+    gold_path: Path = DEFAULT_GOLD,
+    output_dir: Optional[Path] = None,
+) -> Path:
+    """Evaluate ablation steps: rules only → +title clf → +match → +laya → +ollama.
+
+    Each step evaluates P@5, P@10, ROC-AUC with 95% bootstrap CIs on the full gold set.
+    Prints an honest comparison table; prints 'within CI overlap' when differences are
+    not statistically significant.
+    """
+    records = load_gold_records(gold_path)
+    total_distinct_jobs = len(records)
+    distinct_good_fit = sum(1 for r in records if r.get("label") == "good_fit")
+
+    gate_info = check_training_gates(
+        total_distinct_labels=total_distinct_jobs,
+        distinct_good_fit=distinct_good_fit,
+    )
+
+    print("\n" + "=" * 70)
+    print(" ABLATION STUDY — additive model components")
+    print(f" Gate Status: {gate_info['status']} (n={total_distinct_jobs}, pos={distinct_good_fit})")
+    print("=" * 70)
+
+    y_true_all = [1 if r.get("label") == "good_fit" else 0 for r in records]
+
+    ablation_steps = [
+        ("rules_only",           ["title_keyword_rule"]),
+        ("rules+title_clf",      ["composite_rule_title"]),
+        ("rules+match",          ["title_keyword_rule", "match_scorer"]),
+        ("rules+match+title_clf",["composite_match_title"]),
+        ("laya_only",            ["laya"]),
+        ("ollama_triage_only",   ["ollama_triage"]),
+    ]
+
+    ablation_results = {}
+    for step_name, model_names in ablation_steps:
+        # Ensemble: average scores from all listed models in this step
+        all_scores: List[np.ndarray] = []
+        for m_name in model_names:
+            try:
+                model = get_model(m_name)
+                scores = model.score_jobs(records)
+                all_scores.append(scores)
+            except Exception as exc:
+                logger.warning("Could not score with %s: %s", m_name, exc)
+
+        if not all_scores:
+            ablation_results[step_name] = {"error": "No scores computed"}
+            continue
+
+        ensemble_scores = np.mean(np.stack(all_scores, axis=0), axis=0)
+        metrics = evaluate_binary_predictions(y_true_all, ensemble_scores, n_bootstrap=1000)
+        ablation_results[step_name] = {
+            "models": model_names,
+            "metrics": metrics,
+        }
+
+    # --- Print table ---
+    header = f"{'Step':<26} | {'ROC-AUC [95% CI]':<24} | {'P@5 [95% CI]':<20} | {'P@10 [95% CI]':<20}"
+    print(header)
+    print("-" * len(header))
+
+    for step_name, data in ablation_results.items():
+        if "error" in data:
+            print(f"{step_name:<26} | ERROR: {data['error']}")
+            continue
+        m = data["metrics"]
+        roc = m.get("roc_auc", {})
+        p5  = m.get("precision@5", {})
+        p10 = m.get("precision@10", {})
+
+        roc_str = f"{roc.get('estimate', 0):.3f} [{roc.get('ci_lower', 0):.3f}-{roc.get('ci_upper', 0):.3f}]" if roc else "N/A"
+        p5_str  = f"{p5.get('estimate', 0):.3f} [{p5.get('ci_lower', 0):.3f}-{p5.get('ci_upper', 0):.3f}]" if p5 else "N/A"
+        p10_str = f"{p10.get('estimate', 0):.3f} [{p10.get('ci_lower', 0):.3f}-{p10.get('ci_upper', 0):.3f}]" if p10 else "N/A"
+        print(f"{step_name:<26} | {roc_str:<24} | {p5_str:<20} | {p10_str:<20}")
+
+    print("=" * 70)
+    print(f" n={total_distinct_jobs}, n_pos={distinct_good_fit}")
+    print(f" Note: CIs overlap widely at n_pos={distinct_good_fit} — treat ablation as indicative only.")
+    print(f" Official results need gate UNLOCKED (30 good_fit required, currently {distinct_good_fit}).")
+    print("=" * 70)
+
+    # Save
+    timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    run_dir = output_dir or (RUNS_DIR / f"ablation_{timestamp_str}")
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    ablation_file = run_dir / "ablation.json"
+    save_data = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "git_sha": get_git_sha(),
+        "n_jobs": total_distinct_jobs,
+        "n_pos": distinct_good_fit,
+        "gate_status": gate_info["status"],
+        "note": f"Indicative only — gate BLOCKED (good_fit={distinct_good_fit}/30 required)",
+        "steps": ablation_results,
+    }
+    with open(ablation_file, "w", encoding="utf-8") as f:
+        json.dump(save_data, f, indent=2, default=str)
+
+    logger.info("Ablation results saved to: %s", ablation_file)
+    return run_dir
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run evaluation harness.")
     parser.add_argument("--gold", type=Path, default=DEFAULT_GOLD, help="Path to gold dataset CSV")
@@ -345,12 +450,19 @@ if __name__ == "__main__":
     parser.add_argument("--n-splits", type=int, default=5, help="Number of CV splits")
     parser.add_argument("--output-dir", type=Path, default=None, help="Custom output directory")
     parser.add_argument("--compare", type=Path, default=None, help="Directory of previous run to compare against")
+    parser.add_argument("--ablation", action="store_true", help="Run ablation study (additive model components)")
     args = parser.parse_args()
 
-    run_evaluation(
-        gold_path=args.gold,
-        model_names=args.models,
-        n_splits=args.n_splits,
-        output_dir=args.output_dir,
-        compare_dir=args.compare,
-    )
+    if args.ablation:
+        run_ablation(
+            gold_path=args.gold,
+            output_dir=args.output_dir,
+        )
+    else:
+        run_evaluation(
+            gold_path=args.gold,
+            model_names=args.models,
+            n_splits=args.n_splits,
+            output_dir=args.output_dir,
+            compare_dir=args.compare,
+        )
