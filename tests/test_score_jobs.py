@@ -15,6 +15,9 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
+# The Laya stack is optional (large torch download); skip cleanly if absent.
+pytest.importorskip("laya")
+
 # Import functions under test
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

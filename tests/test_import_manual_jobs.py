@@ -5,6 +5,29 @@ from pathlib import Path
 from scripts.import_manual_jobs import load_jobs_from_file, import_manual_jobs
 
 
+@pytest.fixture(autouse=True)
+def _cleanup_manual_fixtures():
+    """Keep these DB-writing tests from polluting the real pipeline database."""
+    from src.db.connection import execute_query
+
+    def cleanup():
+        execute_query(
+            "DELETE FROM raw_job_listings "
+            "WHERE source = %s AND payload->>'company_name' IN ('Everest Labs', 'Foreign Corp');",
+            ("manual:nepal",),
+        )
+        execute_query(
+            "DELETE FROM jobs WHERE source = %s AND company_name IN ('Everest Labs', 'Foreign Corp');",
+            ("manual:nepal",),
+        )
+
+    cleanup()
+    try:
+        yield
+    finally:
+        cleanup()
+
+
 def test_load_jobs_from_json(tmp_path: Path):
     sample = [
         {

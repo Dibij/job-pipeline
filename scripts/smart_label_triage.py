@@ -90,10 +90,16 @@ def fetch_unlabeled_jobs(limit: Optional[int] = None) -> List[Dict]:
             j.is_unpaid,
             j.exclude_reason,
             s.final_score AS laya_score,
-            s.needs_human_review AS laya_needs_review
+            s.needs_review AS laya_needs_review
         FROM jobs j
         LEFT JOIN laya_labels l ON l.job_id = j.id
-        LEFT JOIN laya_job_scores s ON s.job_id = j.id
+        LEFT JOIN LATERAL (
+            SELECT final_score, needs_review
+            FROM laya_job_scores
+            WHERE job_id = j.id
+            ORDER BY scored_at DESC
+            LIMIT 1
+        ) s ON TRUE
         WHERE l.id IS NULL
           AND j.exclude_reason IS NULL
         ORDER BY j.created_at DESC
@@ -181,8 +187,14 @@ def triage(
 ) -> str:
     """Assign a triage bucket to a job."""
     ms_norm = float(ms_score)
-    laya_val = float(laya_score) if laya_score is not None and float(laya_score) >= 0 else 0.0
 
+    # A missing Laya score (-1 sentinel) must not be treated as a real 0 and
+    # silently push every job into OBVIOUS_BAD. Without the second signal,
+    # anything with a plausible MatchScorer score goes to human review.
+    if laya_score is None or float(laya_score) < 0:
+        return "UNCERTAIN" if ms_norm >= MS_BAD_CUTOFF else "OBVIOUS_BAD"
+
+    laya_val = float(laya_score)
     ms_high = ms_norm >= MS_HIGH
     laya_high = laya_val >= LAYA_HIGH
     laya_uncertain = LAYA_UNCERTAIN_LO <= laya_val <= LAYA_UNCERTAIN_HI
@@ -210,10 +222,14 @@ def run_triage(
 ) -> Dict[str, Any]:
     """Run the full triage pipeline and return a stats dict."""
     logger.info("Fetching unlabeled eligible jobs from DB...")
-    all_jobs = fetch_unlabeled_jobs(limit=limit)
+    # Eligibility must be applied BEFORE the limit. Ordering by created_at DESC and
+    # limiting first biases triage toward whichever source was ingested last.
+    all_jobs = fetch_unlabeled_jobs(limit=None)
     logger.info("Found %d unlabeled jobs total.", len(all_jobs))
 
     jobs = filter_eligible(all_jobs)
+    if limit is not None:
+        jobs = jobs[: int(limit)]
     if not jobs:
         logger.info("Triage: no eligible unlabeled jobs -- skipping.")
         return {

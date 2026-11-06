@@ -269,7 +269,8 @@ def make_labeling_batch(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate balanced labeling batch.")
-    parser.add_argument("--count", type=int, default=40, help="Target number of jobs (default: 40)")
+    parser.add_argument("--count", "--batch-size", dest="count", type=int, default=40,
+                        help="Target number of jobs (default: 40); --batch-size is an alias.")
     parser.add_argument("--output", type=str, default=None, help="Output CSV path")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     args = parser.parse_args()

@@ -20,20 +20,32 @@ class TestUnpaidRule(unittest.TestCase):
         self.assertFalse(res.passed)
 
     def test_elevenlabs_paid_roles_never_flagged(self):
-        # 1. Full-Stack Engineer (Backend Leaning) @ ElevenLabs (e76bb606-27f1-4231-88ff-9e6ebf6be84f)
-        el1 = execute_query("SELECT title, description_text FROM jobs WHERE id = 'e76bb606-27f1-4231-88ff-9e6ebf6be84f'")[0]
-        res1 = _check_unpaid(el1["title"], el1["description_text"])
-        self.assertTrue(res1.passed, f"ElevenLabs backend role failed: {res1.detail}")
+        """Paid roles whose JDs mention equity/benefits must not be flagged unpaid."""
+        # Use live rows instead of hard-coded UUIDs so this regression test survives
+        # a database rebuild; skip only if the sources are absent.
+        queries = [
+            ("ElevenLabs", "%Full-Stack Engineer%"),
+            ("ElevenLabs", "%Infrastructure%"),
+            ("Supabase", "%Engineer%"),
+        ]
+        rows = []
+        for company, title in queries:
+            found = execute_query(
+                "SELECT title, description_text FROM jobs "
+                "WHERE company_name ILIKE %s AND title ILIKE %s LIMIT 1;",
+                (company, title),
+            )
+            if found:
+                rows.append(found[0])
+        if not rows:
+            self.skipTest("No ElevenLabs/Supabase rows present in this database.")
 
-        # 2. Full-Stack Engineer - Productions @ ElevenLabs (2ac83bc9-3ce8-4f94-bf06-e50a9f755db3)
-        el2 = execute_query("SELECT title, description_text FROM jobs WHERE id = '2ac83bc9-3ce8-4f94-bf06-e50a9f755db3'")[0]
-        res2 = _check_unpaid(el2["title"], el2["description_text"])
-        self.assertTrue(res2.passed, f"ElevenLabs productions role failed: {res2.detail}")
-
-        # 3. Sticker Mule software engineer (ed1eb89e-7e80-4390-ac26-c762e563c10f)
-        sm = execute_query("SELECT title, description_text FROM jobs WHERE id = 'ed1eb89e-7e80-4390-ac26-c762e563c10f'")[0]
-        res_sm = _check_unpaid(sm["title"], sm["description_text"])
-        self.assertTrue(res_sm.passed, f"Sticker Mule role failed: {res_sm.detail}")
+        for row in rows:
+            res = _check_unpaid(row["title"], row["description_text"])
+            self.assertTrue(
+                res.passed,
+                f"Paid role incorrectly flagged: {row['title']} ({res.detail})",
+            )
 
 if __name__ == "__main__":
     unittest.main()

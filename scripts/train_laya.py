@@ -131,6 +131,8 @@ def run_real_training(
         SELECT l.job_id, l.label, j.title, j.company_name, j.description_text
         FROM laya_labels l
         JOIN jobs j ON l.job_id = j.id
+        WHERE l.label_guideline_version = 'v2_role_fit_only'
+          AND COALESCE(j.exclude_reason, '') = ''
         ORDER BY l.job_id, l.labeled_at DESC;
     """)
 

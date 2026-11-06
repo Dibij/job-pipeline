@@ -81,6 +81,9 @@ def load_gold_with_descriptions(conn) -> List[Dict[str, Any]]:
     return rows
 
 
+EVAL_PROMPT_VERSION = "v1_eval_disjoint"
+
+
 def compute_content_hash(description: str) -> str:
     return hashlib.sha256((description or "").encode()).hexdigest()[:16]
 
@@ -93,11 +96,11 @@ def load_cached_triage(conn, job_id: str, model_digest: str) -> Optional[Dict]:
             SELECT json_data FROM job_llm_features
             WHERE job_id = %s::uuid
               AND feature_type = 'triage'
-              AND prompt_version = 'v1'
+              AND prompt_version = %s
               AND model_digest = %s
             ORDER BY created_at DESC LIMIT 1
             """,
-            (job_id, model_digest),
+            (job_id, EVAL_PROMPT_VERSION, model_digest),
         )
         row = cur.fetchone()
         if row and row[0]:
@@ -120,10 +123,10 @@ def save_triage_to_cache(
             """
             INSERT INTO job_llm_features
                 (job_id, feature_type, prompt_version, model, model_digest, content_hash, json_data, created_at)
-            VALUES (%s::uuid, 'triage', 'v1', 'qwen2.5:3b', %s, %s, %s, now())
+            VALUES (%s::uuid, 'triage', %s, 'qwen2.5:3b', %s, %s, %s, now())
             ON CONFLICT DO NOTHING
             """,
-            (job_id, model_digest, content_hash, Jsonb(triage_dict)),
+            (job_id, EVAL_PROMPT_VERSION, model_digest, content_hash, Jsonb(triage_dict)),
         )
     conn.commit()
 
@@ -151,12 +154,12 @@ def run_ollama_triage(
         logger.warning("Job %s has no description text — skipping", job_id)
         return None
 
-    # Exclude target job from few-shot pool (in eval mode, also exclude gold peers)
-    # We exclude the target job but still allow other gold jobs as examples
+    # Few-shot pool is a fixed set reserved before evaluation; the eval set is
+    # explicitly excluded as a second guard (no test-label leakage).
     few_shot_examples = select_few_shot_examples(
         target_job_id=job_id,
-        excluded_job_ids=None,  # Allow all other gold jobs as few-shot
-        n_per_class=1,
+        excluded_job_ids=all_gold_ids,
+        n_per_class=2,
         gold_pool=gold_pool,
     )
 
@@ -377,9 +380,25 @@ def main() -> None:
         else:
             logger.warning("Ollama not available — will use cached results only")
 
-    # --- Build few-shot pool ---
-    gold_pool = build_gold_pool_for_few_shot(gold_rows)
-    all_gold_ids = {r["job_id"] for r in gold_rows}
+    # --- Build few-shot pool (disjoint from the evaluation set) ---
+    from src.llm.few_shot import select_few_shot_examples
+
+    full_pool = build_gold_pool_for_few_shot(gold_rows)
+    reserved = select_few_shot_examples(
+        target_job_id="",
+        n_per_class=2,
+        gold_pool=full_pool,
+    )
+    reserved_ids = {str(e["job_id"]) for e in reserved}
+    eval_rows = [r for r in gold_rows if str(r["job_id"]) not in reserved_ids]
+    if reserved_ids:
+        logger.info(
+            "Reserved %d gold jobs as fixed few-shot examples; evaluation set is %d jobs.",
+            len(reserved_ids), len(eval_rows),
+        )
+    # The model only ever sees this disjoint, human-labeled pool.
+    gold_pool = reserved
+    all_gold_ids = {str(r["job_id"]) for r in eval_rows}
 
     # --- Triage each job ---
     results = []
@@ -388,7 +407,7 @@ def main() -> None:
     n_failed = 0
     n_skipped = 0
 
-    for idx, job in enumerate(gold_rows):
+    for idx, job in enumerate(eval_rows):
         job_id = job["job_id"]
         content_hash = compute_content_hash(job.get("description_text") or "")
 
@@ -409,19 +428,19 @@ def main() -> None:
                 }
             )
             n_cached += 1
-            logger.debug("[%d/%d] %s — loaded from cache", idx + 1, len(gold_rows), job.get("title", ""))
+            logger.debug("[%d/%d] %s — loaded from cache", idx + 1, len(eval_rows), job.get("title", ""))
             continue
 
         if args.no_llm or args.use_cache_only or not ollama_available:
             n_skipped += 1
-            logger.debug("[%d/%d] %s — no Ollama, skipping", idx + 1, len(gold_rows), job.get("title", ""))
+            logger.debug("[%d/%d] %s — no Ollama, skipping", idx + 1, len(eval_rows), job.get("title", ""))
             continue
 
         # Run Ollama triage
         logger.info(
             "[%d/%d] Triaging: %s @ %s",
             idx + 1,
-            len(gold_rows),
+            len(eval_rows),
             job.get("title", ""),
             job.get("company_name", ""),
         )
@@ -499,6 +518,8 @@ def main() -> None:
         "model_digest": model_digest,
         "prompt_version": "v1",
         "n_gold_total": len(gold_rows),
+        "n_gold_eval_set": len(eval_rows),
+        "n_few_shot_reserved": len(reserved_ids),
         "n_gold_evaluated": len(valid_results),
         "n_cached": n_cached,
         "n_inferred": n_inferred,
@@ -555,7 +576,8 @@ def main() -> None:
         f"  - bad_fit:      {sum(1 for r in gold_rows if r['label']=='bad_fit')}",
         f"GATE STATUS:      BLOCKED (147/150 labels, 5/30 good_fit)",
         "",
-        f"Evaluated:        {len(valid_results)} / {len(gold_rows)} jobs",
+        f"Eval set:         {len(eval_rows)} jobs ({len(reserved_ids)} reserved as few-shot)",
+        f"Evaluated:        {len(valid_results)} / {len(eval_rows)} jobs",
         f"  - from cache:   {n_cached}",
         f"  - new inferred: {n_inferred}",
         f"  - failed:       {n_failed}",

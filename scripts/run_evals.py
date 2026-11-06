@@ -71,6 +71,16 @@ def load_gold_records(gold_path: Path) -> List[Dict[str, Any]]:
         reader = csv.DictReader(f)
         records = list(reader)
 
+    # Excluded/non-junior-friendly postings must never be evaluated or trained on
+    # (TRAINING.md §6.3). Older snapshots predate this guard, so filter defensively.
+    before = len(records)
+    records = [r for r in records if not (r.get("exclude_reason") or "").strip()]
+    if len(records) != before:
+        logger.warning(
+            "Dropped %d gold rows with a non-empty exclude_reason (protocol violation in snapshot).",
+            before - len(records),
+        )
+
     # Pre-flight check: strictly v2_role_fit_only
     check_guideline_integrity(records, required_version="v2_role_fit_only")
     return records
@@ -195,12 +205,17 @@ def run_evaluation(
         logger.info("Running evaluation for model: %s", model_name)
         model = get_model(model_name)
 
-        # 1. Full Dataset Baseline Scoring
+        # 1. Full Dataset Baseline Scoring (in-sample for trainable models; for
+        #    reference only -- the CV table below is the honest estimate).
+        if model.is_trainable:
+            model.fit(records, np.array(y_true_all))
         scores_full = model.score_jobs(records)
         metrics_full = evaluate_binary_predictions(y_true_all, scores_full)
 
         # 2. Grouped CV Evaluation
         fold_metrics: List[Any] = []
+        oof_true: List[int] = []
+        oof_scores: List[float] = []
         for f_idx, (train_recs, test_recs, f_pos) in enumerate(folds, start=1):
             if f_pos < gate_info["fold_positives_min_required"]:
                 fold_metrics.append({
@@ -219,14 +234,25 @@ def run_evaluation(
 
             y_test_fold = [1 if r.get("label") == "good_fit" else 0 for r in test_recs]
             scores_fold = model.score_jobs(test_recs)
+            oof_true.extend(y_test_fold)
+            oof_scores.extend(np.asarray(scores_fold, dtype=float).tolist())
             m_fold = evaluate_binary_predictions(y_test_fold, scores_fold, n_bootstrap=200)
             m_fold["fold"] = f_idx
             fold_metrics.append(m_fold)
+
+        cv_aggregate = (
+            evaluate_binary_predictions(oof_true, oof_scores)
+            if oof_true
+            else {"error": "no fold had enough positives; CV metrics undefined"}
+        )
 
         results["models"][model_name] = {
             "model_version": model.version,
             "is_trainable": model.is_trainable,
             "full_dataset_metrics": metrics_full,
+            "full_dataset_note": "in-sample; not used in the summary table",
+            "cv_aggregate": cv_aggregate,
+            "fold_positives_used": len(oof_true),
             "grouped_cv_folds": fold_metrics,
         }
 
@@ -266,32 +292,56 @@ def run_evaluation(
 
 
 def _format_summary_table(results: Dict[str, Any]) -> str:
-    """Format evaluation results into a clean, honest markdown summary table."""
+    """Format out-of-fold CV results into a clean, honest markdown summary table."""
+    gate = results.get("gate_status", {})
     lines = []
-    lines.append("=" * 85)
-    lines.append(" EVALUATION RESULTS SUMMARY")
+    lines.append("=" * 95)
+    lines.append(" EVALUATION RESULTS SUMMARY (out-of-fold grouped CV)")
     lines.append(f" Git SHA: {results['git_sha'][:8]} | Timestamp: {results['timestamp']}")
-    lines.append(f" Gate Status: {results['gate_status']['status']} (n={results['gold_dataset']['total_records']}, pos={results['gold_dataset']['class_distribution']['good_fit']})")
-    lines.append("=" * 85)
-    header = f"{'Model':<24} | {'ROC-AUC [95% CI]':<20} | {'PR-AUC [95% CI]':<20} | {'P@10 [95% CI]':<18}"
+    lines.append(
+        f" Gate Status: {gate.get('status', 'UNKNOWN')} "
+        f"(n={results['gold_dataset']['total_records']}, "
+        f"pos={results['gold_dataset']['class_distribution']['good_fit']})"
+    )
+    lines.append("=" * 95)
+    header = (
+        f"{'Model':<24} | {'CV ROC-AUC [95% CI]':<22} | {'CV PR-AUC [95% CI]':<22} "
+        f"| {'CV P@10 [95% CI]':<20} | {'n / pos (folds)':<22}"
+    )
     lines.append(header)
     lines.append("-" * len(header))
 
     for m_name, m_data in results["models"].items():
-        m_full = m_data.get("full_dataset_metrics", {})
-        roc = m_full.get("roc_auc", {})
-        pr = m_full.get("pr_auc", {})
-        p10 = m_full.get("precision@10", {})
+        cv = m_data.get("cv_aggregate") or {}
+        roc = cv.get("roc_auc", {})
+        pr = cv.get("pr_auc", {})
+        p10 = cv.get("precision@10", {})
+        n = cv.get("n")
+        npos = cv.get("n_positives")
+        folds_used = sum(
+            1 for f in m_data.get("grouped_cv_folds", [])
+            if f.get("status") != "insufficient_positives"
+        )
+        n_str = f"{n}/{npos} ({folds_used} fold{'s' if folds_used != 1 else ''})" if n is not None else "N/A"
 
-        roc_str = f"{roc.get('estimate', 0.0):.3f} [{roc.get('ci_lower', 0.0):.3f}-{roc.get('ci_upper', 0.0):.3f}]" if roc else "N/A"
-        pr_str = f"{pr.get('estimate', 0.0):.3f} [{pr.get('ci_lower', 0.0):.3f}-{pr.get('ci_upper', 0.0):.3f}]" if pr else "N/A"
-        p10_str = f"{p10.get('estimate', 0.0):.3f} [{p10.get('ci_lower', 0.0):.3f}-{p10.get('ci_upper', 0.0):.3f}]" if p10 else "N/A"
+        def fmt(metric):
+            if not metric:
+                return "N/A"
+            return f"{metric.get('estimate', 0.0):.3f} [{metric.get('ci_lower', 0.0):.3f}-{metric.get('ci_upper', 0.0):.3f}]"
 
-        lines.append(f"{m_name:<24} | {roc_str:<20} | {pr_str:<20} | {p10_str:<18}")
+        lines.append(
+            f"{m_name:<24} | {fmt(roc):<22} | {fmt(pr):<22} | {fmt(p10):<20} | {n_str:<10}"
+        )
 
-    lines.append("=" * 85)
-    lines.append(" Note: Metrics computed with 1,000 bootstrap resamples on frozen gold dataset.")
-    lines.append(" Training gate status: BLOCKED - minimum 30 good_fit labels required for official training unlocks.")
+    lines.append("=" * 95)
+    lines.append(
+        " Note: metrics are pooled out-of-fold predictions from grouped CV folds with "
+        ">=3 positives. Full-dataset values are in metrics.json but are in-sample and not reported here."
+    )
+    if gate.get("status") == "BLOCKED":
+        lines.append(f" Training gate: BLOCKED — {'; '.join(gate.get('reasons', []))}")
+    else:
+        lines.append(" Training gate: UNLOCKED.")
     return "\n".join(lines)
 
 
@@ -317,8 +367,14 @@ def _perform_regression_compare(current_dir: Path, prev_dir: Path) -> None:
         if m_name not in prev_data.get("models", {}):
             continue
 
-        c_roc = cur_data["models"][m_name].get("full_dataset_metrics", {}).get("roc_auc", {})
-        p_roc = prev_data["models"][m_name].get("full_dataset_metrics", {}).get("roc_auc", {})
+        c_roc = (
+            cur_data["models"][m_name].get("cv_aggregate", {}).get("roc_auc", {})
+            or cur_data["models"][m_name].get("full_dataset_metrics", {}).get("roc_auc", {})
+        )
+        p_roc = (
+            prev_data["models"][m_name].get("cv_aggregate", {}).get("roc_auc", {})
+            or prev_data["models"][m_name].get("full_dataset_metrics", {}).get("roc_auc", {})
+        )
 
         c_est = c_roc.get("estimate", 0.0)
         p_est = p_roc.get("estimate", 0.0)

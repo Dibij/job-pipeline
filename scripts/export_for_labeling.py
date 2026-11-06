@@ -9,8 +9,8 @@ IMPORTANT: Laya score and confidence columns are EXCLUDED from the output CSV
 to prevent anchoring bias. The labeler must not see Laya's opinion.
 
 Usage:
-    python -m scripts.export_for_labeling --batch-size 30
-    python -m scripts.export_for_labeling --batch-size 50 --output data/batch_YYYYMMDD.csv
+    .venv/bin/python scripts/export_for_labeling.py --batch-size 30
+    .venv/bin/python scripts/export_for_labeling.py --batch-size 50 --output data/batch_YYYYMMDD.csv
 """
 import argparse
 import csv
@@ -30,7 +30,7 @@ from src.db.connection import execute_query
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-LABEL_GUIDELINE_VERSION = "v1"
+LABEL_GUIDELINE_VERSION = "v2_role_fit_only"
 DATA_DIR = PROJECT_ROOT / "data"
 
 # Stratum allocation fractions (must sum to 1.0)
@@ -87,7 +87,13 @@ def _fetch_eligible_jobs() -> List[Dict[str, Any]]:
             l.per_question_data                  AS laya_per_question_data
         FROM jobs j
         LEFT JOIN job_matches m   ON j.canonical_job_id = m.job_id OR j.id = m.job_id
-        LEFT JOIN laya_job_scores l ON j.id = l.job_id
+        LEFT JOIN LATERAL (
+            SELECT final_score, per_question_data
+            FROM laya_job_scores
+            WHERE job_id = j.id
+            ORDER BY scored_at DESC
+            LIMIT 1
+        ) l ON TRUE
         LEFT JOIN laya_labels lbl ON j.id = lbl.job_id
         WHERE lbl.id IS NULL
           AND j.canonical_job_id IS NULL
@@ -270,7 +276,7 @@ def export_labeling_batch(
     print(f"{'-' * 65}")
     print(f"  Fill 'my_label': good_fit | maybe | bad_fit")
     print(f"  Do NOT look at Laya scores before labeling (they are not in this file).")
-    print(f"  Ingest: python -m scripts.ingest_labels {output_file}\n")
+    print(f"  Ingest: .venv/bin/python scripts/ingest_labels.py {output_file}\n")
 
     return output_file
 

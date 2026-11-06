@@ -1,4 +1,4 @@
-# Remote Job Tools (`D:\Code\Job\tools\`)
+# Remote Job Tools (`/home/dibij/projects/Job/tools/`)
 
 Standalone, runnable tools for collecting, filtering, and visually reviewing remote software engineering job listings.
 
@@ -11,7 +11,7 @@ Pulls fresh remote job listings from multiple public job boards and REST APIs th
 
 * **Command:**
   ```powershell
-  python D:\Code\Job\tools\fetch_jobs.py
+  .venv/bin/python tools/fetch_jobs.py
   ```
 * **Included Public Sources:**
   - **Remotive API** (`https://remotive.com/api/remote-jobs`)
@@ -25,7 +25,7 @@ Pulls fresh remote job listings from multiple public job boards and REST APIs th
   - Scraping those sites violates their Terms of Service (ToS) and puts your IP/account at risk of permanent bans. This tool uses official, public REST APIs and RSS feeds.
 
 * **Output:**
-  - Saves deduplicated, structured job listings to `D:\Code\Job\tools\jobs.json`.
+  - Saves deduplicated, structured job listings to `/home/dibij/projects/Job/tools/jobs.json`.
 
 ---
 
@@ -35,10 +35,10 @@ Filters `jobs.json` by region, salary, tech tags, or keywords, and outputs a for
 * **Command Examples:**
   ```powershell
   # Filter for Nepal / Global Remote friendly roles with React or Python
-  python D:\Code\Job\tools\filter_jobs.py --remote-ok-nepal --tags python,react
+  .venv/bin/python tools/filter_jobs.py --remote-ok-nepal --tags python,react
 
   # Filter with minimum salary requirement
-  python D:\Code\Job\tools\filter_jobs.py --remote-ok-nepal --min-salary 40000
+  .venv/bin/python tools/filter_jobs.py --remote-ok-nepal --min-salary 40000
   ```
 * **Flags:**
   - `--remote-ok-nepal`: Matches roles open to Worldwide, Anywhere, APAC, Asia, Nepal, or Global, and excludes strict region locks (e.g. USA Only, EU Only, UK Only).
@@ -47,7 +47,7 @@ Filters `jobs.json` by region, salary, tech tags, or keywords, and outputs a for
   - `--keywords KW1,KW2`: Comma-separated search terms.
 
 * **Output:**
-  - Terminal table output + `D:\Code\Job\tools\filtered_jobs.json`.
+  - Terminal table output + `/home/dibij/projects/Job/tools/filtered_jobs.json`.
 
 ---
 
@@ -57,12 +57,12 @@ A lightweight offline web server providing a visual dashboard to browse and filt
 > [!NOTE]
 > For the **production database feedback dashboard** with the Feed and Rejected tabs, 5-gate HardFilter inspector, and live `v2_role_fit_only` PostgreSQL labeling, run the root application:
 > ```powershell
-> python D:\Code\Job\app.py
+> .venv/bin/.venv/bin/python app.py
 > ```
 
 * **Command for offline viewer:**
   ```powershell
-  python D:\Code\Job\tools\app.py
+  .venv/bin/python tools/app.py
   ```
 * **Access URL:**
   - Open **`http://localhost:5000`** in any web browser.
@@ -80,10 +80,10 @@ A lightweight offline web server providing a visual dashboard to browse and filt
 ### Offline Standalone Utilities:
 ```powershell
 # Step 1: Refresh offline job listings from public APIs
-python D:\Code\Job\tools\fetch_jobs.py
+.venv/bin/python tools/fetch_jobs.py
 
 # Step 2: Launch offline visual viewer
-python D:\Code\Job\tools\app.py
+.venv/bin/python tools/app.py
 
 # Step 3: Open http://localhost:5000 in your browser to inspect listings!
 ```
@@ -91,8 +91,8 @@ python D:\Code\Job\tools\app.py
 ### Production Database Pipeline & Feedback Loop:
 ```powershell
 # Run the daily ingestion, scoring & feed update
-python scripts/run_daily.py
+.venv/bin/python scripts/run_daily.py
 
 # Launch the production interactive feedback app (PostgreSQL backed)
-python app.py
+.venv/bin/python app.py
 ```

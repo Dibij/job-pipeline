@@ -23,7 +23,21 @@ from src.matching.jd_truncator import (
 
 @pytest.fixture(scope="module")
 def tokenizer():
-    return get_tokenizer()
+    pytest.importorskip("laya")
+    try:
+        from huggingface_hub import try_to_load_from_cache
+        cached = try_to_load_from_cache("convaiinnovations/laya", "model.safetensors")
+    except Exception:
+        cached = None
+    if not isinstance(cached, str):
+        pytest.skip(
+            "Laya checkpoint is not cached locally; these 5 tokenizer tests are "
+            "optional. Run scripts/score_jobs.py once with network to cache it."
+        )
+    try:
+        return get_tokenizer()
+    except Exception as exc:
+        pytest.skip(f"Laya tokenizer/model not available: {exc}")
 
 
 def test_cv_summary_non_empty():

@@ -39,11 +39,17 @@ def ingest_label(
     """Insert a single label into laya_labels. Returns True on success."""
     try:
         with conn.cursor() as cur:
+            # laya_labels has UNIQUE(job_id, labeled_at), NOT a unique job_id,
+            # so ON CONFLICT (job_id) is invalid on a fresh database. Suppress
+            # duplicates explicitly instead.
             cur.execute("""
                 INSERT INTO laya_labels
                     (job_id, label, notes, sampling_stratum, label_guideline_version, labeled_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (job_id) DO NOTHING;
+                SELECT %s, %s, %s, %s, %s, %s
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM laya_labels
+                    WHERE job_id = %s AND label_guideline_version = 'v2_role_fit_only'
+                );
             """, (
                 uuid.UUID(job_id),
                 label,
@@ -51,9 +57,11 @@ def ingest_label(
                 "ollama_triage",
                 "v2_role_fit_only",
                 datetime.now(timezone.utc),
+                uuid.UUID(job_id),
             ))
+            inserted = cur.rowcount > 0
         conn.commit()
-        return True
+        return inserted
     except Exception as e:
         conn.rollback()
         print(f"  DB error for {job_id}: {e}")

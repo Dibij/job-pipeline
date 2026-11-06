@@ -960,7 +960,7 @@ class JobServerHandler(BaseHTTPRequestHandler):
                         notes,
                         json.dumps(metadata),
                         "web_ui",
-                        "v1",
+                        "v2_role_fit_only",
                         gate_failed,
                         workplace_type,
                         country_restriction,

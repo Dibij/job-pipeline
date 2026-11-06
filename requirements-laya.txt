@@ -1,0 +1,11 @@
+# Optional Laya decision-model stack.
+#
+# The daily pipeline, MatchScorer, triage, and evaluation harness do NOT need
+# this. Install it only if you want scripts/score_jobs.py,
+# scripts/calibrate_laya.py, scripts/train_laya.py, or the Laya unit tests:
+#
+#   .venv/bin/pip install -r requirements-laya.txt
+#
+# This pulls torch + transformers and is a multi-GB download (CUDA wheels).
+-r requirements.txt
+laya>=0.4.26

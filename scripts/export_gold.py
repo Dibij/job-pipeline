@@ -65,6 +65,8 @@ def export_gold_dataset(output_dir: Path = GOLD_DIR) -> Path:
         FROM laya_labels l
         JOIN jobs j ON l.job_id = j.id
         WHERE l.label_guideline_version = 'v2_role_fit_only'
+          -- Excluded/non-junior-friendly postings must never enter the gold set.
+          AND COALESCE(j.exclude_reason, '') = ''
         ORDER BY j.id, l.labeled_at DESC NULLS LAST, l.id DESC;
     """
 

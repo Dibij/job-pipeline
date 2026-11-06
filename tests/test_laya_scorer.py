@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any, Dict
 import pytest
 
+pytest.importorskip("laya")
+
 from src.matching.laya_scorer import LayaScorer, LayaScoreResult
 
 

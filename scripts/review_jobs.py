@@ -54,7 +54,13 @@ def run_review(limit: int = 50):
                m.matched_skills
         FROM jobs j
         LEFT JOIN job_matches m ON j.id = m.job_id
-        LEFT JOIN laya_job_scores l ON j.id = l.job_id
+        LEFT JOIN LATERAL (
+            SELECT final_score, role_type
+            FROM laya_job_scores
+            WHERE job_id = j.id
+            ORDER BY scored_at DESC
+            LIMIT 1
+        ) l ON TRUE
         WHERE j.nepal_accessible = true
           AND (j.detected_language IS NULL OR j.detected_language != 'german')
           AND j.is_unpaid = false

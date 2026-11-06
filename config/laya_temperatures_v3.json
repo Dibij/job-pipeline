@@ -1,7 +1,7 @@
 {
   "version": "v3",
   "n_labels_used": 150,
-  "ece_computed": true,
+  "ece_computed": false,
   "calibration_results": {
     "temperature": [
       1.0,
@@ -15,8 +15,8 @@
       "choice:6-10": 150
     },
     "report": {
-      "ece_before": NaN,
-      "ece_after": NaN,
+      "ece_before": null,
+      "ece_after": null,
       "n": 1650.0,
       "n_eval": 0.0,
       "buckets_excluded_from_eval": [
@@ -26,5 +26,5 @@
       ]
     }
   },
-  "_note": "ECE computed on held-out split."
+  "_note": "ECE was NOT actually evaluated: n_eval=0 and all buckets were excluded, so no calibration was validated. Fitted temperatures are all 1.0 (no-op). Do not use this file for gating. Regenerate after enough v2 labels exist."
 }

@@ -8,6 +8,8 @@ If you prefer to run the daily pipeline in a background container or on a Linux 
 
 A single container service running the scheduled runner daily at 06:00 UTC using `cron` or `ofelia`.
 
+> **Port note:** the compose file publishes PostgreSQL on `${POSTGRES_PORT:-5432}`. If you already run a native PostgreSQL service (the current Linux setup does), either stop it or set `POSTGRES_PORT` to a different host port. Do not run both on 5432.
+
 ### `Dockerfile`
 ```dockerfile
 FROM python:3.12-slim
@@ -42,11 +44,11 @@ services:
     build: .
     container_name: job-pipeline-runner
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=job_pipeline
-      - DB_USER=postgres
-      - DB_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=job_pipeline
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -56,12 +58,12 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: job-pipeline-db
     environment:
       - POSTGRES_DB=job_pipeline
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:

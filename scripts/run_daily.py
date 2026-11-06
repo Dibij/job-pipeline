@@ -120,11 +120,11 @@ def run_daily_pipeline(
         )
         if suggestions:
             print(f"     [!] {suggestions} Ollama suggestions -> {out_path}")
-            print(f"     Review: python scripts/ingest_triage_suggestions.py {out_path}")
+            print(f"     Review: {sys.executable} scripts/ingest_triage_suggestions.py {out_path}")
         elif triage_use_ollama:
             print("     No Ollama suggestions generated.")
         else:
-            print("     Ollama disabled (run with --triage-ollama to enable).")
+            print("     Ollama disabled (remove --no-llm to enable).")
 
     print(f"  5. Feed Output : Saved top matches to {feed_path}")
     print("=" * 65 + "\n")
@@ -144,6 +144,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no-llm", "--no-triage-ollama", action="store_true", dest="no_llm",
         help="Disable Ollama / LLM calls across the daily pipeline (LLM is ON by default).",
+    )
+    parser.add_argument(
+        "--triage-ollama", action="store_true",
+        help="Compatibility alias only: Ollama triage is already ON by default. "
+             "Use --no-llm to disable it.",
     )
     parser.add_argument(
         "--no-docker-start", action="store_true",

@@ -48,3 +48,28 @@ def test_app_post_label_validation(monkeypatch):
     data, status = captured[0]
     assert status == 400
     assert "Invalid job_id or label" in data["error"]
+
+
+def test_app_post_label_missing_job_returns_404(monkeypatch):
+    """Stale browser tabs must get a 404, not a foreign-key 500."""
+    import io
+    import uuid
+    from unittest.mock import patch
+
+    handler = AppServerHandler.__new__(AppServerHandler)
+    captured = []
+    handler._send_json = lambda data, status=200: captured.append((data, status))
+
+    body = json.dumps({
+        "job_id": str(uuid.uuid4()),
+        "label": "good_fit",
+        "notes": "stale tab",
+    }).encode()
+    handler.headers = {"Content-Length": str(len(body))}
+    handler.rfile = io.BytesIO(body)
+
+    with patch("app.execute_query", return_value=[]):
+        handler._handle_post_label()
+
+    assert captured[0][1] == 404
+    assert "no longer exists" in captured[0][0]["error"]

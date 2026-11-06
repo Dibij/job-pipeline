@@ -14,6 +14,7 @@ without ECE validation.
 import argparse
 import json
 import logging
+import math
 from pathlib import Path
 import sys
 
@@ -32,6 +33,26 @@ CONFIG_DIR = PROJECT_ROOT / "config"
 # ECE evaluation requires enough samples per Laya bucket type.
 # Below this count, skip ECE to avoid the n_eval=0 silent-no-op bug.
 ECE_MIN_LABELS = 150
+
+
+def _json_safe(value):
+    """Recursively convert numpy scalars / NaN / Inf into strict-JSON-safe values.
+
+    Python's json module happily writes bare NaN, which is invalid JSON and makes
+    the config unreadable by jq, Node and other strict parsers.
+    """
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(v) for v in value]
+    if hasattr(value, "item"):
+        try:
+            return _json_safe(value.item())
+        except Exception:
+            return value
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 def build_records(scorer: LayaScorer, jobs: list) -> list:
@@ -77,7 +98,7 @@ def build_records(scorer: LayaScorer, jobs: list) -> list:
 
 def run_temperature_calibration(
     version: str = "v1",
-    min_labels: int = 15,
+    min_labels: int = ECE_MIN_LABELS,
     seed: int = 42,
     device: str = None,
 ):
@@ -90,13 +111,15 @@ def run_temperature_calibration(
         SELECT l.job_id, l.label, j.title, j.company_name, j.location_raw, j.description_text
         FROM laya_labels l
         JOIN jobs j ON l.job_id = j.id
+        WHERE l.label_guideline_version = 'v2_role_fit_only'
+          AND COALESCE(j.exclude_reason, '') = ''
         ORDER BY l.job_id;
     """)
 
     if len(rows) < min_labels:
         logger.warning(
             "Found only %d labeled rows — minimum is %d. "
-            "Run: python scripts/export_for_labeling.py --batch-size 30",
+            "Run: .venv/bin/python scripts/make_labeling_batch.py --batch-size 30",
             len(rows), min_labels,
         )
         print(f"\n[CALIBRATION NOTICE] Only {len(rows)}/{min_labels} labels found. Need more.")
@@ -141,44 +164,72 @@ def run_temperature_calibration(
     calib_result = laya.fit_temperatures(all_records, compute_ece=compute_ece, seed=seed)
     logger.info("fit_temperatures result: %s", calib_result)
 
-    # 5. Sanity check — warn if temperatures are still all 1.0
+    # 5. Sanity check — warn if temperatures are still 1.0
+    report = calib_result.get("report") or {}
+    n_eval = int(report.get("n_eval") or 0)
+    ece_ran = bool(compute_ece and n_eval > 0)
+
     temps = calib_result.get("temperature", [])
     if temps and all(abs(t - 1.0) < 1e-6 for t in temps):
-        logger.warning(
-            "All fitted temperatures are 1.0 — the model may already be "
-            "well-calibrated for these buckets, or more labeled data is needed. "
-            "Check n_by_bucket: %s",
-            calib_result.get("n_by_bucket"),
-        )
+        if compute_ece and not ece_ran:
+            logger.error(
+                "All fitted temperatures are 1.0 and ECE evaluated 0 records. "
+                "Calibration is a NO-OP; do not treat this config as validated. "
+                "n_by_bucket=%s",
+                calib_result.get("n_by_bucket"),
+            )
+        else:
+            logger.warning(
+                "All fitted temperatures are 1.0 — the model may already be "
+                "well-calibrated for these buckets, or more labeled data is needed. "
+                "Check n_by_bucket: %s",
+                calib_result.get("n_by_bucket"),
+            )
     else:
         logger.info("Temperatures differ from 1.0 — calibration had an effect: %s", temps)
 
-    # 6. Persist versioned config
+    if compute_ece and not ece_ran:
+        logger.warning(
+            "ECE was requested (>=%d labels) but fit_temperatures evaluated 0 records; "
+            "recording ece_computed=false instead of claiming ECE validation.",
+            ECE_MIN_LABELS,
+        )
+
+    # 6. Persist versioned config (strict JSON: NaN/Inf become null)
     out_config = CONFIG_DIR / f"laya_temperatures_{version}.json"
+    if not compute_ece:
+        note = (
+            f"ECE skipped: only {n_total} labels (need {ECE_MIN_LABELS}). "
+            "Temperatures fitted on the full labeled set — usable but unvalidated by ECE."
+        )
+    elif not ece_ran:
+        note = (
+            "ECE requested but n_eval=0; no ECE validation was actually produced. "
+            "Temperatures are unvalidated — do not use for gating."
+        )
+    else:
+        note = f"ECE computed on held-out split (n_eval={n_eval})."
+
     calib_payload = {
         "version": version,
         "n_labels_used": n_total,
-        "ece_computed": compute_ece,
-        "calibration_results": calib_result,
-        "_note": (
-            f"ECE skipped: only {n_total} labels (need {ECE_MIN_LABELS}). "
-            "Temperatures fitted on full labeled set — usable but unvalidated by ECE."
-        ) if not compute_ece else "ECE computed on held-out split.",
+        "ece_computed": ece_ran,
+        "calibration_results": _json_safe(calib_result),
+        "_note": note,
     }
 
     with open(out_config, "w", encoding="utf-8") as f:
-        json.dump(calib_payload, f, indent=2)
+        json.dump(calib_payload, f, indent=2, allow_nan=False)
 
     logger.info("Saved temperature config to: %s", out_config)
 
     # 7. Pretty summary
-    report = calib_result.get("report", {})
     print(f"\n{'=' * 50}")
     print(f"  CALIBRATION REPORT [{version}]")
     print(f"{'=' * 50}")
     print(f"  Labels used:          {n_total}")
     print(f"  Question records:     {len(all_records)}")
-    print(f"  ECE computed:         {compute_ece}")
+    print(f"  ECE computed:         {ece_ran}")
     print(f"  Fitted temperatures:  {temps}")
     print(f"  n_by_bucket:          {calib_result.get('n_by_bucket', 'N/A')}")
     print(f"  ECE Before:           {report.get('ece_before', 'N/A (skipped)')}")
@@ -192,7 +243,7 @@ def run_temperature_calibration(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Calibrate Laya confidence temperatures (Task 7.8a).")
     parser.add_argument("--version", type=str, default="v1", help="Version tag for output config file.")
-    parser.add_argument("--min-labels", type=int, default=10, help="Minimum labeled rows required to proceed.")
+    parser.add_argument("--min-labels", type=int, default=ECE_MIN_LABELS, help=f"Minimum labeled rows required to proceed (default: {ECE_MIN_LABELS}).")
     parser.add_argument("--device", type=str, default=None, help="Device to run inference on (cuda or cpu). Defaults to auto-detect.")
     args = parser.parse_args()
     run_temperature_calibration(version=args.version, min_labels=args.min_labels, device=args.device)

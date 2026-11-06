@@ -18,7 +18,8 @@ from src.db.connection import get_connection  # noqa: E402
 
 HARD_FILTER_REASONS = {
     "NON_ENGLISH", "GERMAN_ONLY", "UNPAID", "REGION_LOCKED",
-    "NOT_REMOTE", "NON_TECHNICAL",
+    "NOT_REMOTE", "NON_TECHNICAL", "TOO_SENIOR", "DEGREE_OR_EXP",
+    "NOT_ELIGIBLE_REGION",
 }
 MATCH_SCORER_REASONS = {
     "SENIOR", "NO_TECH_SIGNAL", "LOW_SCORE", "PLACEHOLDER",
@@ -81,7 +82,8 @@ def run_report(days: int = 7) -> None:
                         WHERE m.reason_code IS NULL
                            OR m.reason_code NOT IN (
                                'NON_ENGLISH','GERMAN_ONLY','UNPAID',
-                               'REGION_LOCKED','NOT_REMOTE','NON_TECHNICAL'
+                               'REGION_LOCKED','NOT_REMOTE','NON_TECHNICAL',
+                               'TOO_SENIOR','DEGREE_OR_EXP','NOT_ELIGIBLE_REGION'
                            )
                     ) AS passed_hf,
                     COUNT(DISTINCT j.id) FILTER (

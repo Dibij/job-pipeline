@@ -1,0 +1,17 @@
+# Never bake local secrets or state into the image.
+.git
+.gitignore
+.venv
+.env
+.env.*
+!.env.example
+data/
+logs/
+reports/
+models/*
+!models/title_classifier.joblib
+tmp/
+archive/
+__pycache__/
+*.py[cod]
+.pytest_cache/

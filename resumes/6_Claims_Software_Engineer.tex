@@ -1,0 +1,92 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{helvet}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\renewcommand{\familydefault}{\sfdefault}
+\pagenumbering{gobble}
+\titleformat{\section}{\large\bfseries}{}{0em}{}
+\titlespacing*{\section}{0pt}{6pt}{4pt}
+\setlist[itemize]{noitemsep, topsep=1.5pt, leftmargin=1.2em}
+
+\begin{document}
+
+\begin{center}
+    {\LARGE \textbf{Kshitish Pandit}} \\[4pt]
+    \href{mailto:dibijsharma@gmail.com}{dibijsharma@gmail.com} \quad | \quad +977-9703995826 \quad | \quad Kathmandu, Nepal \\[2pt]
+    \href{https://github.com/Dibij}{github.com/Dibij} \quad | \quad
+    \href{https://www.linkedin.com/in/kshitish-pandit}{linkedin.com/in/kshitish-pandit}
+\end{center}
+
+\vspace{2pt}
+
+\section*{Summary}
+Software Engineer specializing in Python backend services, resilient data ingestion pipelines, and full-stack review tools (React / TypeScript / Next.js). Experienced in designing ELT architectures, Pydantic validation, document parsing, PostgreSQL schema management, and LLM-assisted evaluation workflows. Strong track record of shipping maintainable, tested software with practical experience in Linux, Docker, automated evaluation, and developer tooling.
+
+\section*{Technical Skills}
+\begin{itemize}
+    \item \textbf{Languages:} Python (3.12+), TypeScript, JavaScript, SQL, Rust
+    \item \textbf{Backend \& APIs:} FastAPI, Django, Django REST Framework, Flask, Pydantic (v2), Psycopg 3, Requests, Celery, RESTful API design, rate-limiting, error handling
+    \item \textbf{Frontend:} React, Next.js (App Router), TypeScript, Tailwind CSS, Vite
+    \item \textbf{Databases \& Storage:} PostgreSQL, Supabase, SQLite, schema design, migrations, data integrity checks, SHA-256 deduplication, ELT staging
+    \item \textbf{AI \& Document Pipelines:} LLM API integrations (Ollama, OpenRouter, Transformers), PDF/document parsing, hierarchical text chunking, active-learning triage, prompt engineering, automated evaluation \& benchmarking
+    \item \textbf{Tools \& Infrastructure:} Linux/Bash, Docker, Docker Compose, Git, GitHub Actions, systemd, pytest, AST parsing (Babel)
+\end{itemize}
+
+\section*{Featured Engineering Projects}
+
+\textbf{Modular Data Ingestion \& Evaluation Pipeline} \\
+\textit{Python (3.12+), PostgreSQL, Pydantic v2, Ollama (LLM), Psycopg 3, Flask, Docker}
+\begin{itemize}
+    \item Designed an automated ELT pipeline ingesting semi-structured data across 15+ external JSON APIs, RSS feeds, and direct ATS endpoints with isolated per-source failure boundaries and polite rate-limiting.
+    \item Preserved raw payloads in PostgreSQL staging tables to guarantee zero data loss; enforced strict Pydantic v2 validation models and SHA-256 hashing to eliminate cross-platform duplicates.
+    \item Built a multi-gate rule filter combined with a TF-IDF title classifier and modern transformer scoring models for automated eligibility assessment and regression tracking.
+    \item Implemented an active-learning triage system leveraging local Ollama LLMs to classify uncertain records, with interactive human-in-the-loop review before persisting labels.
+    \item Developed a full-stack Flask/HTML web dashboard to inspect pipeline yield, audit hard-filter rejection snippets, and submit live ground-truth feedback directly to the database.
+    \item Automated scheduled execution with file locking (\texttt{pipeline.lock}), log rotation, systemd/cron scripting, and comprehensive \texttt{pytest} test suites.
+\end{itemize}
+
+\vspace{3pt}
+\textbf{Suisik -- Academic Document Extraction \& Learning Platform} \\
+\textit{Next.js (TypeScript), Django, Supabase/PostgreSQL, Celery, LLM APIs}
+\begin{itemize}
+    \item Built an academic document ingestion pipeline extracting structured chapters, topics, and knowledge items from multi-page PDF and DOCX documents into hierarchical graph representations.
+    \item Integrated multi-provider LLM APIs with fallback routing (OpenRouter) to generate, validate, and evaluate structured assessment questions and claim checks.
+    \item Designed a responsive web dashboard in Next.js (App Router, TypeScript) for reviewing generated content, tracking user progress, and inspecting extraction quality.
+    \item Handled relational database migrations in Supabase (PostgreSQL), writing SQL scripts to resolve schema drift, repair orphan records, and enforce Row-Level Security (RLS) policies.
+\end{itemize}
+
+\vspace{3pt}
+\textbf{Verya -- Visual Code Manipulation \& Developer Tool} \\
+\textit{Open Source | React, TypeScript, Babel AST, Vite}
+\begin{itemize}
+    \item Created an open-source desktop developer tool allowing visual UI editing of React/TypeScript components with bidirectional code synchronization into clean source files.
+    \item Implemented Babel Abstract Syntax Tree (AST) transformations to safely parse, modify, and format code without introducing syntax errors or unintended side effects.
+    \item Designed an isolated session architecture that provides instant preview diffs and conflict detection before writing changes back to the user's repository.
+\end{itemize}
+
+\vspace{3pt}
+\textbf{Essay Tracker -- Desktop Writing Analysis App} \\
+\textit{React, TypeScript, Tauri (Rust), SQLite}
+\begin{itemize}
+    \item Built a cross-platform desktop writing application with a React/TypeScript frontend and a high-performance Rust (Tauri) backend.
+    \item Implemented local SQLite persistence and text analysis algorithms calculating vocabulary diversity, repetition frequency, and lexical evolution metrics over time.
+\end{itemize}
+
+\vspace{3pt}
+\textbf{AI-Task -- Multi-Agent Benchmark \& Simulation Harness} \\
+\textit{Python, Algorithmic Evaluation, Matplotlib}
+\begin{itemize}
+    \item Built a simulation and benchmarking test harness running multi-agent pathfinding algorithms under partially observable conditions across hundreds of pseudo-random seeds.
+    \item Generated automated statistical evaluations measuring survival rate, collision avoidance, and step efficiency to benchmark algorithmic trade-offs.
+\end{itemize}
+
+\section*{Education \& Certifications}
+\textbf{Softwarica College of IT and E-Commerce}, Kathmandu \\
+Bachelor's in Computer Science (Artificial Intelligence focus) \\[2pt]
+\textbf{Diploma in Data Science and Machine Learning} -- Vrit Technologies \\
+\textbf{LangChain + Gemini for LLM Applications}
+
+\end{document}
