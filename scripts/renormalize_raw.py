@@ -7,6 +7,10 @@ with correct values.
 """
 import json
 import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.db.connection import get_connection
 from src.models.transformers import transform_raw_listing
@@ -40,7 +44,9 @@ def main() -> None:
                 cur.execute(
                     """
                     UPDATE jobs
-                    SET remote_restriction   = %s,
+                    SET is_remote            = %s,
+                        location_raw         = %s,
+                        remote_restriction   = %s,
                         accessibility        = %s,
                         nepal_accessible     = %s,
                         reachable_from_nepal = %s,
@@ -48,6 +54,8 @@ def main() -> None:
                     WHERE source = %s AND external_id = %s
                     """,
                     (
+                        job.is_remote,
+                        job.location_raw,
                         job.remote_restriction,
                         enrichment["accessibility"],
                         enrichment["nepal_accessible"],

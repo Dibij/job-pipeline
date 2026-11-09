@@ -623,7 +623,16 @@ async function submitLabel(jobId, label, isOllamaAccept) {
         document.getElementById('triageCount').textContent = pending;
       }
     } else {
-      alert('Error saving label. Please check console.');
+      let message = 'Error saving label. Please check console.';
+      try {
+        const err = await res.json();
+        if (err && err.error) message = err.error;
+      } catch (_) {}
+      if (res.status === 404) {
+        const card = document.getElementById(`card-${jobId}`);
+        if (card) card.style.display = 'none';
+      }
+      alert(message);
     }
   } catch (err) {
     console.error('Error submitting label:', err);
@@ -771,8 +780,7 @@ class AppServerHandler(BaseHTTPRequestHandler):
                 WHERE l.id IS NULL
                   AND j.canonical_job_id IS NULL
                   AND j.exclude_reason IS NULL
-                ORDER BY j.created_at DESC
-                LIMIT 1500;
+                ORDER BY j.created_at DESC;
             """)
 
             feed_items = []
@@ -838,6 +846,26 @@ class AppServerHandler(BaseHTTPRequestHandler):
             job_ids = list(triage_map.keys())
             existing = {}
             if job_ids:
+                placeholders = ",".join(["%s"] * len(job_ids))
+
+                # Suggestion files can outlive the job rows they reference (DB rebuilds,
+                # canonicalization, re-fetching). Never show jobs that no longer exist.
+                live_rows = execute_query(
+                    f"SELECT id FROM jobs WHERE id IN ({placeholders});",
+                    tuple(job_ids),
+                )
+                live_ids = {str(r["id"]) for r in live_rows}
+                stale = len(triage_map) - len(live_ids)
+                if stale:
+                    logger.warning(
+                        "Ignoring %d triage suggestion(s) whose job_id is no longer in jobs.",
+                        stale,
+                    )
+                triage_map = {jid: s for jid, s in triage_map.items() if jid in live_ids}
+                job_ids = list(triage_map.keys())
+                if not job_ids:
+                    self._send_json({"suggestions": [], "total": 0, "pending": 0})
+                    return
                 placeholders = ",".join(["%s"] * len(job_ids))
                 rows = execute_query(
                     f"""
@@ -962,6 +990,16 @@ class AppServerHandler(BaseHTTPRequestHandler):
                 return
 
             job_uuid = uuid.UUID(job_id_str)
+
+            # A stale browser tab can POST a job from a previous database. Return a
+            # clean 404 instead of a FK-violation 500.
+            if not execute_query("SELECT 1 FROM jobs WHERE id = %s;", (str(job_uuid),)):
+                self._send_json(
+                    {"error": "Job no longer exists in the database. Refresh the page."},
+                    status=404,
+                )
+                return
+
             metadata = {
                 "wrongly_filtered": wrongly_filtered,
                 "source": label_source,

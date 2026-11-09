@@ -2,60 +2,59 @@
 
 ## ⚡ Quick Commands Cheatsheet
 
-| Task | PowerShell Command | Note |
+| Task | Linux Command | Note |
 | :--- | :--- | :--- |
-| **🌐 Web Dashboard** | `& .\.venv\Scripts\python.exe app.py` | Open **http://localhost:5000** in browser (Feed & Rejected tabs, live labeling) |
-| **🚀 Generate FEED.md** | `& .\.venv\Scripts\python.exe scripts/export_feed.py` | Exports top matched jobs to `FEED.md` |
-| **🔄 Run Daily Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_daily.py` | Fetch → Normalize → MatchScorer → **Triage** → Update FEED.md |
-| **🤖 Run Daily + Ollama Triage** | `& .\.venv\Scripts\python.exe scripts/run_daily.py --triage-ollama` | Same as above + Ollama labels CONFLICT/UNCERTAIN jobs |
-| **🔍 Smart Triage (standalone)** | `& .\.venv\Scripts\python.exe scripts/smart_label_triage.py --no-laya` | MatchScorer+Laya triage → Ollama on interesting jobs |
-| **📥 Ingest Triage Suggestions** | `& .\.venv\Scripts\python.exe scripts/ingest_triage_suggestions.py data/triage_suggestions_YYYYMMDD_HHMM.json` | Interactively review + ingest Ollama label suggestions |
-| **⏰ Run Scheduled Pipeline** | `& .\.venv\Scripts\python.exe scripts/run_scheduled.py` | Wrapper with `pipeline.lock`, rotating log, telemetry |
-| **📦 Make Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/make_labeling_batch.py --batch-size 30` | 70% title-rule / 30% random, capped by company, v2 stamped |
-| **🏷️ Label Audit Report** | `& .\.venv\Scripts\python.exe scripts/report_labels.py` | Full yield by source/stratum & gate progress report (Task 7.9) |
-| **🔤 Train Title Classifier** | `& .\.venv\Scripts\python.exe scripts/train_title_classifier.py` | Char n-gram TF-IDF title classifier (0.872 recall, 0 FPR) |
-| **🎯 Train Production Ranker** | `& .\.venv\Scripts\python.exe scripts/train_ranker.py` | Gated on >=150 v2 labels & >=30 good_fit with bootstrap CI |
-| **🧠 Score Jobs with Laya** | `& .\.venv\Scripts\python.exe scripts/score_jobs.py` | Batch scores eligible jobs using Laya neural decision engine |
-| **📋 Interactive CLI Review** | `& .\.venv\Scripts\python.exe scripts/review_jobs.py` | Review jobs (`y/n/s/q`), saves to `data/reviewed_jobs.json` |
-| **📥 Export Labeling Batch** | `& .\.venv\Scripts\python.exe scripts/export_for_labeling.py --no-rescore --batch-size 30` | Legacy 3-stratum exporter |
-| **📤 Ingest Human Labels** | `& .\.venv\Scripts\python.exe scripts/ingest_labels.py data/labeling_batch_YYYYMMDD.csv` | Ingests CSV into `laya_labels` in Postgres |
-| **📦 Export Labeled Datasets** | `& .\.venv\Scripts\python.exe scripts/export_labeled_descriptions.py` | Exports bookkeeping and clean training JSONL |
-| **📊 5-Fold GroupKFold Splits** | `& .\.venv\Scripts\python.exe scripts/make_splits.py` | Generates 5 company-stratified cross-val folds in `data/splits/` |
-| **🧹 Backfill Clean Descriptions** | `& .\.venv\Scripts\python.exe scripts/backfill_clean_descriptions.py` | Cleans HTML/mojibake in `jobs.description_text` (payloads untouched) |
-| **🌍 Backfill Detected Languages** | `& .\.venv\Scripts\python.exe scripts/backfill_detected_language.py` | Re-evaluates language via title+first 500 chars & updates DB |
-| **🔍 Audit Language Transitions** | `& .\.venv\Scripts\python.exe scripts/audit_language_changes.py` | Audits French/German/English transitions and false positives |
-| **🎯 Calibrate Laya** | `& .\.venv\Scripts\python.exe scripts/calibrate_laya.py --version v3` | Fits temperature scaling on human labels (ECE enabled at 150 labels) |
-| **🧠 Train Laya Head** | `& .\.venv\Scripts\python.exe scripts/train_laya.py --version v2` | Fine-tunes decision head with frozen ModernBERT encoder |
-| **📈 Pipeline Funnel Report** | `& .\.venv\Scripts\python.exe scripts/funnel_report.py --days 7` | Source-level funnel stats (fetched → new → passed HF → scored ≥60) |
-| **🇳🇵 Manual Nepal Import** | `& .\.venv\Scripts\python.exe scripts/import_manual_jobs.py -f jobs.json` | Ingests user-supplied JSON/CSV (NO web scraping) |
-| **🧪 ATS Yield Dry-Run** | `& .\.venv\Scripts\python.exe scripts/dry_run_yield_test.py` | In-memory yield test across 10 company ATS boards (no DB writes) |
+| **🌐 Web Dashboard** | `.venv/bin/python app.py` | Open **http://localhost:5000** in browser (Feed & Rejected tabs, live labeling) |
+| **🚀 Generate FEED.md** | `.venv/bin/python scripts/export_feed.py` | Exports top matched jobs to `FEED.md` |
+| **🔄 Run Daily Pipeline** | `.venv/bin/python scripts/run_daily.py` | Fetch → Normalize → MatchScorer → **Triage** → Update FEED.md |
+| **🤖 Run Daily + Ollama Triage** | `.venv/bin/python scripts/run_daily.py --triage-ollama` | Same as above + Ollama labels CONFLICT/UNCERTAIN jobs |
+| **🔍 Smart Triage (standalone)** | `.venv/bin/python scripts/smart_label_triage.py --no-laya` | MatchScorer+Laya triage → Ollama on interesting jobs |
+| **📥 Ingest Triage Suggestions** | `.venv/bin/python scripts/ingest_triage_suggestions.py data/triage_suggestions_YYYYMMDD_HHMM.json` | Interactively review + ingest Ollama label suggestions |
+| **⏰ Run Scheduled Pipeline** | `.venv/bin/python scripts/run_scheduled.py` | Wrapper with `pipeline.lock`, rotating log, telemetry |
+| **📦 Make Labeling Batch** | `.venv/bin/python scripts/make_labeling_batch.py --batch-size 30` | 70% title-rule / 30% random, capped by company, v2 stamped |
+| **🏷️ Label Audit Report** | `.venv/bin/python scripts/report_labels.py` | Full yield by source/stratum & gate progress report (Task 7.9) |
+| **🔤 Train Title Classifier** | `.venv/bin/python scripts/train_title_classifier.py` | Char n-gram TF-IDF title classifier (0.872 recall, 0 FPR) |
+| **🎯 Train Production Ranker** | `.venv/bin/python scripts/train_ranker.py` | Gated on >=150 v2 labels & >=30 good_fit with bootstrap CI |
+| **🧠 Score Jobs with Laya** | `.venv/bin/python scripts/score_jobs.py` | Batch scores eligible jobs using Laya neural decision engine |
+| **📋 Interactive CLI Review** | `.venv/bin/python scripts/review_jobs.py` | Review jobs (`y/n/s/q`), saves to `data/reviewed_jobs.json` |
+| **📥 Export Labeling Batch** | `.venv/bin/python scripts/export_for_labeling.py --no-rescore --batch-size 30` | Legacy 3-stratum exporter |
+| **📤 Ingest Human Labels** | `.venv/bin/python scripts/ingest_labels.py data/labeling_batch_YYYYMMDD.csv` | Ingests CSV into `laya_labels` in Postgres |
+| **📦 Export Labeled Datasets** | `.venv/bin/python scripts/export_labeled_descriptions.py` | Exports bookkeeping and clean training JSONL |
+| **📊 5-Fold GroupKFold Splits** | `.venv/bin/python scripts/make_splits.py` | Generates 5 company-stratified cross-val folds in `data/splits/` |
+| **🧹 Backfill Clean Descriptions** | `.venv/bin/python scripts/backfill_clean_descriptions.py` | Cleans HTML/mojibake in `jobs.description_text` (payloads untouched) |
+| **🌍 Backfill Detected Languages** | `.venv/bin/python scripts/backfill_detected_language.py` | Re-evaluates language via title+first 500 chars & updates DB |
+| **🔍 Audit Language Transitions** | `.venv/bin/python scripts/audit_language_changes.py` | Audits French/German/English transitions and false positives |
+| **🎯 Calibrate Laya** | `.venv/bin/python scripts/calibrate_laya.py --version v4` | Fits temperature scaling on human labels (ECE enabled at 150 labels) |
+| **🧠 Train Laya Head** | `.venv/bin/python scripts/train_laya.py --version v3` | Fine-tunes decision head with frozen ModernBERT encoder |
+| **📈 Pipeline Funnel Report** | `.venv/bin/python scripts/funnel_report.py --days 7` | Source-level funnel stats (fetched → new → passed HF → scored ≥60) |
+| **🇳🇵 Manual Nepal Import** | `.venv/bin/python scripts/import_manual_jobs.py -f jobs.json` | Ingests user-supplied JSON/CSV (NO web scraping) |
+| **🧪 ATS Yield Dry-Run** | `.venv/bin/python scripts/dry_run_yield_test.py` | In-memory yield test across 10 company ATS boards (no DB writes) |
 
 ---
 
-## Current State (Late Oct 2026)
+## Current State (Linux rebuild — 2026-11-06)
 
 ### Infrastructure & Sources
-- Phase 1 through Phase 6, Phase 9, Phase 10, and Phase 11 (Overhaul Steps 0–7) complete.
-- **Phase 12 Active Learning Pipeline** (2026-10-29): Smart triage + Ollama integrated into daily pipeline.
-- **Candidate Sources Built & Ingested**: **7,436 unique jobs** in PostgreSQL across **13 sources** (Arbeitnow, Remote OK, We Work Remotely, Jobicy, Hacker News, Himalayas, Remotive, + 5 ATS Boards: Supabase, ElevenLabs, GitLab, Canonical, Mozilla, Elastic, Grafana Labs, Wikimedia).
-- **Five-Gate Allowlist HardFilter & Eligibility Active**: Disqualifies non-remote foreign jobs (`NOT_REMOTE`), region locks outside Nepal (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`), senior roles (`TOO_SENIOR`), and hard degree / 3+ year experience requirements (`DEGREE_OR_EXP`). Unified through `src/matching/eligibility.py`.
-- **OpenAI Leak Purged**: 0 OpenAI jobs in `job_matches`. All 571 stored OpenAI jobs disqualified due to SF/NYC hybrid presence.
-- **Zero-Scraping Nepal Ingestion**: Built `scripts/import_manual_jobs.py` for candidate JSON/CSV imports. Zero web scraping of Nepali sites.
-- **In-Browser Feedback Dashboard (`app.py`)**: Root application providing Feed tab (ranked by title-rule score), Rejected tab (grouped by failure reason with trigger snippet), live labeling (`good_fit`, `maybe`, `bad_fit`, free text notes, "wrongly filtered" checkbox) writing directly to PostgreSQL `laya_labels` stamped with `label_guideline_version="v2_role_fit_only"`, and live training gate progress tracking.
-- **Automation & Scheduling**: `scripts/run_scheduled.py` daily runner protected by `data/pipeline.lock`, rotating log in `logs/scheduled_run.log`, recording to `source_runs`. Supported via Windows Task Scheduler (`scripts/install_schedule.ps1`) and Docker/Linux crontab (`docs/scheduled_run_docker.md`).
-- **Automatic Docker & PostgreSQL Lifecycle**: Implemented `src/db/docker_control.py`. Automatically detects if Docker Desktop is closed, launches it via background process, polls daemon initialization, starts PostgreSQL via docker compose, and waits for connection healthcheck before running queries (integrated as Step 0 in `run_daily.py` and `app.py`).
-- **Smart Active-Learning Triage Pipeline**:
-  - `scripts/smart_label_triage.py`: MatchScorer + stored Laya scores → 4 buckets (STRONG_CAND / CONFLICT / UNCERTAIN / OBVIOUS_BAD) → Ollama `qwen2.5:3b` labels non-obvious jobs → saves `data/triage_suggestions_*.json`.
-  - `scripts/ingest_triage_suggestions.py`: Interactive human review of Ollama suggestions before any DB write. `--auto-ingest` flag for high-confidence batch mode.
-  - **Integrated into daily pipeline** as Step 4 (between MatchScorer and FEED export). `--triage-ollama` flag enables Ollama; default is triage-only (no GPU call).
-- CUDA enabled: `torch 2.5.1+cu121`, RTX 2050 confirmed. Test suite: **168+ passing tests**.
-- **Applied Migrations**: All 12 migrations applied up to `011_widen_label_stratum.sql` and `012_add_exclude_reason.sql`.
-- **Ollama Local LLM**: `qwen2.5:3b` (Q4_K_M, 1.9 GB) running at `http://localhost:11434`. Used as active-learning triage assistant — suggestions are never auto-inserted, always human-reviewed.
+- **Fresh Linux database (2026-11-06)**: PostgreSQL 18.6 on `localhost:5432`, schema through migration `014_add_job_matches_reason_code.sql`. The old Windows DB was **not migrated** — the live DB currently has **30 labels** (24 `bad_fit`, 5 `maybe`, 1 `good_fit`) and **0 Laya scores**.
+- **2,364 unique jobs** from **26 pipeline sources** (8 aggregators: Arbeitnow, Remotive, Himalayas, We Work Remotely, Remote OK, Jobicy, Hacker News, Working Nomads; 18 ATS boards, including Supabase, ElevenLabs, GitLab, Canonical, Mozilla, Elastic, Grafana Labs, Wikimedia, Railway, PostHog, Clerk, Buffer, Zapier, Help Scout, Bitwarden, Mattermost, Ghost, Remote.com). `raw_job_listings` holds 2,716 rows.
+- **Allowlist HardFilter & Eligibility Active**: Disqualifies non-remote foreign jobs (`NOT_REMOTE`), region locks outside Nepal (`NOT_ELIGIBLE_REGION` / `REGION_LOCKED`), senior roles (`TOO_SENIOR`), hard degree / 3+ year requirements (`DEGREE_OR_EXP`), non-English (`NON_ENGLISH`), unpaid (`UNPAID`) and explicitly non-technical titles (`NON_TECHNICAL`). Unified through `src/matching/eligibility.py`. Note: the "five gates" are distributed across `hard_filter.py` and `enricher.py`; Gate 3/4/5 are not separate HardFilter code paths.
+- **Docker & PostgreSQL installed**: Docker 29.1.3 + Compose v2 and PostgreSQL 18.6 are enabled systemd services. `src/db/docker_control.py` fast-paths when Postgres is healthy, so the native DB is used and Docker is not touched on a normal run. `docker` commands need a re-login in this session for the `docker` group.
+- **OpenAI leak (historical)**: the pre-migration DB had 571 stored OpenAI jobs, all disqualified, and the board is disabled. The rebuilt DB starts only from the 18 enabled ATS boards, so no OpenAI rows exist.
+- **Zero-Scraping Nepal Ingestion**: `scripts/import_manual_jobs.py` accepts user-supplied JSON/CSV only; no Nepali site is scraped.
+- **In-Browser Feedback Dashboard (`app.py`)**: root app with Feed/Rejected tabs and live labeling, stamped `v2_role_fit_only`. Known gap: the production app does **not** populate the 5 gate audit columns; only the older `tools/app.py` did (and that duplicate now stamps v2 as well).
+- **Automation & Scheduling**: `scripts/run_scheduled.py` with `data/pipeline.lock`, rotating log, and `source_runs` telemetry. Windows Task Scheduler and Docker/Linux cron remain supported; the Docker doc's env vars were corrected to `POSTGRES_*`.
+- **Smart Active-Learning Triage**:
+  - `scripts/smart_label_triage.py`: MatchScorer + stored Laya scores → 4 buckets → Ollama `qwen2.5:3b` labels non-obvious jobs → `data/triage_suggestions_*.json`.
+  - Fixed fresh-DB bugs: `needs_human_review` → `needs_review`, latest-score LATERAL join, eligibility applied before the limit, and missing Laya scores no longer collapse everything to `OBVIOUS_BAD`.
+  - Ollama triage is **ON by default**; `--triage-ollama` is now a compatibility no-op, `--no-llm` disables it.
+- **Environment**: `.venv` on Python 3.14.4 with `requirements.txt` + numpy/scikit-learn/joblib/PyYAML; `laya`/torch install was still running at the time of this note. Ollama `qwen2.5:3b` (1.9 GB) is installed and runs **22% CPU / 78% GPU** on the RTX 2050.
+- **Tests**: 194 passed, 5 skipped (Laya tokenizer tests; the optional 842 MB checkpoint is not cached yet). Laya package + torch 2.15.0+cu132 installed; `torch.cuda.is_available()=True`. The old training JSONL files were moved to `data/pre_rebuild_20261106/` so stale labels cannot silently feed training; regenerate with `export_labeled_descriptions.py` after labeling.
+- **Migrations**: 14 files through `014_add_job_matches_reason_code.sql`.
 
 ### Labeling & Model Training Status
-Human-labeled data in `laya_labels` (as of 2026-10-29 from `scripts/report_labels.py`):
+**Live DB as of 2026-11-09: 30 labels (24 `bad_fit`, 5 `maybe`, 1 `good_fit`), 0 Laya scores.** The table below is the pre-migration snapshot (2026-10-29, from `scripts/report_labels.py`) kept for history — those rows no longer exist.
 
-| Guideline Version | Label | Rows | Distinct Jobs |
+| Guideline Version (historical) | Label | Rows | Distinct Jobs |
 |---|---|---|---|
 | `v2_role_fit_only` | `bad_fit` | 201 | 110 |
 | `v2_role_fit_only` | `maybe` | 55 | 32 |
@@ -67,12 +66,12 @@ Human-labeled data in `laya_labels` (as of 2026-10-29 from `scripts/report_label
 
 - **Training Gates**:
   - `scripts/train_ranker.py` and `scripts/train_laya.py` enforce strict safety gates: $\ge 150$ total v2 labels AND $\ge 30$ role-fit `good_fit` positives.
-  - Current status: **147 / 150 v2 labels** (3 away), **5 / 30 role-fit `good_fit` labels** (25 away).
-  - There are 20 historical `good_fit` jobs across legacy guidelines that can be re-evaluated under `v2_role_fit_only` in `app.py`.
-  - **6 Ollama suggestions** pending human review in `data/triage_suggestions_20261029_1242.json` (3 `maybe`, 3 `bad_fit` — Wikimedia SW Eng internship is a strong `good_fit` candidate).
+  - Current status: **30 / 150 v2 labels**, **1 / 30 role-fit `good_fit` labels** as of 2026-11-09 (check the app header for the live count; the old 147/5 state was lost with the Windows DB).
+  - The 20 historical legacy `good_fit` jobs are also gone; there is nothing to "re-evaluate" until the new DB is labeled.
+  - The old `data/triage_suggestions_20261029_1242.json` references deleted UUIDs and cannot be ingested. A fresh full run produced **`data/triage_suggestions_20261106_2017.json`** with 22 suggestions (15 `maybe`, 5 `bad_fit`, 2 `good_fit`) for human review.
 - **Learned Title Role-Type Classifier (`src/matching/title_classifier.py`)**:
   - Char n-gram (3-5) TF-IDF + LogisticRegression trained on weak + human labels.
-  - Evaluated via 5-fold Grouped CV: achieved **0.872 recall** vs Blocklist **0.745 recall** (+12.7% recall improvement) with **0.000 FPR on `good_fit`** (0 good_fit killed).
+  - Claimed 5-fold Grouped CV result: **0.872 recall** vs Blocklist **0.745** (+12.7%) with **0.000 FPR on `good_fit`**. No committed report/artifact reproduces these numbers, and the current checkpoint predates the DB rebuild — treat as unverified.
   - Integrated as soft score penalty (`get_title_role_penalty()`) in `src/matching/scorer.py`.
 
 ---
@@ -296,7 +295,7 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
   - Verified 10 public company ATS boards on Greenhouse and Ashby with HTTP 200 (Canonical, Mozilla, Elastic, Grafana Labs, PostHog, Linear, Cohere, Replit, GitBook, Wikimedia).
 - **Step 3: Learned Title Role-Type Classifier** (Commit `0219404`):
   - Trained char n-gram (3-5) TF-IDF + LogisticRegression on human + weak labels (`src/matching/title_classifier.py` and `scripts/train_title_classifier.py`).
-  - Evaluated via 5-fold Grouped CV: achieved **0.872 recall** vs Blocklist **0.745 recall** (+12.7% recall improvement) with **0.000 FPR on `good_fit`** (0 good_fit killed).
+  - Claimed 5-fold Grouped CV result: **0.872 recall** vs Blocklist **0.745** (+12.7%) with **0.000 FPR on `good_fit`**. No committed report/artifact reproduces these numbers, and the current checkpoint predates the DB rebuild — treat as unverified.
   - Integrated into `src/matching/scorer.py` as soft score penalty.
 - **Step 4: Ranker Model with Strict Safety Gates** (Commit `cfcfa25`):
   - Implemented `scripts/train_ranker.py`: Joined bookkeeping + training jsonl on `job_id`, strictly filtering `v2_role_fit_only` and unexcluded rows.
@@ -314,15 +313,17 @@ Source read: `https://merojob.com/terms-and-conditions/` (fetched 2026-10-11). `
 
 ## 🛠️ Next Action Items
 
-1. **Ingest Triage Suggestions**: Review the 6 Ollama suggestions (3 `maybe`, 3 `bad_fit`) from `data/triage_suggestions_20261029_1242.json`:
-   ```powershell
-   & .\.venv\Scripts\python.exe scripts\ingest_triage_suggestions.py data\triage_suggestions_20261029_1242.json
+1. **Label the recovered junior roles first**: restart `.venv/bin/python app.py`. The top of the Feed is now Canonical's worldwide junior/graduate engineering roles — Graduate Software Engineer (74.8), Junior Ubuntu Software Engineer (72.4), Associate Linux Support Engineer (71.2), Junior Linux Kernel Engineer (71.2). These were previously hidden by the ATS `Home based - Worldwide` remote-classification bug.
+
+2. **Review the pending Ollama suggestions** (optional, lower priority): 22 suggestions are in `data/triage_suggestions_20261106_2017.json` (15 still pending):
+   ```bash
+   .venv/bin/python scripts/ingest_triage_suggestions.py data/triage_suggestions_20261106_2017.json
    ```
-   ⚠️ Wikimedia SW Eng internship (MatchScorer=71) is likely `good_fit` — Ollama said `maybe` due to location which is irrelevant under v2.
 
-2. **Labeling Gate Progression**: Launch `python app.py` and label candidates (re-evaluate 20 legacy `good_fit` roles under v2). Gate: **147/150 v2 labels** (3 away), **5/30 `good_fit`** (25 away).
+3. **Continue labeling**: gate is **30/150 v2 labels** and **1/30 `good_fit`** as of 2026-11-09. After labeling, run `.venv/bin/python scripts/export_labeled_descriptions.py` to regenerate `data/labeled_jobs_*.jsonl` before `train_ranker.py` / `make_splits.py`.
 
-3. **Train Ranker**: Once gate clears ($\ge 150$ v2, $\ge 30$ `good_fit`), run `python scripts/train_ranker.py` to deploy the learned production ranker.
+4. **Calibrate, then train**: once there are ≥150 v2 labels, run `scripts/calibrate_laya.py --version v4` and verify `ece_computed=true` with non-zero `n_eval` before trusting it. `v3` is a no-op. Then, once there are ≥30 `good_fit`, run `scripts/train_ranker.py` and `scripts/train_laya.py --version v3`.
 
-4. **ATS Board Expansion (Next Round)**: PostHog, Linear (Ashby — currently 0 results), Cohere, Replit, GitBook returned 404. Monitor for new boards. Current active boards: Supabase, ElevenLabs, GitLab, Canonical, Mozilla, Elastic, Grafana Labs, Wikimedia (8 total).
+5. **Source roster (26 total)**: 8 aggregators (Arbeitnow, Remotive, Himalayas, WWR, Remote OK, Jobicy, Hacker News, Working Nomads) + 18 ATS boards (including Canonical, Supabase, ElevenLabs, Railway, PostHog, Bitwarden, Zapier). The ATS remote fix recovered 96 Canonical worldwide roles; keep prioritizing ATS boards with explicit worldwide/global locations.
 
+6. **Known follow-ups**: (a) root `app.py` does not persist the 5 gate audit columns; (b) `can_be_executed_globally` can override explicit non-Nepal locations; (c) `ai/ml` matches bare "AI"; (d) committed `evals/gold/gold_latest.csv` still has 7 excluded rows; (e) retire duplicate `tools/app.py`; (f) after `usermod -aG docker`, log out/in before `docker` works without sudo.

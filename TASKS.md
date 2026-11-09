@@ -49,7 +49,7 @@
 - [x] 6.1 Implement `FEED.md` exporter: ranked table of jobs that passed hard filters, with score, title, company, location/remote, matched skills, and apply link. Include a section showing filter reason-code counts.
 - [x] 6.2 Build interactive CLI query tool for reviewing top matches.
 - [x] 6.3 Package pipeline runner into a scheduled daily script.
-- [x] 6.4 Wire the web dashboard (`tools/app.py`) to use the new hard-filter output, reachability status, and in-browser human labeling & rating.
+- [x] 6.4 Wire the web dashboard (`app.py`; the older `tools/app.py` copy was the one originally wired) to use the new hard-filter output, reachability status, and in-browser human labeling & rating.
 
 ## Phase 6 Refinements: Accessibility, Thresholds & Evaluation
 - [x] 6a **Accessibility Architecture** (highest priority):
@@ -95,8 +95,8 @@
   - Updated `scripts/export_for_labeling.py`: implemented 3-stratum sampling (40% random, 30% high_match_scorer, 30% laya_uncertainty with fallback), excluded Laya score & confidence columns from output CSV to eliminate anchoring bias, and included `sampling_stratum` and `label_guideline_version` in output columns.
   - Updated `scripts/ingest_labels.py`: ingests `sampling_stratum` and `label_guideline_version` into `laya_labels` columns.
   - Added unit test suite `tests/test_export_labeling.py` (9 tests passing).
-- [x] 7.8a Temperature calibration: **COMPLETED** — ran on 150 unique labels (1,650 question records across 11 questions on CUDA, confirmed in `config/laya_temperatures_v3.json`) with full ECE evaluation enabled.
-- [x] 7.8b **COMPLETED** Fine-tune Laya decision head: Supervised head training with class-weighted CrossEntropy on frozen 1024-dim ModernBERT embeddings. Ran on 150 unique jobs (120 train / 30 val split). Checkpoint persisted to `models/laya_head_v2/head_weights.pt` with metadata `models/laya_head_v2/checkpoint_meta.json`.
+- [x] 7.8a Temperature calibration: **ARTIFACT INVALID — do not treat as calibrated.** `config/laya_temperatures_v3.json` records `n_eval=0`, `ece_before/after=null`, and all temperatures `1.0`; the old note claiming "ECE computed on held-out split" was false. The script now reports this honestly and refuses to write NaN; regenerate a new version once there are valid v2 labels.
+- [x] 7.8b **EXPERIMENTAL, NOT PRODUCTION.** Fine-tune Laya decision head: 150 jobs (120/30), checkpoint at `models/laya_head_v2/head_weights.pt`. Its own metadata says `status: experimental`, `good_fit_count: 19` (< 30), and warns of data leakage against the full dataset. The script now filters to `v2_role_fit_only` + unexcluded rows.
 - [x] 7.9 **COMPLETED** Report script (`scripts/report_labels.py`):
   - Per-source counts and `good_fit` rates (Arbeitnow, Remotive, etc.).
   - Per-stratum counts and `good_fit` rates.
@@ -133,7 +133,7 @@
   - Verified 10 public company ATS boards on Greenhouse/Ashby with HTTP 200.
 - [x] 11.3 **Step 3 Learned Title Role-Type Classifier**:
   - Implemented `src/matching/title_classifier.py` and `scripts/train_title_classifier.py`.
-  - Achieved 0.872 recall vs 0.745 blocklist (0.000 FPR on good fits).
+  - Claimed 0.872 recall vs 0.745 blocklist (0.000 FPR on good fits); unverified, no committed artifact.
   - Integrated into `src/matching/scorer.py` as soft score penalty.
 - [x] 11.4 **Step 4 Ranker Model with Strict Gates**:
   - Implemented `scripts/train_ranker.py` with strict safety gates ($\ge 150$ v2 labels, $\ge 30$ role-fit `good_fit`).
@@ -165,8 +165,8 @@
 - [x] 10.2 **Gate 2 Seniority & Degree Hard Filters**: Add `BLOCKED_SENIORITY` (`TOO_SENIOR`), `_DEGREE_HARD_RE`, and `_YEARS_RE` ($\ge 3$ years) (`DEGREE_OR_EXP`) directly into `hard_filter.py`.
 - [x] 10.3 **OpenAI Leak Purge & ATS Sanitization**: Reprocess all 1,298 raw ATS listings. Verified **0 OpenAI jobs** in `job_matches` (all disqualified). Disabled non-worldwide boards (`openai`, `runway-ml`) in `config/ats_boards.json`.
 - [x] 10.4 **Manual Nepal Import CLI (`scripts/import_manual_jobs.py`)**: Zero-scraping policy for Nepali job sites. Built manual import CLI to ingest user-provided JSON/CSV with `source = 'manual:nepal'`. Added test suite in `tests/test_import_manual_jobs.py`.
-- [x] 10.5 **Audit Schema Migration 010**: Applied `010_laya_labels_gates.sql` adding 8 structured audit fields to `laya_labels`. Updated `tools/app.py` `_handle_label_job` to persist all 5 gates.
-- [x] 10.6 **Feed Regeneration & Verification**: Re-exported `FEED.md` with 27 verified accessible roles and 62 unknown. 150 automated tests passing.
+- [x] 10.5 **Audit Schema Migration 010**: Applied `010_laya_labels_gates.sql` adding 8 structured audit fields to `laya_labels`. Updated `tools/app.py` `_handle_label_job` to persist all 5 gates. **Known gap:** the production root `app.py` still writes only job/label/metadata and does not populate those gate columns.
+- [x] 10.6 **Feed Regeneration & Verification** (historical): 27 accessible / 62 unknown at the time; 150 tests. Current rebuild after source expansion: 84 accessible / 68 unknown, 194 passed + 5 skipped (tokenizer tests offline while the Laya model downloads).
 
 ## Phase 12: Active Learning Pipeline & ATS Expansion (2026-10-29)
 - [x] 12.1 **Smart Triage Pipeline** (`scripts/smart_label_triage.py`):
@@ -181,8 +181,8 @@
   - Never auto-writes without human confirmation (default mode).
 - [x] 12.3 **Integrate Triage as Step 4 in `scripts/run_daily.py`** (Fetch → Normalize → MatchScorer → **Triage** → FEED):
   - Triage is non-critical: exceptions log but do not abort the pipeline.
-  - `--triage-ollama` flag enables Ollama GPU calls; default is triage-only (no GPU).
-  - `scripts/run_scheduled.py` updated to pass `--triage-ollama` when flag set.
+  - **Ollama is ON by default**; `--no-llm` / `--no-triage-ollama` disables it. `--triage-ollama` is now accepted as a compatibility no-op.
+  - `scripts/run_scheduled.py` always uses Ollama (no flag gating).
 - [x] 12.4 **Enable 5 New ATS Boards** (`config/ats_boards.json`) — all verified live 2026-10-29:
   - `canonical` (greenhouse, slug=`canonical`, 314 jobs)
   - `mozilla` (greenhouse, slug=`mozilla`, 118 jobs)
@@ -190,12 +190,11 @@
   - `grafanalabs` (greenhouse, slug=`grafanalabs`, 131 jobs) — NOT `grafana-labs`
   - `wikimedia` (greenhouse, slug=`wikimedia`, 15 jobs)
   - Rejected: PostHog/Linear (Ashby 0 results), Cohere/Replit/GitBook (HTTP 404).
-  - **982 new jobs ingested** → DB total: 7,436.
-  - **Ollama Model**: `qwen2.5:3b` (Q4_K_M, 1.9 GB). Runs on CPU (RTX 2050 OOMs at 1.9 GB VRAM idle ~2.2 GB). `ollama run qwen2.5:3b` verified working.
-- [ ] 12.5 **Label the 6 Ollama Suggestions** in `data/triage_suggestions_20261029_1242.json`:
-  - Run: `& .\.venv\Scripts\python.exe scripts\ingest_triage_suggestions.py data\triage_suggestions_20261029_1242.json`
-  - Note: Wikimedia Software Engineering Internship (MS=71) is strong `good_fit` candidate — Ollama said `maybe` citing location, which is irrelevant under v2.
-- [ ] 12.6 **Reach Training Gate** — currently **147/150 v2** (3 away), **5/30 `good_fit`** (25 away).
+  - **982 new jobs ingested** → DB total: 7,436 (historical; the 2026-11-09 rebuild has 2,364 jobs and 18 active ATS boards).
+  - **Ollama Model**: `qwen2.5:3b` (Q4_K_M, 1.9 GB), pulled 2026-11-06. On this Linux/RTX 2050 system it loads at **22% CPU / 78% GPU** (`ollama ps`) — it fits in VRAM. `ollama run qwen2.5:3b` verified.
+- [ ] 12.5 **Review the fresh Ollama Suggestions** in `data/triage_suggestions_20261106_2017.json` (22 suggestions; 15 still pending after the first session). The old 2026-10-29 file references deleted DB UUIDs and is unusable.
+  - Run: `.venv/bin/python scripts/ingest_triage_suggestions.py data/triage_suggestions_20261106_2017.json`
+- [ ] 12.6 **Reach Training Gate** — **30/150 v2**, **1/30 `good_fit`** as of 2026-11-09 (first labeling session in progress).
 - [x] 12.7 **Automatic Docker Desktop & PostgreSQL Lifecycle** (`src/db/docker_control.py`):
   - Automatically launches Docker Desktop if daemon is not running when pipeline starts (doesn't just passively wait).
   - Runs `docker compose up -d postgres` and polls until PostgreSQL is healthy and accepting connections.

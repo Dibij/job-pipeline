@@ -15,6 +15,7 @@ from src.extractors import (
     RemoteOKExtractor,
     JobicyExtractor,
     HackerNewsExtractor,
+    WorkingNomadsExtractor,
     ATSBoardExtractor,
 )
 from src.models import transform_raw_listing
@@ -88,7 +89,7 @@ class JobPipeline:
         stats["himalayas"] = self._run_single_extractor(
             run_id, "himalayas",
             lambda: HimalayasExtractor(delay_seconds=2.0).stage_raw(
-                HimalayasExtractor(delay_seconds=2.0).fetch_raw(limit=50, max_pages=5)
+                HimalayasExtractor(delay_seconds=2.0).fetch_raw(limit=20, max_pages=5)
             )
         )
 
@@ -116,11 +117,19 @@ class JobPipeline:
             )
         )
 
-        # 7. Hacker News (Who is hiring)
+        # 7. Working Nomads (public exposed-jobs JSON)
+        stats["workingnomads"] = self._run_single_extractor(
+            run_id, "workingnomads",
+            lambda: WorkingNomadsExtractor(delay_seconds=2.0).stage_raw(
+                WorkingNomadsExtractor(delay_seconds=2.0).fetch_raw()
+            )
+        )
+
+        # 8. Hacker News (Who is hiring)
         stats["hackernews"] = self._run_single_extractor(
             run_id, "hackernews",
             lambda: HackerNewsExtractor(delay_seconds=0.1).stage_raw(
-                HackerNewsExtractor(delay_seconds=0.1).fetch_raw(limit=50)
+                HackerNewsExtractor(delay_seconds=0.1).fetch_raw(limit=200)
             )
         )
 

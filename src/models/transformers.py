@@ -1,5 +1,6 @@
 """Transformers converting source-specific raw payloads into NormalizedJob models."""
 import email.utils
+import hashlib
 import logging
 import re
 from datetime import datetime, timezone
@@ -458,6 +459,39 @@ def is_unparseable_hn_title(title: str) -> bool:
     return False
 
 
+def transform_workingnomads(payload: Dict[str, Any]) -> NormalizedJob:
+    """Transform a Working Nomads exposed-jobs item into NormalizedJob."""
+    raw_desc = payload.get("description", "")
+    plain_desc = strip_html(raw_desc) or payload.get("title", "")
+
+    tags_raw = payload.get("tags") or ""
+    if isinstance(tags_raw, str):
+        tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
+    elif isinstance(tags_raw, list):
+        tags = [str(t).strip() for t in tags_raw if t]
+    else:
+        tags = []
+
+    location = (payload.get("location") or "").strip()
+    url = (payload.get("url") or "").strip()
+
+    return NormalizedJob(
+        source="workingnomads",
+        external_id=url,
+        title=payload.get("title", "Untitled Position"),
+        company_name=payload.get("company_name", "Unknown Company"),
+        location_raw=location or "Remote",
+        is_remote=True,
+        remote_restriction=location or "unspecified",
+        job_type=None,
+        description_text=plain_desc,
+        description_html=raw_desc,
+        apply_url=url,
+        tags=tags,
+        posted_at=parse_timestamp(payload.get("pub_date")),
+    )
+
+
 def transform_hackernews(payload: Dict[str, Any]) -> Optional[NormalizedJob]:
     """Transform Hacker News Who is hiring comment into NormalizedJob.
 
@@ -619,9 +653,11 @@ def transform_ats_greenhouse(payload: Dict[str, Any], source: str) -> "Normalize
     location_raw = loc_obj.get("name", "") if isinstance(loc_obj, dict) else str(loc_obj)
     content_html = payload.get("content", "")
     desc_clean = clean_description_text(content_html) if content_html else title
-    is_remote = any(
-        k in location_raw.lower() for k in ["remote", "anywhere", "virtual", "distributed"]
-    ) or "remote" in title.lower()
+    remote_markers = [
+        "remote", "anywhere", "virtual", "distributed",
+        "worldwide", "global", "home based", "home-based", "homebased",
+    ]
+    is_remote = any(k in location_raw.lower() for k in remote_markers) or "remote" in title.lower()
     remote_restriction = location_raw.strip() if location_raw.strip() else "unspecified"
 
     apply_url = payload.get("absolute_url") or payload.get("url") or ""
@@ -662,7 +698,10 @@ def transform_ats_lever(payload: Dict[str, Any], source: str) -> "NormalizedJob"
     elif workplace_type == "remote":
         is_remote = True
     else:
-        is_remote = ("remote" in location_raw.lower()) or ("remote" in title.lower())
+        is_remote = any(
+            k in location_raw.lower()
+            for k in ["remote", "anywhere", "global", "worldwide", "home based", "home-based"]
+        ) or ("remote" in title.lower())
     remote_restriction = location_raw.strip() if location_raw.strip() else "unspecified"
 
     apply_url = payload.get("hostedUrl") or payload.get("applyUrl") or ""
@@ -711,9 +750,12 @@ def transform_ats_ashby(payload: Dict[str, Any], source: str) -> "NormalizedJob"
     elif workplace_type == "remote":
         is_remote = True
     else:
-        is_remote = bool(payload.get("isRemote", False)) and (
-            "remote" in (loc_name or "").lower() or "remote" in title.lower()
-        )
+        # Ashby's isRemote flag is authoritative; locations like "Global" or
+        # "Remote (EMEA)" do not always contain the word "remote".
+        is_remote = bool(payload.get("isRemote", False)) or any(
+            k in (loc_name or "").lower()
+            for k in ["remote", "anywhere", "global", "worldwide", "home based", "home-based"]
+        ) or "remote" in title.lower()
 
     location_raw = ", ".join(loc_parts) if loc_parts else (loc_name or "")
     content_html = payload.get("descriptionHtml", "")
@@ -769,10 +811,13 @@ def transform_manual_nepal(payload: Dict[str, Any], source: str = "manual:nepal"
     location = str(payload.get("location_raw") or payload.get("location") or "Kathmandu, Nepal").strip()
     is_remote = bool(payload.get("is_remote", False))
     desc_text = str(payload.get("description_text") or payload.get("description") or "").strip()
-    apply_url = str(payload.get("apply_url") or payload.get("company_url") or "https://manual-import.local").strip()
+    apply_url = str(payload.get("apply_url") or payload.get("company_url") or "").strip()
     ext_id = str(payload.get("external_id") or "").strip()
     if not ext_id:
-        ext_id = f"manual_{abs(hash(f'{title}_{company}_{location}'))}"
+        # Stable across processes; Python's built-in hash() is salted per interpreter.
+        ext_id = "manual_" + hashlib.sha256(
+            f"{title}_{company}_{location}".encode("utf-8")
+        ).hexdigest()[:16]
 
     tags = payload.get("tags") or []
     if isinstance(tags, str):
@@ -811,6 +856,8 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> Optional[Norm
         job = transform_jobicy(payload)
     elif source_lower == "hackernews":
         job = transform_hackernews(payload)
+    elif source_lower == "workingnomads":
+        job = transform_workingnomads(payload)
     elif source_lower.startswith("ats:"):
         job = transform_ats(source, payload)
     elif source_lower.startswith("manual:"):

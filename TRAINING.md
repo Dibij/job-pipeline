@@ -6,20 +6,15 @@ This document tracks the calibration and fine-tuning engineering for Laya (Task 
 
 ## 1. Current State
 * **Spike and Scoring Active**: Base checkpoint `convaiinnovations/laya` (ModernBERT-large, 421M params). Inference on CPU takes ~15–20s per full JD (on CUDA RTX 2050 ~40ms).
-* **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql`, `007_labeling_schema.sql`, `010_laya_labels_gates.sql`, `011_widen_label_stratum.sql`, and `012_add_exclude_reason.sql`) stores human fit labels with 5-gate audit columns and explicit `exclude_reason`.
-* **Current Human Labeled Dataset**:
-  - `v2_role_fit_only` (Active standard): **147 distinct jobs** (266 total label events, as of 2026-10-29):
-    - `bad_fit`: 201 rows (110 unique jobs)
-    - `maybe`: 55 rows (32 unique jobs)
-    - `good_fit`: 10 rows (5 unique jobs)
-  - Legacy historical labels: 20 distinct `good_fit` jobs across `v1` and `None` guidelines available for re-evaluation under `v2_role_fit_only`.
-  - **6 Ollama suggestions** pending human review in `data/triage_suggestions_20261029_1242.json` (3 `maybe`, 3 `bad_fit`).
-* **In-Browser Labeling Active**: `app.py` writes directly to `laya_labels` stamped with `label_guideline_version="v2_role_fit_only"`, supporting rapid interactive review with Feed & Rejected tabs without CSV round-trips.
-* **Training Gate Status**: **147/150 v2 labels** (3 away from gate), **5/30 role-fit `good_fit`** (25 away). Use `app.py` or the triage ingestion flow to close the gap.
+* **Database Table Active**: `laya_labels` (in `src/db/migrations/003_laya_labels.sql`, `007_labeling_schema.sql`, `010_laya_labels_gates.sql`, `011_widen_label_stratum.sql`, `012_add_exclude_reason.sql`, `013_job_llm_features.sql`, and `014_add_job_matches_reason_code.sql`) stores human fit labels with 5-gate audit columns and explicit `exclude_reason`.
+* **Current Human Labeled Dataset**: **30 labels (24 `bad_fit`, 5 `maybe`, 1 `good_fit`) as of 2026-11-09**, first labeling session in progress. The 2026-11-06 Linux rebuild recreated the database; the old Windows labels were not migrated, and the stale `data/labeled_jobs_*.jsonl` exports were archived to `data/pre_rebuild_20261106/`. Run `export_labeled_descriptions.py` after labeling. Historical pre-rebuild state (2026-10-29) was 147 distinct `v2_role_fit_only` jobs / 266 events (`bad_fit` 201/110, `maybe` 55/32, `good_fit` 10/5). The 20 legacy `good_fit` jobs are also gone.
+  - **22 Ollama suggestions** pending human review in `data/triage_suggestions_20261106_2017.json` (15 `maybe`, 5 `bad_fit`, 2 `good_fit`). The old 2026-10-29 file references deleted UUIDs.
+* **In-Browser Labeling Active**: `app.py` writes directly to `laya_labels` stamped with `label_guideline_version="v2_role_fit_only"`, supporting rapid interactive review with Feed & Rejected tabs without CSV round-trips. It does not populate the 5 gate audit columns.
+* **Training Gate Status**: **30/150 v2 labels**, **1/30 role-fit `good_fit`** as of 2026-11-09. Label from scratch in `app.py` or via the triage ingestion flow.
 * **Scaffolding & Execution Operational**:
   1. `scripts/make_labeling_batch.py`: Exports balanced batches (70% title-rule score, 30% random) with company historical caps ($\le 5$) stamped `v2_role_fit_only`.
   2. `scripts/ingest_labels.py`: Ingests and validates human labels (`good_fit`, `maybe`, `bad_fit`) without overwriting old records.
-  3. `scripts/train_title_classifier.py`: Trains char n-gram TF-IDF title classifier (`src/matching/title_classifier.py`) providing soft role penalties (+12.7% recall over rigid blocklists, 0.000 FPR on `good_fit`).
+  3. `scripts/train_title_classifier.py`: Trains char n-gram TF-IDF title classifier (`src/matching/title_classifier.py`) providing soft role penalties. The claimed +12.7% recall / 0.000 FPR is unverified (no committed report).
   4. `scripts/train_ranker.py`: Trains production ranker strictly gated on $\ge 150$ v2 labels and $\ge 30$ role-fit `good_fit` positives with bootstrap 95% CIs and ElevenLabs ablation.
   5. `scripts/report_labels.py`: Comprehensive audit script reporting source yield, stratum yield, gate checks, and comparative model metrics (precision@10, recall@10, recall@20, PR-AUC).
   6. `scripts/smart_label_triage.py`: Active-learning triage — buckets unlabeled eligible jobs by MatchScorer/Laya agreement, routes CONFLICT/UNCERTAIN to Ollama `qwen2.5:3b` for label suggestions. Output saved to `data/triage_suggestions_*.json`.
@@ -44,7 +39,7 @@ From package inspection of `laya` (specifically `laya.proper_reward` and `laya.R
 
 ### Current Machine Configuration
 * **GPU**: NVIDIA GeForce RTX 2050 Laptop GPU (4,096 MiB / 4 GB VRAM).
-* **CUDA Torch**: `torch 2.5.1+cu121`, RTX 2050 confirmed (`torch.cuda.is_available() = True`).
+* **CUDA Torch**: `torch 2.15.0+cu132` installed in `.venv` (2026-11-06), RTX 2050 confirmed (`torch.cuda.is_available() = True`).
 * **Available VRAM at Idle**: ~2.8 GB free (display and Windows system processes use ~1.1 GB).
 
 ### What Fits in 4 GB VRAM (and what does NOT):
@@ -71,37 +66,37 @@ From package inspection of `laya` (specifically `laya.proper_reward` and `laya.R
 
 ### Step 1: Export Jobs for Labeling
 ```bash
-.\.venv\Scripts\python scripts/export_for_labeling.py --batch-size 30
+.venv/bin/python scripts/make_labeling_batch.py --batch-size 30
 ```
-Generates `data/labeling_batch_YYYYMMDD.csv`. Each row includes a `sampling_stratum` field (see Section 6.5). Laya columns must be hidden or absent during labeling -- see Task 7.7b.
+This is the current 70/30 title-rule/random generator (`--batch-size` aliases `--count`). The older `scripts/export_for_labeling.py` (40/30/30 strata) is still available for the legacy protocol in Section 6.5. Both now stamp `v2_role_fit_only` and hide Laya columns.
 
 ### Step 2: Human Labeling
 Open the CSV and fill the `my_label` column using the definitions in Section 6.3. **Never accept Laya's suggestion as a default -- a skipped job is unlabeled, not `bad_fit`.**
 
 ### Step 3: Ingest Labels
 ```bash
-.\.venv\Scripts\python scripts/ingest_labels.py data/labeling_batch_YYYYMMDD.csv
+.venv/bin/python scripts/ingest_labels.py data/labeling_batch_YYYYMMDD.csv
 ```
 
 ### Step 4: Calibrate Temperatures (Task 7.8a) -- M1
 Once ~150 labels (including the random stratum) are reached:
 ```bash
-.\.venv\Scripts\python scripts/calibrate_laya.py --version v1
+.venv/bin/python scripts/calibrate_laya.py --version v4
 ```
-Uses natural-distribution data (or stratum-weighted data) to preserve real class rates.
+Uses natural-distribution data (or stratum-weighted data) to preserve real class rates. `v3` exists but is a no-op artifact (`n_eval=0`, all temperatures 1.0); use the next free version tag.
 
 ### Step 5: Decision Head Fine-Tuning (Task 7.8b) -- M3
-Once 500+ labels and at least 30 `good_fit` are reached:
+Once the gate clears (>=150 v2 labels and >=30 `good_fit`) and a fresh calibration has been validated:
 ```bash
-.\.venv\Scripts\python scripts/train_laya.py --version v1
+.venv/bin/python scripts/train_laya.py --version v3
 ```
 
 ---
 
 ## 6. Labeling Strategy & Class Balance
 
-### 6.1 Observed Distribution (Oct 2026)
-86 labels ingested so far:
+### 6.1 Observed Distribution (historical, Oct 2026 — pre-rebuild)
+86 labels were ingested at the time; the current DB has 0 labels:
 
 | Label | Count | % |
 |-------|-------|---|
@@ -203,7 +198,7 @@ Every metric must be computed for **both** Laya and the rule-based MatchScorer o
 ### 8.2 Calibration status
 The `convaiinnovations/laya` checkpoint ships **uncalibrated temperatures**. Its raw output probabilities must never be described as "calibrated confidence" until task 7.8a has been completed and the resulting temperature config applied.
 
-Observed score-question range: ~0.10-0.26, confirming the model is miscalibrated out of the box.
+Observed score-question range: ~0.10-0.26, confirming the model is miscalibrated out of the box. **The `v3` config is not evidence otherwise:** it was written with `n_eval=0` and all-`1.0` temperatures, i.e. no calibration was applied (see §9).
 
 ### 8.3 Measuring uncertainty post-calibration
 After 7.8a:
@@ -214,13 +209,13 @@ After 7.8a:
 
 ## 9. Milestones & Training Roadmap
 
-With 4,596 jobs across 8 active sources and 146 distinct jobs labeled under `v2_role_fit_only`:
+With **2,364 jobs across 26 pipeline sources** and **30 distinct jobs labeled** as of 2026-11-09 (first session in progress):
 
 | Milestone | Target | Requirements | Status | Unlocks |
 |-----------|--------|--------------|:------:|---------|
-| **M1** | Baseline Calibration & Evaluation | Random + High-Match strata labeled | **COMPLETED** | Temperature calibration `v3` (`config/laya_temperatures_v3.json`) |
-| **M2** | Total v2 Labels Gate | $\ge 150$ distinct jobs with `v2_role_fit_only` | **146 / 150** (4 away) | Stratified cross-validation splits and ranker evaluation |
-| **M3** | Production Ranker Training Gate | $\ge 150$ unique v2 jobs AND $\ge 30$ role-fit `good_fit` | **5 / 30 positives** (Needs 25 more; 20 legacy available to review) | Unlocks `scripts/train_ranker.py` and `scripts/train_laya.py` |
+| **M1** | Baseline Calibration & Evaluation | Random + High-Match strata labeled | **INVALID** — `v3` artifact has `n_eval=0`, all temperatures 1.0 | Re-run `calibrate_laya.py --version v4` after labels |
+| **M2** | Total v2 Labels Gate | $\ge 150$ distinct jobs with `v2_role_fit_only` | **30 / 150** | Stratified cross-validation splits and ranker evaluation |
+| **M3** | Production Ranker Training Gate | $\ge 150$ unique v2 jobs AND $\ge 30$ role-fit `good_fit` | **1 / 30 positives** | Unlocks `scripts/train_ranker.py` and `scripts/train_laya.py` |
 
 > **Training Readiness & Safety Gates Enforced**:
 > `scripts/train_ranker.py` and `scripts/train_laya.py` strictly refuse to train or evaluate ranker models if:
@@ -230,5 +225,5 @@ With 4,596 jobs across 8 active sources and 146 distinct jobs labeled under `v2_
 >
 > **Promotion Rule**: The learned ranker replaces the rule baseline only if its out-of-fold lower 95% bootstrap CI exceeds 0.70 AND outperforms the title-rule baseline by $\ge 0.05$ AUC.
 >
-> Re-evaluating the 20 legacy `good_fit` roles in `app.py` under the `v2_role_fit_only` definition, combined with reviewing fresh postings from the 10 verified ATS boards, will promptly clear the gate.
+> The old 20 legacy `good_fit` roles were lost with the Windows DB; there is nothing to re-evaluate. Label fresh postings from the 8 enabled ATS boards in `app.py` to clear the gate.
 

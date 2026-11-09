@@ -477,3 +477,38 @@ def test_hackernews_unparseable_titles():
     assert job.exclude_reason == "unparseable_title"
 
 
+
+
+def test_ats_greenhouse_home_based_worldwide_is_remote():
+    """Regression: Canonical 'Home based - Worldwide' must not be NOT_REMOTE."""
+    from src.models.transformers import transform_ats_greenhouse
+
+    payload = {
+        "id": 8249005,
+        "title": "Graduate Software Engineer, Open Source and Linux",
+        "location": {"name": "Home based - Worldwide"},
+        "content": "<p>Python and Linux.</p>",
+        "absolute_url": "https://job-boards.greenhouse.io/canonical/jobs/8249005",
+        "_ats_meta": {"platform": "greenhouse", "company_name": "Canonical"},
+    }
+    job = transform_ats_greenhouse(payload, "ats:canonical")
+    assert job.is_remote is True
+    assert "worldwide" in (job.remote_restriction or "").lower()
+
+
+def test_ats_ashby_global_flag_is_remote():
+    """Regression: Ashby isRemote=True with location 'Global' must be remote."""
+    from src.models.transformers import transform_ats_ashby
+
+    payload = {
+        "id": "railway-1",
+        "title": "Infrastructure Engineer",
+        "location": "Global",
+        "isRemote": True,
+        "workplaceType": "Remote",
+        "descriptionHtml": "<p>Build infra.</p>",
+        "jobUrl": "https://jobs.ashbyhq.com/railway/1",
+        "_ats_meta": {"platform": "ashby", "company_name": "Railway"},
+    }
+    job = transform_ats_ashby(payload, "ats:railway")
+    assert job.is_remote is True

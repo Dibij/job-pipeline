@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 # is non-empty and contains only single-country/region strings.  Empty list = worldwide.
 _ACCESSIBLE_LOCATION_TOKENS = frozenset({
     "worldwide", "anywhere", "global", "remote", "no restriction",
+    # Asia/APAC roles are marked UNKNOWN downstream, not silently dropped.
+    "asia", "apac", "south asia", "southeast asia",
 })
 
 
@@ -52,13 +54,13 @@ class HimalayasExtractor(BaseExtractor):
 
     def fetch_raw(
         self,
-        limit: int = 50,
-        max_pages: int = 5,
+        limit: int = 20,
+        max_pages: int = 20,
     ) -> List[Dict[str, Any]]:
         """Fetch remote job listings from Himalayas API.
         
         Args:
-            limit: Number of jobs per page (max recommended: 50).
+            limit: Number of jobs per page (API maximum is 20).
             max_pages: Maximum number of pages to retrieve.
         """
         collected: List[Dict[str, Any]] = []
