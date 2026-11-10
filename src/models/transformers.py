@@ -4,10 +4,12 @@ import hashlib
 import logging
 import re
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from bs4 import BeautifulSoup
 
 from src.models.job import NormalizedJob
+from src.opportunities.compensation import detect_compensation
 
 logger = logging.getLogger(__name__)
 
@@ -839,6 +841,91 @@ def transform_manual_nepal(payload: Dict[str, Any], source: str = "manual:nepal"
     )
 
 
+def transform_github_issue(payload: Dict[str, Any]) -> NormalizedJob:
+    """Transform a GitHub Search API issue into a bounty/open-source NormalizedJob.
+
+    Reward status is detected from labels + issue body and is always treated as
+    an *unverified* claim on GitHub (the platform does not escrow). opportunity_type
+    is 'bounty' when a reward/bounty signal exists, otherwise 'open_source'.
+    """
+    raw_body = payload.get("body") or ""
+    plain_desc = strip_html(raw_body) or raw_body or payload.get("title", "")
+
+    labels: List[str] = []
+    for lbl in payload.get("labels") or []:
+        if isinstance(lbl, dict) and lbl.get("name"):
+            labels.append(str(lbl["name"]).strip())
+        elif isinstance(lbl, str):
+            labels.append(lbl.strip())
+    labels_lower = [l.lower() for l in labels]
+
+    repo = payload.get("_gh_repo") or ""
+    html_url = payload.get("html_url") or payload.get("url") or ""
+    state = (payload.get("state") or "open").lower()
+
+    comp = detect_compensation(plain_desc, kind="bounty", platform_verified=False)
+    label_reward = any(k in labels_lower for k in ("bounty", "reward", "paid"))
+    opportunity_type = "bounty" if (comp.compensation_type in ("bounty", "fixed_price") or label_reward) else "open_source"
+
+    status = state if state in ("open", "closed") else "unknown"
+    risk_flags: List[str] = []
+    if comp.payment_verification_status == "unverified":
+        risk_flags.append("unverified_payment_claim")
+
+    return NormalizedJob(
+        source="github",
+        external_id=str(payload.get("id") or html_url).strip(),
+        title=payload.get("title", "Untitled Issue").strip(),
+        company_name=repo or "Unknown Repository",
+        location_raw="Remote",
+        is_remote=True,
+        remote_restriction="worldwide",
+        description_text=plain_desc,
+        description_html=raw_body,
+        apply_url=html_url,
+        source_url=html_url,
+        tags=labels,
+        posted_at=parse_timestamp(payload.get("created_at")),
+        opportunity_type=opportunity_type,
+        compensation_type=comp.compensation_type,
+        budget_min=Decimal(str(comp.budget_min)) if comp.budget_min is not None else None,
+        budget_max=Decimal(str(comp.budget_max)) if comp.budget_max is not None else None,
+        budget_currency=comp.budget_currency,
+        payment_verification_status=comp.payment_verification_status,
+        scam_risk_score=0.0,
+        risk_flags=risk_flags,
+        status=status,
+        last_seen_at=datetime.now(timezone.utc),
+        bounty_verdict=payload.get("_bounty_verdict", {}).get("verdict") if isinstance(payload.get("_bounty_verdict"), dict) else None,
+        reject_reasons=(payload.get("_bounty_verdict", {}) or {}).get("reject_reasons") if isinstance(payload.get("_bounty_verdict"), dict) else [],
+        funding_evidence=(payload.get("_bounty_verdict", {}) or {}).get("funding_evidence") if isinstance(payload.get("_bounty_verdict"), dict) else None,
+        bounty_confidence=(payload.get("_bounty_verdict", {}) or {}).get("bounty_confidence") if isinstance(payload.get("_bounty_verdict"), dict) else None,
+        reject_evidence=(payload.get("_bounty_verdict", {}) or {}).get("reject_evidence") if isinstance(payload.get("_bounty_verdict"), dict) else None,
+    )
+
+
+def transform_pre_normalized(source: str, payload: Dict[str, Any]) -> Optional[NormalizedJob]:
+    """Rebuild a NormalizedJob from an extractor that staged a full payload.
+
+    The python_org and reddit extractors emit complete NormalizedJob dumps
+    (ISO datetime strings, float budgets). Re-validate them through the model so
+    enrichment still runs in the pipeline.
+    """
+    if not payload or not payload.get("title"):
+        return None
+    data = dict(payload)
+    data["source"] = source
+    data["fingerprint_hash"] = None
+    for key in ("posted_at", "expires_at", "deadline", "last_seen_at"):
+        value = data.get(key)
+        if isinstance(value, str):
+            try:
+                data[key] = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                data[key] = None
+    return NormalizedJob(**data)
+
+
 def transform_raw_listing(source: str, payload: Dict[str, Any]) -> Optional[NormalizedJob]:
     """Dispatcher transforming raw item payload based on source name."""
     source_lower = source.lower().strip()
@@ -858,6 +945,10 @@ def transform_raw_listing(source: str, payload: Dict[str, Any]) -> Optional[Norm
         job = transform_hackernews(payload)
     elif source_lower == "workingnomads":
         job = transform_workingnomads(payload)
+    elif source_lower == "github":
+        job = transform_github_issue(payload)
+    elif source_lower in ("python_org", "reddit"):
+        job = transform_pre_normalized(source_lower, payload)
     elif source_lower.startswith("ats:"):
         job = transform_ats(source, payload)
     elif source_lower.startswith("manual:"):

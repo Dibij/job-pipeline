@@ -26,3 +26,12 @@ DEFAULT_USER_AGENT = os.getenv(
     "USER_AGENT",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+
+# GitHub Search API token (optional). Raises rate limit from 60/hr to 5,000/hr.
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+
+# Reddit OAuth (required for r/forhire, r/hiring extraction — Reddit blocks
+# unauthenticated JSON access with HTTP 403). Create a "script" app at
+# https://www.reddit.com/prefs/apps and set these.
+REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET", "")

@@ -9,10 +9,14 @@ from src.extractors.jobicy import JobicyExtractor
 from src.extractors.hackernews import HackerNewsExtractor
 from src.extractors.workingnomads import WorkingNomadsExtractor
 from src.extractors.ats_board import ATSBoardExtractor
+from src.extractors.github import GitHubIssuesExtractor
+from src.extractors.python_org import PythonOrgExtractor
+from src.extractors.reddit import RedditExtractor
 
 __all__ = [
     "BaseExtractor", "ArbeitnowExtractor", "RemotiveExtractor",
     "HimalayasExtractor", "WWRExtractor", "RemoteOKExtractor", "JobicyExtractor",
     "HackerNewsExtractor", "WorkingNomadsExtractor", "ATSBoardExtractor",
+    "GitHubIssuesExtractor", "PythonOrgExtractor", "RedditExtractor",
 ]
 

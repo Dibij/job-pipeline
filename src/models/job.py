@@ -3,7 +3,7 @@ import logging
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,36 @@ class NormalizedJob(BaseModel):
     expires_at: Optional[datetime] = None
     fingerprint_hash: Optional[str] = None
     exclude_reason: Optional[str] = None
+    # ── Opportunity model extensions (backward compatible; default = 'job') ──
+    opportunity_type: str = "job"
+    compensation_type: Optional[str] = None
+    budget_min: Optional[Decimal] = None
+    budget_max: Optional[Decimal] = None
+    budget_currency: Optional[str] = None
+    deadline: Optional[datetime] = None
+    payment_verification_status: str = "unknown"
+    scam_risk_score: float = 0.0
+    risk_flags: List[str] = Field(default_factory=list)
+    risk_explanation: Optional[str] = None
+    status: str = "open"
+    source_url: Optional[str] = None
+    last_seen_at: Optional[datetime] = None
+    # Outreach context — human-reviewable drafts, never auto-sent
+    outreach_draft: Optional[str] = None
+    technical_angle: Optional[str] = None
+    clarification_questions: List[str] = Field(default_factory=list)
+    # ── Bounty verdict fields ──
+    bounty_verdict: Optional[str] = None
+    reject_reasons: List[str] = Field(default_factory=list)
+    funding_evidence: Optional[Dict[str, Any]] = None
+    bounty_confidence: Optional[int] = None
+    reject_evidence: Optional[str] = None
+    # ── GitHub lane fields (PAID / PROOF) ──
+    lane: Optional[str] = None
+    score: Optional[int] = None
+    score_breakdown: Optional[Dict[str, Any]] = None
+    why: Optional[str] = None
+    notes: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -71,11 +101,18 @@ class NormalizedJob(BaseModel):
         return data
 
     def compute_fingerprint(self) -> str:
-        """Generate SHA-256 fingerprint from title + company_name + location/remote."""
+        """Generate SHA-256 fingerprint from title + company_name + location/remote.
+
+        For non-job opportunity types the type is folded into the key so a GitHub
+        bounty and a job posting with an identical title/org can't collide. Job
+        fingerprints are intentionally unchanged to preserve existing DB rows.
+        """
         norm_title = re.sub(r"\s+", " ", self.title.lower().strip())
         norm_company = re.sub(r"\s+", " ", self.company_name.lower().strip())
         norm_remote = "remote" if self.is_remote else "onsite"
         raw_key = f"{norm_title}|{norm_company}|{norm_remote}"
+        if getattr(self, "opportunity_type", "job") != "job":
+            raw_key = f"{self.opportunity_type}|{raw_key}"
         return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
     def model_post_init(self, __context):

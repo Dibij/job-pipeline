@@ -33,9 +33,33 @@ from src.db.connection import get_connection, execute_query
 from src.matching.hard_filter import apply as apply_hard_filter, FilterReason
 from src.matching.title_classifier import predict_tech_probability, get_title_role_penalty
 from scripts.make_labeling_batch import score_title_rule, BOOST_WORDS, PENALTY_WORDS
+from src.opportunities.scoring import score_opportunity
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _opportunity_score_for(row: Dict[str, Any]) -> Any:
+    """Compute an opportunity score for non-job types; None for jobs."""
+    opp_type = (row.get("opportunity_type") or "job").lower()
+    if opp_type == "job":
+        return None
+    try:
+        result = score_opportunity({
+            "title": row.get("title") or "",
+            "description_text": row.get("description_text") or "",
+            "tags": list(row.get("tags") or []),
+            "opportunity_type": opp_type,
+        })
+        return {
+            "label": result.label,
+            "score": result.score,
+            "matched_skills": result.matched_skills,
+            "reasons": result.reasons,
+        }
+    except Exception as exc:
+        logger.debug("Opportunity scoring failed for %s: %s", row.get("id"), exc)
+        return None
 
 
 def load_all_triage_suggestions():
@@ -109,6 +133,21 @@ HTML_PAGE = """<!DOCTYPE html>
   .pill-filter{background:var(--card-bg);border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:16px;font-size:0.8rem;cursor:pointer}
   .pill-filter:hover{color:var(--text);border-color:var(--accent)}
   .pill-filter.active{background:var(--accent);color:#090d16;border-color:var(--accent);font-weight:700}
+  .opp-meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .opp-pill{background:var(--card-bg);border:1px solid var(--border);color:var(--muted);padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;text-transform:capitalize}
+  .opp-job{color:var(--accent);border-color:rgba(56,189,248,0.35)}
+  .opp-freelance{color:var(--purple);border-color:rgba(167,139,250,0.45)}
+  .opp-bounty{color:var(--amber);border-color:rgba(251,191,36,0.45)}
+  .opp-open_source{color:var(--green);border-color:rgba(34,197,94,0.45)}
+  .opp-budget{color:var(--text);border-color:rgba(148,163,184,0.45)}
+  .opp-score{color:#c4b5fd;border-color:rgba(167,139,250,0.45);background:rgba(167,139,250,0.1)}
+  .opp-verify-verified{color:var(--green);border-color:rgba(34,197,94,0.45)}
+  .opp-verify-unverified{color:var(--amber);border-color:rgba(251,191,36,0.45)}
+  .risk-low{color:var(--green);border-color:rgba(34,197,94,0.35)}
+  .risk-medium{color:var(--amber);border-color:rgba(251,191,36,0.45)}
+  .risk-high{color:var(--red);border-color:rgba(239,68,68,0.55);background:rgba(239,68,68,0.12)}
+  .risk-flags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .risk-flag{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#fca5a5;padding:2px 8px;border-radius:8px;font-size:0.68rem}
   
   /* GRID COLUMN HEADERS BAR */
   .column-headers{
@@ -270,6 +309,23 @@ HTML_PAGE = """<!DOCTYPE html>
     <button class="pill-filter active" onclick="setFeedSort('rule', this)">Title-Rule Score</button>
     <button class="pill-filter" onclick="setFeedSort('match', this)">MatchScorer</button>
     <button class="pill-filter" onclick="setFeedSort('date', this)">Newest</button>
+    <button class="pill-filter" onclick="setFeedSort('risk', this)">Scam Risk</button>
+  </div>
+
+  <!-- Opportunity Type + Risk Filters -->
+  <div id="opportunityControls" class="filter-bar">
+    <span>Type:</span>
+    <button class="pill-filter active" onclick="filterOpportunityType('ALL', this)" data-opp>ALL</button>
+    <button class="pill-filter" onclick="filterOpportunityType('job', this)" data-opp>Jobs</button>
+    <button class="pill-filter" onclick="filterOpportunityType('freelance', this)" data-opp>Freelance</button>
+    <button class="pill-filter" onclick="filterOpportunityType('bounty', this)" data-opp>Bounties</button>
+    <button class="pill-filter" onclick="filterOpportunityType('open_source', this)" data-opp>Open Source</button>
+    <span style="margin-left:14px">Risk:</span>
+    <button class="pill-filter active" onclick="filterRisk('ALL', this)" data-risk>ALL</button>
+    <button class="pill-filter" onclick="filterRisk('LOW', this)" data-risk>Low (&lt;0.3)</button>
+    <button class="pill-filter" onclick="filterRisk('MEDIUM', this)" data-risk>Medium</button>
+    <button class="pill-filter" onclick="filterRisk('HIGH', this)" data-risk>High (&ge;0.8)</button>
+    <button class="pill-filter" onclick="toggleFreshOnly(this)" data-fresh>Fresh only</button>
   </div>
 
   <!-- Triage Tab Controls -->
@@ -315,6 +371,9 @@ let allTriageJobs = [];
 let currentRejectedFilter = 'ALL';
 let currentFeedSort = 'rule';
 let currentTriageFilter = 'ALL';
+let currentOpportunityType = 'ALL';
+let currentRiskFilter = 'ALL';
+let freshOnly = false;
 
 async function fetchStats() {
   try {
@@ -403,16 +462,60 @@ function filterRejected(reason, btn) {
   btn.classList.add('active');
   renderRejected();
 }
+function filterOpportunityType(type, btn) {
+  currentOpportunityType = type;
+  document.querySelectorAll('#opportunityControls [data-opp]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFeed();
+}
+
+function filterRisk(bucket, btn) {
+  currentRiskFilter = bucket;
+  document.querySelectorAll('#opportunityControls [data-risk]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFeed();
+}
+
+function toggleFreshOnly(btn) {
+  freshOnly = !freshOnly;
+  btn.classList.toggle('active', freshOnly);
+  renderFeed();
+}
+
+function isFreshListing(j) {
+  if (!j.last_seen_at) return true;
+  const seen = new Date(j.last_seen_at).getTime();
+  if (isNaN(seen)) return true;
+  const windowMs = (j.opportunity_type && j.opportunity_type !== 'job')
+    ? 15 * 60 * 1000
+    : 24 * 60 * 60 * 1000;
+  return Date.now() - seen <= windowMs;
+}
 
 function renderFeed() {
   const container = document.getElementById('jobsList');
   let list = [...allFeedJobs];
+
+  if (currentOpportunityType !== 'ALL') {
+    list = list.filter(j => (j.opportunity_type || 'job') === currentOpportunityType);
+  }
+  if (currentRiskFilter !== 'ALL') {
+    list = list.filter(j => {
+      const s = Number(j.scam_risk_score || 0);
+      if (currentRiskFilter === 'LOW') return s < 0.3;
+      if (currentRiskFilter === 'MEDIUM') return s >= 0.3 && s < 0.8;
+      return s >= 0.8;
+    });
+  }
+  if (freshOnly) list = list.filter(isFreshListing);
+
   if (currentFeedSort === 'rule') list.sort((a,b) => b.title_score - a.title_score);
   else if (currentFeedSort === 'match') list.sort((a,b) => b.match_score - a.match_score);
+  else if (currentFeedSort === 'risk') list.sort((a,b) => (b.scam_risk_score || 0) - (a.scam_risk_score || 0));
   else if (currentFeedSort === 'date') list.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
   if (!list.length) {
-    container.innerHTML = `<div style="text-align:center;padding:50px;color:var(--muted)">No passing jobs to display. All current accessible jobs are labeled!</div>`;
+    container.innerHTML = `<div style="text-align:center;padding:50px;color:var(--muted)">No opportunities match the current filters.</div>`;
     return;
   }
   container.innerHTML = list.map(j => renderCard(j, 'feed')).join('');
@@ -522,6 +625,7 @@ function renderCard(j, viewMode) {
         <a class="job-title" href="${escapeHtml(j.apply_url || '#')}" target="_blank" rel="noopener">${escapeHtml(j.title)}</a>
         <div class="job-company">🏢 <strong>${escapeHtml(j.company)}</strong></div>
         <div class="job-location">📍 ${escapeHtml(j.location || 'Remote')} &bull; 🌐 ${escapeHtml(j.source || '')}</div>
+        ${renderOpportunityMeta(j)}
         <div class="tags-row">${boostTags || '<span class="muted-tag">No boosts</span>'} ${penaltyTags}</div>
         ${j.explanation ? `
           <div style="margin-top:8px;padding:8px 10px;background:rgba(56,189,248,0.08);border-left:3px solid var(--accent);border-radius:4px;font-size:0.78rem;line-height:1.4">
@@ -575,6 +679,44 @@ function renderCard(j, viewMode) {
       </div>
     </div>
   `;
+}
+
+function riskBucket(score) {
+  const s = Number(score || 0);
+  if (s >= 0.8) return { label: 'High Risk', cls: 'risk-high' };
+  if (s >= 0.3) return { label: 'Medium Risk', cls: 'risk-medium' };
+  return { label: 'Low Risk', cls: 'risk-low' };
+}
+
+function renderOpportunityMeta(j) {
+  const type = j.opportunity_type || 'job';
+  if (type === 'job' && !j.scam_risk_score && j.budget_min == null) return '';
+  const rb = riskBucket(j.scam_risk_score);
+  const parts = [];
+  parts.push('<span class="opp-pill opp-' + escapeHtml(type) + '">' + escapeHtml(type.replace('_', ' ')) + '</span>');
+  if (j.compensation_type && j.compensation_type !== 'unknown') {
+    parts.push('<span class="opp-pill">' + escapeHtml(j.compensation_type.replace('_', ' ')) + '</span>');
+  }
+  if (j.budget_min != null) {
+    const cur = j.budget_currency || 'USD';
+    const amount = (j.budget_max != null && j.budget_max !== j.budget_min)
+      ? cur + ' ' + Number(j.budget_min).toLocaleString() + '\u2013' + Number(j.budget_max).toLocaleString()
+      : cur + ' ' + Number(j.budget_min).toLocaleString();
+    parts.push('<span class="opp-pill opp-budget">' + escapeHtml(amount) + '</span>');
+  }
+  if (j.payment_verification_status && j.payment_verification_status !== 'unknown') {
+    parts.push('<span class="opp-pill opp-verify-' + escapeHtml(j.payment_verification_status) + '">payment: ' + escapeHtml(j.payment_verification_status) + '</span>');
+  }
+  if (j.opportunity_score && j.opportunity_score.label) {
+    const os = j.opportunity_score;
+    parts.push('<span class="opp-pill opp-score" title="' + escapeHtml((os.reasons || []).join('; ')) + '">' + escapeHtml(os.label.replace(/_/g, ' ')) + ' ' + Math.round(os.score) + '</span>');
+  }
+  parts.push('<span class="opp-pill ' + rb.cls + '" title="' + escapeHtml(j.risk_explanation || '') + '">' + rb.label + ' ' + Math.round(Number(j.scam_risk_score || 0) * 100) + '%</span>');
+  let flagRow = '';
+  if ((j.risk_flags || []).length) {
+    flagRow = '<div class="risk-flags">' + j.risk_flags.map(f => '<span class="risk-flag">\u26a0 ' + escapeHtml(f) + '</span>').join('') + '</div>';
+  }
+  return '<div class="opp-meta-row">' + parts.join('') + '</div>' + flagRow;
 }
 
 function escapeHtml(str) {
@@ -766,6 +908,9 @@ class AppServerHandler(BaseHTTPRequestHandler):
                     j.created_at, j.description_text, j.remote_restriction, j.is_remote,
                     j.experience_level, j.detected_language, j.is_unpaid, j.nepal_accessible,
                     j.tags, j.accessibility, j.reachable_from_nepal, j.reachable_reason,
+                    j.opportunity_type, j.compensation_type, j.budget_min, j.budget_max,
+                    j.budget_currency, j.payment_verification_status, j.scam_risk_score,
+                    j.risk_flags, j.risk_explanation, j.deadline, j.last_seen_at,
                     COALESCE(m.match_score, 0.0) AS match_score,
                     laya.final_score AS laya_score
                 FROM jobs j
@@ -827,6 +972,18 @@ class AppServerHandler(BaseHTTPRequestHandler):
                     "hf_detail": hf_res.detail,
                     "triage": triage_payload,
                     "explanation": exp_map.get(jid_str),
+                    "opportunity_type": r.get("opportunity_type") or "job",
+                    "opportunity_score": _opportunity_score_for(r),
+                    "compensation_type": r.get("compensation_type"),
+                    "budget_min": float(r["budget_min"]) if r.get("budget_min") is not None else None,
+                    "budget_max": float(r["budget_max"]) if r.get("budget_max") is not None else None,
+                    "budget_currency": r.get("budget_currency"),
+                    "payment_verification_status": r.get("payment_verification_status") or "unknown",
+                    "scam_risk_score": float(r.get("scam_risk_score") or 0.0),
+                    "risk_flags": list(r.get("risk_flags") or []),
+                    "risk_explanation": r.get("risk_explanation"),
+                    "deadline": r["deadline"].isoformat() if r.get("deadline") else None,
+                    "last_seen_at": r["last_seen_at"].isoformat() if r.get("last_seen_at") else None,
                 })
 
             feed_items.sort(key=lambda x: x["title_score"], reverse=True)

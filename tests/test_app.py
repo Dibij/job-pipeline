@@ -2,7 +2,7 @@
 import json
 import pytest
 from unittest.mock import MagicMock, patch
-from app import AppServerHandler
+from app import AppServerHandler, _opportunity_score_for
 
 
 def test_app_handler_stats(monkeypatch):
@@ -73,3 +73,39 @@ def test_app_post_label_missing_job_returns_404(monkeypatch):
 
     assert captured[0][1] == 404
     assert "no longer exists" in captured[0][0]["error"]
+
+
+def test_opportunity_score_skips_jobs():
+    """Job rows must not get an opportunity score (MatchScorer handles them)."""
+    assert _opportunity_score_for({"opportunity_type": "job", "title": "Dev"}) is None
+
+
+def test_opportunity_score_freelance_good_fit():
+    result = _opportunity_score_for({
+        "opportunity_type": "freelance",
+        "title": "Build a Django REST API",
+        "description_text": (
+            "We need a Django developer to build a REST API backed by PostgreSQL "
+            "with a React dashboard, pytest tests and Docker deployment."
+        ),
+        "tags": ["python", "django", "react", "postgresql", "docker"],
+    })
+    assert result is not None
+    assert result["label"] in {"good_fit", "possible_fit"}
+    assert result["score"] > 0
+    assert "python" in result["matched_skills"]
+
+
+def test_opportunity_score_bounty_unpaid_portfolio():
+    result = _opportunity_score_for({
+        "opportunity_type": "open_source",
+        "title": "Fix typo in docs",
+        "description_text": "Small docs fix in the Python SDK. No payment, portfolio value only.",
+        "tags": ["python"],
+    })
+    assert result is not None
+    assert result["label"] == "unpaid_portfolio_value"
+
+
+def test_opportunity_score_bad_input_returns_none():
+    assert _opportunity_score_for({"opportunity_type": "weird_type"}) is None

@@ -1,0 +1,181 @@
+# GitHub issues extractor configuration
+# =============================================================================
+# TODO: Verify the exact platform label names, platform bot names, and search
+# qualifiers below against GitHub's official docs and your own repo data.
+# =============================================================================
+
+version: 1
+
+# --- Two discovery sources ----------------------------------------------------
+# SEARCH: property-based queries run on a schedule against GitHub Search API.
+# WATCHLIST: repos that passed health check, polled directly (ETag-cached).
+search:
+  # Queries tagged with a source name. Property-based, not keyword-based.
+  queries:
+    - source: search_paid
+      q: is:issue is:open archived:false
+      label_filter:  # applied client-side to results
+        - drips-wave
+        - bounty
+        - bounties
+      language:
+        - Python
+        - JavaScript
+        - TypeScript
+      updated_within_days: 7
+      max_comments: 20
+      per_page: 50
+
+    - source: search_proof
+      q: is:issue is:open archived:false no:assignee
+      label_filter:
+        - "good first issue"
+        - "help wanted"
+        - easy
+        - small
+      language:
+        - Python
+        - JavaScript
+        - TypeScript
+        - Go
+        - Rust
+      updated_within_days: 7
+      max_comments: 20
+      per_page: 50
+
+watchlist:
+  # Seed repos I provide. Added when search finds good issues there.
+  seeds:
+    - TripSit/TripBot
+
+# --- Funding evidence (PAID lane only) ----------------------------------------
+# At least one platform signal (link or label) AND a parseable amount with currency.
+# A title-only amount is NOT enough. The word "bounty" alone is NOT evidence.
+funding:
+  platforms:
+    - algora.io
+    - issuehunt.io
+    - polar.sh
+    - bountysource.com
+    - gitcoin.co
+    - drips-wave.com   # TODO: verify exact domain/label
+  platform_labels:
+    - drips-wave       # TODO: verify exact label name
+    - bounty
+    - bounties
+    - reward
+    - paid
+    - funded
+  platform_bots:
+    - algora
+    - issuehunt
+    - polar-bot
+    - bountysource
+    - gitcoin
+    - drips-wave-bot   # TODO: verify
+  min_amount_usd: 50.0
+  max_amount_usd: 1000000.0
+
+# --- Hard reject reasons (enum) -----------------------------------------------
+reject_reasons:
+  - WORD_ONLY_MATCH
+  - AGGREGATOR_DIGEST
+  - TAKEN
+  - CRYPTO_WALLET_IN_BODY
+  - BOT_OR_FARM_REPO
+  - CLONE_FARM
+  - REPEATED_TITLE
+  - NO_TASK
+  - UNFUNDED_NOTICE
+  - PLATFORM_FEATURE
+  - TRIVIAL_TASK
+  - TEMPLATED_ISSUE
+  - LABEL_STUFFING
+  - STALE
+  - CLOSED_OR_ARCHIVED_REPO
+
+# --- Platform patterns --------------------------------------------------------
+farm_repo_patterns:
+  - bounty-bot
+  - bountybot
+  - bounty-plaza
+  - bountyplaza
+  - bountyscout
+  - bounty-scout
+  - scout
+  - aggregator
+  - loot
+  - plaza
+
+bot_author_patterns:
+  - github-actions[bot]
+  - dependabot[bot]
+  - renovate[bot]
+  - actions-user
+
+digest_title_patterns:
+  - "bounty alert"
+  - "new opportunities"
+  - "scan results"
+  - "bounty digest"
+  - "opportunity scan"
+  - "intake"
+  - "release-watch"
+  - "bounty-alert"
+
+unfunded_phrases:
+  - "does not fund a bounty"
+  - "not funded yet"
+  - "no reward"
+  - "unpaid"
+  - "this issue does not fund"
+  - "publishing this issue does not fund"
+
+platform_feature_keywords:
+  - "bounty platform"
+  - "bounty website"
+  - "bounty app"
+  - "escrow app"
+  - "reward platform"
+
+# --- Stack / domain filters ---------------------------------------------------
+stack:
+  strong:
+    - Python
+    - Django
+    - DRF
+    - Celery
+    - Node/Express
+    - TypeScript
+    - React/Next.js
+    - GitHub Actions
+    - Docker
+  weak:
+    - Rust
+    - Java
+
+avoid_domains:
+  - smart contracts
+  - cryptography
+  - game engines
+  - kernel code
+
+# --- Thresholds ---------------------------------------------------------------
+thresholds:
+  max_age_days: 14
+  min_body_length: 80
+  min_task_sentences: 1
+  clone_farm_min_repos: 3
+  clone_farm_days_window: 30
+  clone_farm_author_max_issues: 3
+  low_star_threshold: 5
+  blocklist_ttl_hours: 24
+  repo_health_cache_ttl_days: 7
+  repo_pushed_within_days: 30
+  label_stuffing_threshold: 6
+  repo_size_warn_kb: 50000   # TODO: verify what counts as "very large codebase"
+  confidence_accept: 70
+  confidence_reject: 40
+
+# --- Crypto wallet regex ------------------------------------------------------
+crypto_address_re: '\b([13][a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-z0-9]{39,59}|0x[a-fA-F0-9]{40}|L[a-km-zA-HJ-NP-Z1-9]{26,33}|tb1[a-z0-9]{39,59})\b'

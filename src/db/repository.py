@@ -22,8 +22,13 @@ class JobRepository:
                 experience_level, description_text, description_html,
                 apply_url, salary_min, salary_max, salary_currency,
                 tags, posted_at, expires_at, fingerprint_hash,
-                detected_language, is_unpaid, nepal_accessible,
-                exclude_reason
+                detected_language, is_unpaid, nepal_accessible, exclude_reason,
+                opportunity_type, compensation_type, budget_min, budget_max, budget_currency,
+                deadline, payment_verification_status, scam_risk_score, risk_flags,
+                risk_explanation, status, source_url, last_seen_at,
+                outreach_draft, technical_angle, clarification_questions,
+                bounty_verdict, reject_reasons, funding_evidence,
+                bounty_confidence, reject_evidence
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
@@ -31,7 +36,13 @@ class JobRepository:
                 %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s, %s,
-                %s, %s, %s, %s
+                %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s,
+                %s, %s
             )
             ON CONFLICT (fingerprint_hash) DO UPDATE SET
                 title = EXCLUDED.title,
@@ -57,7 +68,28 @@ class JobRepository:
                 salary_currency = COALESCE(EXCLUDED.salary_currency, jobs.salary_currency),
                 tags = EXCLUDED.tags,
                 posted_at = COALESCE(EXCLUDED.posted_at, jobs.posted_at),
-                updated_at = NOW()
+                updated_at = NOW(),
+                opportunity_type = EXCLUDED.opportunity_type,
+                compensation_type = COALESCE(EXCLUDED.compensation_type, jobs.compensation_type),
+                budget_min = COALESCE(EXCLUDED.budget_min, jobs.budget_min),
+                budget_max = COALESCE(EXCLUDED.budget_max, jobs.budget_max),
+                budget_currency = COALESCE(EXCLUDED.budget_currency, jobs.budget_currency),
+                deadline = COALESCE(EXCLUDED.deadline, jobs.deadline),
+                payment_verification_status = COALESCE(EXCLUDED.payment_verification_status, jobs.payment_verification_status),
+                scam_risk_score = EXCLUDED.scam_risk_score,
+                risk_flags = EXCLUDED.risk_flags,
+                risk_explanation = COALESCE(EXCLUDED.risk_explanation, jobs.risk_explanation),
+                status = COALESCE(EXCLUDED.status, jobs.status),
+                source_url = COALESCE(EXCLUDED.source_url, jobs.source_url),
+                outreach_draft = COALESCE(EXCLUDED.outreach_draft, jobs.outreach_draft),
+                technical_angle = COALESCE(EXCLUDED.technical_angle, jobs.technical_angle),
+                clarification_questions = COALESCE(EXCLUDED.clarification_questions, jobs.clarification_questions),
+                last_seen_at = NOW(),
+                bounty_verdict = COALESCE(EXCLUDED.bounty_verdict, jobs.bounty_verdict),
+                reject_reasons = COALESCE(EXCLUDED.reject_reasons, jobs.reject_reasons),
+                funding_evidence = COALESCE(EXCLUDED.funding_evidence, jobs.funding_evidence),
+                bounty_confidence = COALESCE(EXCLUDED.bounty_confidence, jobs.bounty_confidence),
+                reject_evidence = COALESCE(EXCLUDED.reject_evidence, jobs.reject_evidence)
             RETURNING id;
         """
         params = (
@@ -88,6 +120,27 @@ class JobRepository:
             job.is_unpaid,
             job.nepal_accessible,
             job.exclude_reason,
+            job.opportunity_type,
+            job.compensation_type,
+            job.budget_min,
+            job.budget_max,
+            job.budget_currency,
+            job.deadline,
+            job.payment_verification_status,
+            job.scam_risk_score,
+            job.risk_flags,
+            job.risk_explanation,
+            job.status,
+            job.source_url,
+            job.last_seen_at,
+            job.outreach_draft,
+            job.technical_angle,
+            job.clarification_questions,
+            job.bounty_verdict,
+            job.reject_reasons,
+            Jsonb(job.funding_evidence) if job.funding_evidence is not None else None,
+            job.bounty_confidence,
+            job.reject_evidence,
         )
 
         with get_connection(autocommit=False) as conn:

@@ -17,9 +17,14 @@ from src.extractors import (
     HackerNewsExtractor,
     WorkingNomadsExtractor,
     ATSBoardExtractor,
+    GitHubIssuesExtractor,
 )
+from src.extractors.python_org import PythonOrgExtractor
+from src.extractors.reddit import RedditExtractor
 from src.models import transform_raw_listing
 from src.enrichment.enricher import JobEnricher
+from src.opportunities.risk import assess_risk
+from src.opportunities.outreach import generate_outreach_draft
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -161,6 +166,26 @@ class JobPipeline:
         else:
             logger.warning("ATS boards config not found at %s — skipping ATS phase.", ats_config_path)
 
+        # 8.5 Python.org Jobs (official RSS feed)
+        stats["python_org"] = self._run_single_extractor(
+            run_id, "python_org",
+            lambda: PythonOrgExtractor(delay_seconds=1.0).stage_raw(max_pages=1)
+        )
+
+        # 8.6 Reddit (r/forhire / r/hiring - requires OAuth credentials)
+        stats["reddit"] = self._run_single_extractor(
+            run_id, "reddit",
+            lambda: RedditExtractor(delay_seconds=1.0).stage_raw(max_pages=1)
+        )
+
+        # 9. GitHub Issues (bounties / help-wanted / good-first-issue)
+        stats["github"] = self._run_single_extractor(
+            run_id, "github",
+            lambda: GitHubIssuesExtractor(delay_seconds=1.0).stage_raw(
+                GitHubIssuesExtractor(delay_seconds=1.0).fetch_raw(max_pages=1)
+            )
+        )
+
         return stats
 
     def process_staged(self, limit: int = 1000) -> Dict[str, int]:
@@ -195,6 +220,25 @@ class JobPipeline:
                 norm_job.reachable_from_nepal = enrichment["reachable_from_nepal"]
                 norm_job.reachable_reason = enrichment["reachable_reason"]
                 norm_job.tags = enrichment["tags"]
+
+                # Deterministic scam-risk assessment (never fabricates data)
+                risk = assess_risk(norm_job.model_dump())
+                norm_job.scam_risk_score = risk.scam_risk_score
+                norm_job.risk_flags = risk.risk_flags
+                norm_job.risk_explanation = risk.risk_explanation
+
+                # Outreach draft for non-job opportunities (human review only)
+                if norm_job.opportunity_type != "job":
+                    draft = generate_outreach_draft({
+                        "title": norm_job.title,
+                        "description_text": norm_job.description_text,
+                        "opportunity_type": norm_job.opportunity_type,
+                        "matched_skills": list(norm_job.tags or []),
+                        "scam_risk_score": norm_job.scam_risk_score,
+                    })
+                    norm_job.outreach_draft = draft.proposal
+                    norm_job.technical_angle = draft.technical_angle
+                    norm_job.clarification_questions = draft.clarification_questions
 
                 normalized_jobs.append(norm_job)
                 processed_ids.append(raw_id)

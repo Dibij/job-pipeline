@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 
 from src import config
 from src.db.connection import get_connection
+from src.models.job import NormalizedJob
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,60 @@ class BaseExtractor(ABC):
             total,
             inserted,
             skipped,
+        )
+        return {"total": total, "inserted": inserted, "skipped": skipped}
+
+    def stage_normalized_jobs(self, jobs: List[NormalizedJob]) -> Dict[str, int]:
+        """Stage already-normalized jobs into raw_job_listings.
+
+        Used by extractors that build NormalizedJob objects directly (python_org,
+        reddit) because their source payloads are not in a shape the shared
+        transformers can consume. The full job dump is stored as the payload and
+        re-hydrated later by transform_pre_normalized.
+        """
+        if not jobs:
+            logger.info("[%s] No normalized jobs to stage.", self.source_name)
+            return {"total": 0, "inserted": 0, "skipped": 0}
+
+        from datetime import datetime
+        from decimal import Decimal
+
+        inserted = 0
+        invalid = 0
+        with get_connection(autocommit=False) as conn:
+            with conn.cursor() as cur:
+                for job in jobs:
+                    payload = job.model_dump(mode="json")
+                    for key, value in list(payload.items()):
+                        if isinstance(value, (datetime, Decimal)):
+                            payload[key] = str(value)
+                        elif isinstance(value, str) and key.startswith("budget_"):
+                            try:
+                                payload[key] = float(value)
+                            except (TypeError, ValueError):
+                                pass
+                    ext_id = str(job.external_id).strip()
+                    if not ext_id:
+                        invalid += 1
+                        continue
+                    cur.execute(
+                        """
+                        INSERT INTO raw_job_listings (source, external_id, payload)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (source, external_id) DO NOTHING
+                        RETURNING id;
+                        """,
+                        (self.source_name, ext_id, Jsonb(payload)),
+                    )
+                    if cur.fetchone() is not None:
+                        inserted += 1
+            conn.commit()
+
+        total = len(jobs)
+        skipped = total - inserted
+        logger.info(
+            "[%s] Staged %d normalized job(s) (Inserted: %d, Skipped/Duplicate: %d)",
+            self.source_name, total, inserted, skipped,
         )
         return {"total": total, "inserted": inserted, "skipped": skipped}
 
