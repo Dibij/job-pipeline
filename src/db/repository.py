@@ -28,7 +28,8 @@ class JobRepository:
                 risk_explanation, status, source_url, last_seen_at,
                 outreach_draft, technical_angle, clarification_questions,
                 bounty_verdict, reject_reasons, funding_evidence,
-                bounty_confidence, reject_evidence
+                bounty_confidence, reject_evidence,
+                score, score_breakdown, why, notes
             ) VALUES (
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
@@ -42,6 +43,7 @@ class JobRepository:
                 %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, %s, %s,
+                %s, %s, %s, %s,
                 %s, %s
             )
             ON CONFLICT (fingerprint_hash) DO UPDATE SET
@@ -89,7 +91,11 @@ class JobRepository:
                 reject_reasons = COALESCE(EXCLUDED.reject_reasons, jobs.reject_reasons),
                 funding_evidence = COALESCE(EXCLUDED.funding_evidence, jobs.funding_evidence),
                 bounty_confidence = COALESCE(EXCLUDED.bounty_confidence, jobs.bounty_confidence),
-                reject_evidence = COALESCE(EXCLUDED.reject_evidence, jobs.reject_evidence)
+                reject_evidence = COALESCE(EXCLUDED.reject_evidence, jobs.reject_evidence),
+                score = COALESCE(EXCLUDED.score, jobs.score),
+                score_breakdown = COALESCE(EXCLUDED.score_breakdown, jobs.score_breakdown),
+                why = COALESCE(EXCLUDED.why, jobs.why),
+                notes = COALESCE(EXCLUDED.notes, jobs.notes)
             RETURNING id;
         """
         params = (
@@ -141,6 +147,10 @@ class JobRepository:
             Jsonb(job.funding_evidence) if job.funding_evidence is not None else None,
             job.bounty_confidence,
             job.reject_evidence,
+            job.score,
+            Jsonb(job.score_breakdown) if job.score_breakdown is not None else None,
+            job.why,
+            job.notes,
         )
 
         with get_connection(autocommit=False) as conn:
@@ -214,3 +224,90 @@ class JobRepository:
                     """,
                     (run_id, source, started_at, fetched, inserted, skipped, error),
                 )
+
+
+    # ------------------------------------------------------------------
+    # Rejected-issue ledger: nothing is deleted, and we never re-surface an
+    # unchanged rejection. Dedupe key is (repo, issue_number).
+    # ------------------------------------------------------------------
+    def upsert_rejected_issue(
+        self,
+        repo: str,
+        issue_number: int,
+        title: str,
+        source_url: str,
+        verdict: str,
+        reject_reasons: List[str],
+        reject_evidence: str,
+        state_hash: str,
+        funding_evidence: Optional[Dict[str, Any]] = None,
+        score: Optional[int] = None,
+        score_breakdown: Optional[Dict[str, Any]] = None,
+        why: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Record a rejected issue; report whether it should be shown again.
+
+        Re-surfaces only when last_state_hash changed (e.g. a linked PR was
+        closed without merging, an assignee was removed, or a funding label
+        appeared). Returns a dict with inserted/resurfaced/changed booleans.
+        """
+        with get_connection(autocommit=False) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT last_state_hash FROM rejected_issues WHERE repo=%s AND issue_number=%s;",
+                    (repo, issue_number),
+                )
+                row = cur.fetchone()
+                previous_hash = row["last_state_hash"] if row else None
+
+                cur.execute(
+                    """
+                    INSERT INTO rejected_issues (
+                        repo, issue_number, title, verdict, reject_reasons,
+                        reject_evidence, funding_evidence, score, score_breakdown,
+                        why, notes, last_state_hash, source_url
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (repo, issue_number) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        verdict = EXCLUDED.verdict,
+                        reject_reasons = EXCLUDED.reject_reasons,
+                        reject_evidence = EXCLUDED.reject_evidence,
+                        funding_evidence = EXCLUDED.funding_evidence,
+                        score = EXCLUDED.score,
+                        score_breakdown = EXCLUDED.score_breakdown,
+                        why = EXCLUDED.why,
+                        notes = EXCLUDED.notes,
+                        last_state_hash = EXCLUDED.last_state_hash,
+                        source_url = EXCLUDED.source_url,
+                        last_seen_at = NOW()
+                    """
+                    ,
+                    (
+                        repo, issue_number, title, verdict, list(reject_reasons or []),
+                        reject_evidence,
+                        Jsonb(funding_evidence) if funding_evidence is not None else None,
+                        score,
+                        Jsonb(score_breakdown) if score_breakdown is not None else None,
+                        why, notes, state_hash, source_url,
+                    ),
+                )
+            conn.commit()
+
+        changed = previous_hash != state_hash
+        return {
+            "inserted": previous_hash is None,
+            "resurfaced": previous_hash is not None and changed,
+            "changed": changed,
+        }
+
+    def get_rejected_state_hash(self, repo: str, issue_number: int) -> Optional[str]:
+        """Return the last stored state hash for a rejected issue, if any."""
+        with get_connection(autocommit=True) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT last_state_hash FROM rejected_issues WHERE repo=%s AND issue_number=%s;",
+                    (repo, issue_number),
+                )
+                row = cur.fetchone()
+                return row["last_state_hash"] if row else None

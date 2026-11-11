@@ -70,8 +70,7 @@ class NormalizedJob(BaseModel):
     funding_evidence: Optional[Dict[str, Any]] = None
     bounty_confidence: Optional[int] = None
     reject_evidence: Optional[str] = None
-    # ── GitHub lane fields (PAID / PROOF) ──
-    lane: Optional[str] = None
+    # ── GitHub quality scoring fields ──
     score: Optional[int] = None
     score_breakdown: Optional[Dict[str, Any]] = None
     why: Optional[str] = None

@@ -18,7 +18,7 @@ MAX_BOUNTY_AMOUNT_USD = 1000000.0
 MAX_AGE_DAYS = 14
 MIN_BODY_LENGTH = 80
 MIN_TASK_SENTENCES = 1
-FARM_REPO_PATTERNS: List[str] = ["bounty-bot", "bountybot", "bounty-plaza", "bountyplaza", "bountyscout", "bounty-scout", "scout", "aggregator", "loot", "plaza"]
+FARM_REPO_PATTERNS: List[str] = ["bounty-bot", "bountybot", "bounty-plaza", "bountyplaza", "bountyscout", "bounty-scout", "scout", "aggregator"]
 BOT_AUTHOR_PATTERNS: List[str] = ["github-actions[bot]", "dependabot[bot]", "renovate[bot]", "actions-user"]
 DIGEST_TITLE_PATTERNS: List[str] = ["bounty alert", "new opportunities", "scan results", "bounty digest", "opportunity scan", "intake", "release-watch", "bounty-alert"]
 CLONE_FARM_MIN_REPOS = 3
@@ -30,11 +30,29 @@ REPO_HEALTH_CACHE_TTL_DAYS = 7
 REPO_PUSHED_WITHIN_DAYS = 30
 LABEL_STUFFING_THRESHOLD = 6
 REPO_SIZE_WARN_KB = 50000
+MIN_REPO_SIZE_KB = 50
+MAX_WATCHLIST_REPOS = 8
+MAX_REPO_META_FETCHES = 25
+API_QUOTA_RESERVE = 400
 CONFIDENCE_ACCEPT = 70
 CONFIDENCE_REJECT = 40
 PLATFORM_FEATURE_KEYWORDS: List[str] = ["bounty platform", "bounty website", "bounty app", "escrow app", "reward platform"]
 UNFUNDED_PHRASES: List[str] = ["does not fund a bounty", "no reward", "not funded", "unpaid", "publishing this issue does not fund", "this issue does not fund"]
-CRYPTO_ADDRESS_RE = re.compile(r"([13][a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-z0-9]{39,59}|0x[a-fA-F0-9]{40}|L[a-km-zA-HJ-NP-Z1-9]{26,33}|tb1[a-z0-9]{39,59})")
+CRYPTO_ADDRESS_RE = re.compile(r"\b([13][a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-z0-9]{39,59}|0x[a-fA-F0-9]{40}|L[a-km-zA-HJ-NP-Z1-9]{26,33}|tb1[a-z0-9]{39,59})\b")
+
+# Crypto payments/rewards are illegal in Nepal. Any bounty paid in crypto is a
+# hard reject, even when the funding evidence is otherwise real. Word-bounded so
+# "method" does not match "eth" and "solution" does not match "sol".
+CRYPTO_PAYMENT_TOKENS: List[str] = [
+    "btc", "bitcoin", "eth", "ethereum", "ltc", "litecoin", "sol", "solana",
+    "xlm", "stellar", "usdc", "usdt", "dai", "usd coin", "stablecoin",
+    "lightning network", "lightning", "sats", "satoshi", "satoshis", "on-chain",
+    "onchain", "web3", "defi", "crypto", "cryptocurrency", "memecoin",
+]
+CRYPTO_PAYMENT_RE = re.compile(
+    r"\b(" + "|".join(re.escape(t) for t in CRYPTO_PAYMENT_TOKENS) + r")\b",
+    re.IGNORECASE,
+)
 
 GITHUB_CONFIG_PATH = os.getenv("GITHUB_ISSUES_CONFIG", str(Path(__file__).resolve().parents[2] / "config" / "github_issues.yml"))
 
@@ -73,6 +91,10 @@ class ThresholdConfig:
     repo_pushed_within_days: int = REPO_PUSHED_WITHIN_DAYS
     label_stuffing_threshold: int = LABEL_STUFFING_THRESHOLD
     repo_size_warn_kb: int = REPO_SIZE_WARN_KB
+    min_repo_size_kb: int = MIN_REPO_SIZE_KB
+    max_watchlist_repos: int = MAX_WATCHLIST_REPOS
+    max_repo_meta_fetches: int = MAX_REPO_META_FETCHES
+    api_quota_reserve: int = API_QUOTA_RESERVE
     confidence_accept: int = CONFIDENCE_ACCEPT
     confidence_reject: int = CONFIDENCE_REJECT
 
@@ -84,7 +106,7 @@ class StackConfig:
 
 
 @dataclass
-class LaneConfig:
+class GithubConfig:
     platforms: List[str]
     platform_bots: List[str]
     bounty_labels: List[str]
@@ -112,6 +134,8 @@ class LaneConfig:
     avoid_domains: List[str] = field(default_factory=list)
     search_queries: List[SearchQuery] = field(default_factory=list)
     watchlist_seeds: List[str] = field(default_factory=list)
+    crypto_payment_tokens: List[str] = field(default_factory=lambda: list(CRYPTO_PAYMENT_TOKENS))
+    crypto_payment_re: object = field(default_factory=lambda: CRYPTO_PAYMENT_RE)
 
     def __getattr__(self, name: str):
         if "thresholds" in self.__dict__ and hasattr(self.thresholds, name):
@@ -146,6 +170,8 @@ class BountyConfig:
     confidence_accept: int = CONFIDENCE_ACCEPT
     confidence_reject: int = CONFIDENCE_REJECT
     crypto_address_re: object = field(default_factory=lambda: CRYPTO_ADDRESS_RE)
+    crypto_payment_tokens: List[str] = field(default_factory=lambda: list(CRYPTO_PAYMENT_TOKENS))
+    crypto_payment_re: object = field(default_factory=lambda: CRYPTO_PAYMENT_RE)
     funding: FundingConfig = field(default_factory=FundingConfig)
     thresholds: ThresholdConfig = field(default_factory=ThresholdConfig)
     stack: StackConfig = field(default_factory=StackConfig)
@@ -194,7 +220,7 @@ def load_config() -> BountyConfig:
     )
 
 
-def load_github_config(path: str = GITHUB_CONFIG_PATH) -> LaneConfig:
+def load_github_config(path: str = GITHUB_CONFIG_PATH) -> GithubConfig:
     """Load the GitHub lane config from config/github_issues.yml (YAML)."""
     data: Dict[str, Any] = {}
     p = Path(path)
@@ -205,6 +231,7 @@ def load_github_config(path: str = GITHUB_CONFIG_PATH) -> LaneConfig:
             data = {}
 
     funding = data.get("funding", {}) or {}
+    crypto = data.get("crypto", {}) or {}
     thresholds = data.get("thresholds", {}) or {}
     stack = data.get("stack", {}) or {}
     search = data.get("search", {}) or {}
@@ -222,7 +249,7 @@ def load_github_config(path: str = GITHUB_CONFIG_PATH) -> LaneConfig:
             per_page=int(q.get("per_page", 50)),
         ))
 
-    return LaneConfig(
+    return GithubConfig(
         platforms=funding.get("platforms", list(BOUNTY_PLATFORMS)),
         platform_bots=funding.get("platform_bots", list(BOUNTY_PLATFORM_BOTS)),
         bounty_labels=funding.get("platform_labels", list(BOUNTY_LABELS)),
@@ -264,6 +291,10 @@ def load_github_config(path: str = GITHUB_CONFIG_PATH) -> LaneConfig:
             repo_pushed_within_days=int(thresholds.get("repo_pushed_within_days", REPO_PUSHED_WITHIN_DAYS)),
             label_stuffing_threshold=int(thresholds.get("label_stuffing_threshold", LABEL_STUFFING_THRESHOLD)),
             repo_size_warn_kb=int(thresholds.get("repo_size_warn_kb", REPO_SIZE_WARN_KB)),
+            min_repo_size_kb=int(thresholds.get("min_repo_size_kb", MIN_REPO_SIZE_KB)),
+            max_watchlist_repos=int(thresholds.get("max_watchlist_repos", MAX_WATCHLIST_REPOS)),
+            max_repo_meta_fetches=int(thresholds.get("max_repo_meta_fetches", MAX_REPO_META_FETCHES)),
+            api_quota_reserve=int(thresholds.get("api_quota_reserve", API_QUOTA_RESERVE)),
             confidence_accept=int(thresholds.get("confidence_accept", CONFIDENCE_ACCEPT)),
             confidence_reject=int(thresholds.get("confidence_reject", CONFIDENCE_REJECT)),
         ),
@@ -274,4 +305,10 @@ def load_github_config(path: str = GITHUB_CONFIG_PATH) -> LaneConfig:
         avoid_domains=data.get("avoid_domains", []),
         search_queries=search_queries,
         watchlist_seeds=watchlist.get("seeds", []),
+        crypto_payment_tokens=crypto.get("payment_tokens", list(CRYPTO_PAYMENT_TOKENS)) or list(CRYPTO_PAYMENT_TOKENS),
+        crypto_payment_re=CRYPTO_PAYMENT_RE,
     )
+
+
+# Backward-compatible alias
+LaneConfig = GithubConfig

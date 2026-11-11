@@ -865,7 +865,12 @@ def transform_github_issue(payload: Dict[str, Any]) -> NormalizedJob:
 
     comp = detect_compensation(plain_desc, kind="bounty", platform_verified=False)
     label_reward = any(k in labels_lower for k in ("bounty", "reward", "paid"))
-    opportunity_type = "bounty" if (comp.compensation_type in ("bounty", "fixed_price") or label_reward) else "open_source"
+    # The lane verdict is authoritative when present; fall back to old heuristic.
+    verdict_payload = payload.get("_bounty_verdict") if isinstance(payload.get("_bounty_verdict"), dict) else {}
+    if verdict_payload:
+        opportunity_type = "bounty" if verdict_payload.get("funding_evidence") else "open_source"
+    else:
+        opportunity_type = "bounty" if (comp.compensation_type in ("bounty", "fixed_price") or label_reward) else "open_source"
 
     status = state if state in ("open", "closed") else "unknown"
     risk_flags: List[str] = []
@@ -896,11 +901,15 @@ def transform_github_issue(payload: Dict[str, Any]) -> NormalizedJob:
         risk_flags=risk_flags,
         status=status,
         last_seen_at=datetime.now(timezone.utc),
-        bounty_verdict=payload.get("_bounty_verdict", {}).get("verdict") if isinstance(payload.get("_bounty_verdict"), dict) else None,
+        bounty_verdict=(payload.get("_bounty_verdict") or {}).get("bounty_verdict") if isinstance(payload.get("_bounty_verdict"), dict) else None,
         reject_reasons=(payload.get("_bounty_verdict", {}) or {}).get("reject_reasons") if isinstance(payload.get("_bounty_verdict"), dict) else [],
         funding_evidence=(payload.get("_bounty_verdict", {}) or {}).get("funding_evidence") if isinstance(payload.get("_bounty_verdict"), dict) else None,
         bounty_confidence=(payload.get("_bounty_verdict", {}) or {}).get("bounty_confidence") if isinstance(payload.get("_bounty_verdict"), dict) else None,
         reject_evidence=(payload.get("_bounty_verdict", {}) or {}).get("reject_evidence") if isinstance(payload.get("_bounty_verdict"), dict) else None,
+        score=verdict_payload.get("score"),
+        score_breakdown=verdict_payload.get("score_breakdown"),
+        why=verdict_payload.get("why"),
+        notes=verdict_payload.get("notes"),
     )
 
 

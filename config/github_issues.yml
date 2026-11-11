@@ -104,8 +104,6 @@ farm_repo_patterns:
   - bounty-scout
   - scout
   - aggregator
-  - loot
-  - plaza
 
 bot_author_patterns:
   - github-actions[bot]
@@ -137,6 +135,39 @@ platform_feature_keywords:
   - "bounty app"
   - "escrow app"
   - "reward platform"
+
+# --- Crypto payments (ILLEGAL in Nepal: hard reject) ---------------------------
+# A bounty paid in crypto must never surface: receiving crypto is unlawful here.
+# This is a legal eligibility gate, not a quality signal.
+crypto:
+  payment_tokens:
+    - btc
+    - bitcoin
+    - eth
+    - ethereum
+    - ltc
+    - litecoin
+    - sol
+    - solana
+    - xlm
+    - stellar
+    - usdc
+    - usdt
+    - dai
+    - usd coin
+    - stablecoin
+    - lightning network
+    - lightning
+    - sats
+    - satoshi
+    - satoshis
+    - on-chain
+    - onchain
+    - web3
+    - defi
+    - crypto
+    - cryptocurrency
+    - memecoin
 
 # --- Stack / domain filters ---------------------------------------------------
 stack:
@@ -174,6 +205,11 @@ thresholds:
   repo_pushed_within_days: 30
   label_stuffing_threshold: 6
   repo_size_warn_kb: 50000   # TODO: verify what counts as "very large codebase"
+  min_repo_size_kb: 50       # TODO: tune; below this a repo has almost no real code
+  # API budget guards: one search run must never exhaust the 5000/hr core quota.
+  max_watchlist_repos: 8     # health-check at most this many watchlist repos per run
+  max_repo_meta_fetches: 25  # at most this many repo metadata fetches per run
+  api_quota_reserve: 400     # stop health checks when fewer than this many calls remain
   confidence_accept: 70
   confidence_reject: 40
 

@@ -56,12 +56,16 @@ class BaseExtractor(ABC):
                         """
                         INSERT INTO raw_job_listings (source, external_id, payload)
                         VALUES (%s, %s, %s)
-                        ON CONFLICT (source, external_id) DO NOTHING
-                        RETURNING id;
+                        ON CONFLICT (source, external_id) DO UPDATE SET
+                            payload = EXCLUDED.payload,
+                            fetched_at = NOW(),
+                            processed = FALSE
+                        RETURNING (xmax = 0) AS inserted;
                         """,
                         (self.source_name, ext_id, payload_json),
                     )
-                    if cur.fetchone() is not None:
+                    row = cur.fetchone()
+                    if row is not None and row.get("inserted"):
                         inserted += 1
 
             conn.commit()

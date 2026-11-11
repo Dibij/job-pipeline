@@ -1,21 +1,17 @@
--- 018_github_lanes.sql
--- GitHub lane rebuild: PAID (funded bounty) and PROOF (unfunded real issue).
--- Adds repo health, watchlist, and rejected-issues tracking, plus lane/score
+-- 018_github_quality_gate.sql
+-- GitHub quality gate: one ranked pool of real, workable issues (funded or not).
+-- Adds repo health, watchlist, and rejected-issues tracking, plus score/why
 -- columns on jobs. All new columns are nullable/defaulted so existing rows
 -- are unaffected.
 
--- New columns on jobs for the two-lane GitHub feed
-ALTER TABLE jobs ADD COLUMN IF NOT EXISTS lane VARCHAR(16);
-ALTER TABLE jobs DROP CONSTRAINT IF EXISTS chk_jobs_lane;
-ALTER TABLE jobs ADD CONSTRAINT chk_jobs_lane
-    CHECK (lane IS NULL OR lane IN ('PAID', 'PROOF'));
-
+-- Quality-score columns on jobs for the GitHub feed
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS score NUMERIC(3, 0);
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS score_breakdown JSONB;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS why TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS notes TEXT;
 
-CREATE INDEX IF NOT EXISTS idx_jobs_lane_score ON jobs(lane, score DESC) WHERE lane IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_jobs_github_score
+    ON jobs(score DESC) WHERE opportunity_type IN ('bounty', 'open_source');
 
 -- Repo health: cached per-repo assessment for 7 days
 CREATE TABLE IF NOT EXISTS repo_health (
@@ -55,7 +51,6 @@ CREATE TABLE IF NOT EXISTS rejected_issues (
     repo TEXT NOT NULL,
     issue_number INTEGER NOT NULL,
     title TEXT,
-    lane VARCHAR(16),
     verdict VARCHAR(16) NOT NULL DEFAULT 'reject',
     reject_reasons TEXT[] NOT NULL DEFAULT '{}',
     reject_evidence TEXT,

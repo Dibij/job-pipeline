@@ -178,13 +178,14 @@ class JobPipeline:
             lambda: RedditExtractor(delay_seconds=1.0).stage_raw(max_pages=1)
         )
 
-        # 9. GitHub Issues (bounties / help-wanted / good-first-issue)
-        stats["github"] = self._run_single_extractor(
-            run_id, "github",
-            lambda: GitHubIssuesExtractor(delay_seconds=1.0).stage_raw(
-                GitHubIssuesExtractor(delay_seconds=1.0).fetch_raw(max_pages=1)
-            )
-        )
+        # 9. GitHub Issues (quality-gated open-source work)
+        # One extractor instance: constructing it twice doubled every API call.
+        # The token comes from config.GITHUB_TOKEN (env), never a literal.
+        def _run_github():
+            extractor = GitHubIssuesExtractor(delay_seconds=1.0)
+            return extractor.stage_raw(extractor.fetch_raw(max_pages=1))
+
+        stats["github"] = self._run_single_extractor(run_id, "github", _run_github)
 
         return stats
 
