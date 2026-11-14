@@ -121,6 +121,9 @@ def parse_timestamp(dt_val: Any) -> Optional[datetime]:
     if not dt_val:
         return None
 
+    if isinstance(dt_val, datetime):
+        return dt_val if dt_val.tzinfo else dt_val.replace(tzinfo=timezone.utc)
+
     if isinstance(dt_val, (int, float)):
         # Epoch timestamp
         return datetime.fromtimestamp(dt_val, tz=timezone.utc)
@@ -877,6 +880,25 @@ def transform_github_issue(payload: Dict[str, Any]) -> NormalizedJob:
     if comp.payment_verification_status == "unverified":
         risk_flags.append("unverified_payment_claim")
 
+    author_login = (payload.get("user") or {}).get("login") if isinstance(payload.get("user"), dict) else None
+    assignees = [
+        a.get("login") for a in (payload.get("assignees") or [])
+        if isinstance(a, dict) and a.get("login")
+    ]
+    single_assignee = payload.get("assignee")
+    if isinstance(single_assignee, dict) and single_assignee.get("login"):
+        if single_assignee["login"] not in assignees:
+            assignees.append(single_assignee["login"])
+
+    labels_with_actor = None
+    if isinstance(payload.get("_labels_with_actor"), list):
+        labels_with_actor = payload["_labels_with_actor"]
+    sub_issue_urls = payload.get("_sub_issue_urls")
+    if sub_issue_urls is not None and not isinstance(sub_issue_urls, list):
+        sub_issue_urls = None
+
+    verification_status = payload.get("_verification_status") or "UNVERIFIED"
+
     return NormalizedJob(
         source="github",
         external_id=str(payload.get("id") or html_url).strip(),
@@ -910,6 +932,20 @@ def transform_github_issue(payload: Dict[str, Any]) -> NormalizedJob:
         score_breakdown=verdict_payload.get("score_breakdown"),
         why=verdict_payload.get("why"),
         notes=verdict_payload.get("notes"),
+        lane=verdict_payload.get("lane"),
+        issue_state=state,
+        issue_state_reason=payload.get("state_reason"),
+        issue_closed_at=parse_timestamp(payload.get("closed_at")),
+        author_login=author_login,
+        author_association=payload.get("author_association"),
+        assignee_logins=assignees,
+        issue_created_at=parse_timestamp(payload.get("created_at")),
+        labels_with_actor=labels_with_actor,
+        parent_issue_url=payload.get("parent_issue_url"),
+        sub_issue_urls=sub_issue_urls,
+        fetched_at=parse_timestamp(payload.get("_fetched_at")),
+        verified_at=parse_timestamp(payload.get("_verified_at")),
+        verification_status=verification_status,
     )
 
 

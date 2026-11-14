@@ -19,6 +19,18 @@ from src.opportunities.compensation import extract_money
 
 
 class RejectReason:
+    # Ordered pipeline reasons (Step 5). Order is defined by FILTER_STAGES.
+    CLOSED = "CLOSED"
+    SELF_ASSIGNED = "SELF_ASSIGNED"
+    SELF_FIXED = "SELF_FIXED"
+    OWNER_BACKLOG = "OWNER_BACKLOG"
+    INTERNAL_TEAM_TASK = "INTERNAL_TEAM_TASK"
+    FOLLOW_UP_INTERNAL = "FOLLOW_UP_INTERNAL"
+    NEW_ISSUE_HOLD = "NEW_ISSUE_HOLD"
+    LOCAL_KNOWLEDGE_REQUIRED = "LOCAL_KNOWLEDGE_REQUIRED"
+    DOMAIN_PENALTY = "DOMAIN_PENALTY"
+    UNVERIFIED = "UNVERIFIED"
+    # Existing reasons kept as-is.
     WORD_ONLY_MATCH = "WORD_ONLY_MATCH"
     AGGREGATOR_DIGEST = "AGGREGATOR_DIGEST"
     TAKEN = "TAKEN"
@@ -45,10 +57,74 @@ class Verdict:
     UNCERTAIN = "uncertain"
 
 
-# Flag-but-do-not-force-rejection reasons.
+class Lane:
+    PAID = "PAID"
+    PROOF = "PROOF"
+
+
+# The one explicit filter order (Step 5). Every reason belongs to exactly one
+# stage and stages run in this sequence; tests/test_github_quality_gate.py
+# ::test_filter_order fails if this list is reordered. Stage 6 (scoring/lane)
+# and stage 7 (fresh re-check) are implemented outside this list because they
+# do not produce reject reasons.
+FILTER_STAGES: List[Tuple[str, Tuple[str, ...]]] = [
+    ("state_and_repo", (
+        RejectReason.CLOSED,
+        RejectReason.CLOSED_OR_ARCHIVED_REPO,
+    )),
+    ("aggregator_and_farm", (
+        RejectReason.AGGREGATOR_DIGEST,
+        RejectReason.BOT_OR_FARM_REPO,
+        RejectReason.CLONE_FARM,
+        RejectReason.REPEATED_TITLE,
+        RejectReason.NOT_A_CODING_TASK,
+        RejectReason.NO_TASK,
+        RejectReason.UNFUNDED_NOTICE,
+        RejectReason.WORD_ONLY_MATCH,
+        RejectReason.PLATFORM_FEATURE,
+        RejectReason.CRYPTO_WALLET_IN_BODY,
+        RejectReason.CRYPTO_PAYMENT,
+        RejectReason.STALE,
+    )),
+    ("taken_and_self", (
+        RejectReason.TAKEN,
+        RejectReason.SELF_ASSIGNED,
+        RejectReason.SELF_FIXED,
+    )),
+    ("owner_and_quality", (
+        RejectReason.OWNER_BACKLOG,
+        RejectReason.INTERNAL_TEAM_TASK,
+        RejectReason.TRIVIAL_TASK,
+        RejectReason.TEMPLATED_ISSUE,
+        RejectReason.LABEL_STUFFING,
+        RejectReason.FOLLOW_UP_INTERNAL,
+        RejectReason.LOCAL_KNOWLEDGE_REQUIRED,
+        RejectReason.DOMAIN_PENALTY,
+    )),
+    ("new_issue_hold", (
+        RejectReason.NEW_ISSUE_HOLD,
+    )),
+]
+
+FILTER_STAGE_ORDER: List[str] = [name for name, _ in FILTER_STAGES]
+
+
+def reason_stage(reason: str) -> Optional[str]:
+    """Return the stage name a reason belongs to (None if unknown)."""
+    for name, reasons in FILTER_STAGES:
+        if reason in reasons:
+            return name
+    return None
+
+
+# Reasons that never force a rejection on their own.
 SOFT_REASONS = {
     RejectReason.PLATFORM_FEATURE,
     RejectReason.LOW_TRUST_POSTER,
+    RejectReason.FOLLOW_UP_INTERNAL,
+    RejectReason.NEW_ISSUE_HOLD,
+    RejectReason.LOCAL_KNOWLEDGE_REQUIRED,
+    RejectReason.DOMAIN_PENALTY,
 }
 
 
@@ -72,7 +148,17 @@ class BountyVerdictResult:
     score_breakdown: Dict[str, int] = field(default_factory=dict)
     why: str = ""
     notes: str = ""
+    lane: Optional[str] = None
+    hold: bool = False
     details: Dict[str, Any] = field(default_factory=dict)
+
+    def is_feed_eligible(self) -> bool:
+        """Feed = accepted, not held, not unverified. Rejects never enter."""
+        return (
+            self.verdict == Verdict.ACCEPT
+            and not self.hold
+            and RejectReason.UNVERIFIED not in self.reject_reasons
+        )
 
 
 class BountyVerdictEngine:
@@ -89,7 +175,15 @@ class BountyVerdictEngine:
         similar_titles_count: int = 0,
         author_recent_issues: int = 0,
         template_group_size: int = 0,
+        repo_health: Optional[Dict[str, Any]] = None,
     ) -> BountyVerdictResult:
+        """Run the ordered gate (Step 5).
+
+        Stages run in FILTER_STAGES order; each stage appends its reasons and
+        evidence. Hard rejects are still all collected (so a fixture can report
+        CLOSED + OWNER_BACKLOG together), but CLOSED is always evaluated first
+        and, in the extractor, short-circuits before any scoring is stored.
+        """
         title = issue.get("title") or ""
         body = issue.get("body") or ""
         state = (issue.get("state") or "open").lower()
@@ -112,22 +206,29 @@ class BountyVerdictEngine:
         review_needed = "s0: review needed" in text_low
         difficulty_hard = ("difficulty: hard" in text_low) or ("difficulty:hard" in text_low)
 
-        # ---- Hard rejects ----------------------------------------------------
+        # ================= STAGE 1: state / repo =============================
+        # CLOSED runs first, before any scoring, on every pass.
+        if state == "closed" or closed_at:
+            reasons.append(RejectReason.CLOSED)
+            evidence_parts.append(
+                f"state={state or '?'} state_reason={issue.get('state_reason') or '?'}"
+            )
+            breakdown["closed_penalty"] = -50
+            score -= 50
+
+        if repo_meta and (repo_meta.get("archived") or repo_meta.get("is_archived")):
+            reasons.append(RejectReason.CLOSED_OR_ARCHIVED_REPO)
+            evidence_parts.append("repo archived")
+            breakdown["archived_penalty"] = -50
+            score -= 50
+
+        # ================= STAGE 2: aggregator / farm / non-task =============
         if self._is_stale(updated_at):
             reasons.append(RejectReason.STALE)
             evidence_parts.append("not updated within threshold days")
             breakdown["stale_penalty"] = -30
             score -= 30
 
-        taken, taken_ev = self._is_taken(issue)
-        if taken:
-            reasons.append(RejectReason.TAKEN)
-            evidence_parts.append(taken_ev)
-            breakdown["taken_penalty"] = -40
-            score -= 40
-
-        # Crypto payments are illegal in Nepal, so any crypto-paid bounty is
-        # legally unworkable regardless of how good the issue is.
         if self._crypto_re.findall(body or ""):
             reasons.append(RejectReason.CRYPTO_WALLET_IN_BODY)
             evidence_parts.append("crypto wallet address in body")
@@ -194,6 +295,43 @@ class BountyVerdictEngine:
             breakdown["notask_penalty"] = -25
             score -= 25
 
+        # ================= STAGE 3: taken / self-assigned / self-fixed ========
+        taken, taken_ev = self._is_taken(issue)
+        if taken:
+            reasons.append(RejectReason.TAKEN)
+            evidence_parts.append(taken_ev)
+            breakdown["taken_penalty"] = -40
+            score -= 40
+
+        self_assigned, sa_ev = self._is_self_assigned(issue)
+        if self_assigned:
+            reasons.append(RejectReason.SELF_ASSIGNED)
+            evidence_parts.append(sa_ev)
+            breakdown["self_assigned_penalty"] = -50
+            score -= 50
+
+        self_fixed, sf_ev = self._is_self_fixed(issue)
+        if self_fixed:
+            reasons.append(RejectReason.SELF_FIXED)
+            evidence_parts.append(sf_ev)
+            breakdown["self_fixed_penalty"] = -50
+            score -= 50
+
+        # ================= STAGE 4: owner / internal / quality ================
+        owner_backlog, ob_ev = self._is_owner_backlog(issue, repo_meta, repo_health, labels)
+        if owner_backlog:
+            reasons.append(RejectReason.OWNER_BACKLOG)
+            evidence_parts.append(ob_ev)
+            breakdown["owner_backlog_penalty"] = -50
+            score -= 50
+
+        internal_team, it_ev = self._is_internal_team_task(issue, labels)
+        if internal_team:
+            reasons.append(RejectReason.INTERNAL_TEAM_TASK)
+            evidence_parts.append(it_ev)
+            breakdown["internal_team_penalty"] = -40
+            score -= 40
+
         trivial, trivial_ev = self._is_trivial_task(body)
         if trivial:
             reasons.append(RejectReason.TRIVIAL_TASK)
@@ -216,17 +354,36 @@ class BountyVerdictEngine:
             breakdown["labelstuffing_penalty"] = -20
             score -= 20
 
-        if repo_meta and (repo_meta.get("archived") or repo_meta.get("is_archived")):
-            reasons.append(RejectReason.CLOSED_OR_ARCHIVED_REPO)
-            breakdown["archived_penalty"] = -50
-            score -= 50
+        # FOLLOW_UP_INTERNAL: penalty, hard reject only with SELF_ASSIGNED.
+        follow_up, fu_ev = self._is_follow_up_internal(issue, repo_meta)
+        if follow_up:
+            reasons.append(RejectReason.FOLLOW_UP_INTERNAL)
+            evidence_parts.append(fu_ev)
+            breakdown["follow_up_internal_penalty"] = -20
+            score -= 20
 
-        if state == "closed" or closed_at:
-            if RejectReason.TAKEN not in reasons:
-                reasons.append(RejectReason.TAKEN)
-                evidence_parts.append("issue closed")
-                breakdown["closed_penalty"] = -40
-                score -= 40
+        local_knowledge, lk_ev = self._is_local_knowledge_required(title, body)
+        if local_knowledge:
+            reasons.append(RejectReason.LOCAL_KNOWLEDGE_REQUIRED)
+            evidence_parts.append(lk_ev)
+            breakdown["local_knowledge_penalty"] = -15
+            score -= 15
+
+        domain_penalty, dp_ev = self._is_domain_penalty(title, body, labels)
+        if domain_penalty:
+            reasons.append(RejectReason.DOMAIN_PENALTY)
+            evidence_parts.append(dp_ev)
+            breakdown["domain_penalty"] = -20
+            score -= 20
+
+        # ================= STAGE 5: new issue hold ============================
+        hold = self._is_new_issue_hold(issue, labels)
+        if hold:
+            reasons.append(RejectReason.NEW_ISSUE_HOLD)
+            evidence_parts.append(
+                f"opened < {self.config.new_issue_hold_minutes} min ago, "
+                "no maintainer newcomer label"
+            )
 
         # ---- Funding evidence (strong positive, not required) ----------------
         funding_ok, funding_evidence, funding_src = self._detect_funding_evidence(
@@ -341,7 +498,16 @@ class BountyVerdictEngine:
         score = max(0, min(100, score))
 
         # ---- Verdict ---------------------------------------------------------
-        hard_reasons = [r for r in reasons if r not in SOFT_REASONS]
+        # FOLLOW_UP_INTERNAL is a penalty unless combined with SELF_ASSIGNED.
+        hard_reasons = []
+        for reason in reasons:
+            if reason in SOFT_REASONS:
+                if reason == RejectReason.FOLLOW_UP_INTERNAL:
+                    if RejectReason.SELF_ASSIGNED in reasons:
+                        hard_reasons.append(reason)
+                continue
+            hard_reasons.append(reason)
+
         if hard_reasons:
             result.verdict = Verdict.REJECT
         elif score >= self.config.confidence_accept:
@@ -355,6 +521,8 @@ class BountyVerdictEngine:
         result.reject_reasons = reasons
         result.reject_evidence = "; ".join(evidence_parts)
         result.funding_evidence = funding
+        result.hold = hold
+        result.lane = self._assign_lane(funding)
         result.why = self._build_why(result, funding)
         result.notes = self._build_notes(
             result, alignment_blocker or review_needed, stack_match, text_low, title
@@ -366,6 +534,10 @@ class BountyVerdictEngine:
             "comments": comments,
         }
         return result
+
+    def _assign_lane(self, funding: Optional[FundingEvidence]) -> str:
+        """Lane assignment (Stage 6): PAID when funded, else PROOF."""
+        return Lane.PAID if funding is not None else Lane.PROOF
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -397,18 +569,218 @@ class BountyVerdictEngine:
             return True, "linked pull request present"
         return False, ""
 
+    @staticmethod
+    def _assignee_logins(issue: Dict[str, Any]) -> List[str]:
+        out: List[str] = []
+        for a in issue.get("assignees") or []:
+            if isinstance(a, dict) and a.get("login"):
+                out.append(a["login"].lower())
+        single = issue.get("assignee")
+        if isinstance(single, dict) and single.get("login"):
+            out.append(single["login"].lower())
+        elif isinstance(single, str) and single:
+            out.append(single.lower())
+        return list(dict.fromkeys(out))
+
+    def _is_self_assigned(self, issue: Dict[str, Any]) -> Tuple[bool, str]:
+        author = ((issue.get("user") or {}).get("login") or "").lower()
+        if not author:
+            return False, ""
+        assignees = self._assignee_logins(issue)
+        if author in assignees:
+            return True, f"issue author {author} assigned to self"
+        return False, ""
+
+    def _is_self_fixed(self, issue: Dict[str, Any]) -> Tuple[bool, str]:
+        """Author also authored the linked/closing PR, or a PR linked within N min."""
+        author = ((issue.get("user") or {}).get("login") or "").lower()
+        window = self.config.self_fixed_link_window_minutes
+        created = self._parse_dt(issue.get("created_at"))
+
+        prs = issue.get("_linked_prs")
+        if not isinstance(prs, list):
+            prs = []
+            legacy = issue.get("linked_pr") or issue.get("_linked_pr")
+            if legacy:
+                prs.append(legacy if isinstance(legacy, dict) else {"number": legacy})
+
+        for pr in prs:
+            if not isinstance(pr, dict):
+                continue
+            pr_author = (pr.get("author_login") or pr.get("user_login") or "").lower()
+            if author and pr_author == author:
+                return True, f"author also authored linked PR #{pr.get('number')}"
+            pr_created = self._parse_dt(pr.get("created_at"))
+            if created and pr_created:
+                delta_min = abs((pr_created - created).total_seconds()) / 60.0
+                if delta_min <= window:
+                    return True, (
+                        f"PR #{pr.get('number')} linked {int(delta_min)} min after "
+                        "issue opened"
+                    )
+        return False, ""
+
+    @staticmethod
+    def _parse_dt(value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    def _has_outside_newcomer_label(self, labels: List[str]) -> bool:
+        invited = {l.lower() for l in self.config.newcomer_labels}
+        return any(l in invited for l in labels)
+
+    def _is_owner_backlog(
+        self,
+        issue: Dict[str, Any],
+        repo_meta: Optional[Dict[str, Any]],
+        repo_health: Optional[Dict[str, Any]],
+        labels: List[str],
+    ) -> Tuple[bool, str]:
+        """Owner's own private backlog in a repo with no outside contributors."""
+        author = ((issue.get("user") or {}).get("login") or "").lower()
+        association = (issue.get("author_association") or "").upper()
+        if not author:
+            return False, ""
+
+        owner = ""
+        if isinstance(repo_meta, dict):
+            owner = ((repo_meta.get("owner") or {}).get("login") or "").lower()
+            if not owner and repo_meta.get("full_name"):
+                owner = str(repo_meta["full_name"]).split("/")[0].lower()
+
+        is_owner = association == "OWNER" or (owner and author == owner)
+        if not is_owner:
+            return False, ""
+
+        # An outside-contributor invitation from a maintainer clears the backlog.
+        if self._has_outside_newcomer_label(labels):
+            return False, ""
+        if repo_health and repo_health.get("outside_merged_prs_recent", 0) > 0:
+            return False, ""
+
+        evidence: List[str] = [f"owner-authored ({association or 'owner'})"]
+        solo_evidence = False
+        if repo_health is not None:
+            contributors = repo_health.get("contributor_count")
+            outside = repo_health.get("outside_merged_prs_recent", 0)
+            if contributors is not None and contributors < self.config.min_contributors:
+                evidence.append(f"{contributors} contributors < {self.config.min_contributors}")
+                solo_evidence = True
+            if outside == 0:
+                evidence.append("no outside merged PRs in 90d")
+                solo_evidence = True
+            share = repo_health.get("owner_issue_share")
+            if share is not None and share >= self.config.owner_issue_share_threshold:
+                evidence.append(f"owner authored {int(share * 100)}% of issues")
+                solo_evidence = True
+            # A repo with outside merged PRs is not a solo backlog.
+            if outside and outside > 0:
+                solo_evidence = False
+
+        # Strong structural backlog signals (work without health data too).
+        title_low = (issue.get("title") or "").lower()
+        structural = False
+        if any(title_low.startswith(p) for p in self.config.plan_title_prefixes):
+            evidence.append("internal plan-style title")
+            structural = True
+        if any(lab in {l.lower() for l in self.config.internal_labels} for lab in labels):
+            evidence.append("internal/plan label")
+            structural = True
+        if issue.get("parent_issue_url") or issue.get("_parent_issue_title"):
+            parent_title = str(issue.get("_parent_issue_title") or "").lower()
+            if re.search(r"review|audit|defects? found|tracking", parent_title):
+                evidence.append("parent review/audit tracking issue")
+                structural = True
+
+        if solo_evidence or structural:
+            return True, "; ".join(evidence)
+        return False, ""
+
+    def _is_internal_team_task(
+        self, issue: Dict[str, Any], labels: List[str]
+    ) -> Tuple[bool, str]:
+        text = f"{issue.get('title') or ''} {issue.get('body') or ''}".lower()
+        for phrase in self.config.internal_team_phrases:
+            if phrase.lower() in text:
+                if self._has_outside_newcomer_label(labels):
+                    return False, ""
+                return True, f"internal team phrasing: '{phrase}'"
+        return False, ""
+
+    def _is_follow_up_internal(
+        self, issue: Dict[str, Any], repo_meta: Optional[Dict[str, Any]]
+    ) -> Tuple[bool, str]:
+        """Maintainer cleanup like 'Follow-up from the review of #N'."""
+        text = f"{issue.get('title') or ''} {issue.get('body') or ''}".lower()
+        author = ((issue.get("user") or {}).get("login") or "").lower()
+        association = (issue.get("author_association") or "").upper()
+        maintainer = association in ("OWNER", "MEMBER", "COLLABORATOR")
+        if not maintainer and self._is_maintainer_authored(issue, repo_meta):
+            maintainer = True
+        for pat in self.config.follow_up_patterns:
+            if pat in text:
+                if maintainer:
+                    return True, f"maintainer follow-up phrasing: '{pat}'"
+                return False, ""
+        return False, ""
+
+    def _is_local_knowledge_required(self, title: str, body: str) -> Tuple[bool, str]:
+        text = f"{title} {body}".lower()
+        for pat in self.config.local_knowledge_patterns:
+            if pat in text:
+                return True, f"needs local institution knowledge: '{pat}'"
+        return False, ""
+
+    def _is_domain_penalty(
+        self, title: str, body: str, labels: List[str]
+    ) -> Tuple[bool, str]:
+        text = f"{title} {body} {' '.join(labels)}".lower()
+        for pat in self.config.domain_patterns:
+            if re.search(r"\b" + re.escape(pat.lower()) + r"\b", text):
+                return True, f"hard domain: {pat}"
+        return False, ""
+
+    def _is_new_issue_hold(self, issue: Dict[str, Any], labels: List[str]) -> bool:
+        created = self._parse_dt(issue.get("created_at"))
+        if not created:
+            return False
+        age_min = (datetime.now(timezone.utc) - created).total_seconds() / 60.0
+        if age_min >= self.config.new_issue_hold_minutes:
+            return False
+        if self._has_outside_newcomer_label(labels):
+            return False
+        return True
+
     def _is_aggregator_digest(self, issue: Dict[str, Any]) -> Tuple[bool, str]:
         title = (issue.get("title") or "").lower()
         author = ((issue.get("user") or {}).get("login") or "").lower()
         labels = self._extract_labels(issue)
+        repo = (issue.get("_gh_repo") or "").lower()
+        if not repo:
+            parts = (issue.get("repository_url") or "").rstrip("/").split("/")
+            if len(parts) >= 2:
+                repo = f"{parts[-2]}/{parts[-1]}".lower()
         for pat in self.config.bot_author_patterns:
             if pat.lower() in author:
                 return True, f"bot author: {author}"
         for pat in self.config.digest_title_patterns:
             if pat in title:
                 return True, f"digest title: {pat}"
+        for pat in self.config.aggregator_title_patterns:
+            if pat in title:
+                return True, f"aggregator title: {pat}"
+        for pat in self.config.aggregator_repo_patterns:
+            if pat in repo:
+                return True, f"aggregator repo: {repo}"
         for lab in labels:
-            if lab in ("intake", "release-watch", "bounty-alert", "intake-release-watch"):
+            if lab in ("intake", "release-watch", "bounty-alert", "intake-release-watch",
+                       "bounty-watch", "bounty-scout", "digest"):
                 return True, f"digest label: {lab}"
         return False, ""
 
@@ -714,6 +1086,13 @@ class BountyVerdictEngine:
             notes.append("human must verify funding before messaging")
         if RejectReason.CRYPTO_PAYMENT in result.reject_reasons:
             notes.append("crypto payment is illegal in Nepal: do not accept")
+        if result.hold:
+            notes.append(
+                f"held: issue younger than {self.config.new_issue_hold_minutes} min; "
+                f"re-check when {self.config.new_issue_hold_release_hours}h old"
+            )
+        if result.lane:
+            notes.append(f"lane: {result.lane}")
         return "; ".join(notes)
 
     @staticmethod
@@ -737,6 +1116,8 @@ class BountyVerdictEngine:
             "score_breakdown": result.score_breakdown,
             "why": result.why,
             "notes": result.notes,
+            "lane": result.lane,
+            "hold": result.hold,
         }
 
 
@@ -751,7 +1132,13 @@ def material_state_hash(issue: Dict[str, Any], verdict: Optional[BountyVerdictRe
     )
     payload = {
         "state": (issue.get("state") or "").lower(),
+        "state_reason": issue.get("state_reason"),
+        "closed_at": issue.get("closed_at"),
         "assignee": (issue.get("assignee") or {}).get("login") if isinstance(issue.get("assignee"), dict) else issue.get("assignee"),
+        "assignees": sorted(
+            (a.get("login") if isinstance(a, dict) else str(a))
+            for a in (issue.get("assignees") or [])
+        ),
         "linked_pr": bool(issue.get("linked_pr") or issue.get("_linked_pr") or issue.get("pull_request")),
         "labels": labels,
         "verdict": verdict.verdict if verdict else None,

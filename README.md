@@ -69,6 +69,31 @@ Then open **[http://localhost:5000](http://localhost:5000)** in your browser.
 - **Immediate Feedback Loop**: Label any job (`Good Fit`, `Maybe`, `Bad Fit`), enter a free-text fit reason, and check "Wrongly filtered" for false positives. Every label writes instantly to PostgreSQL `laya_labels` stamped `label_guideline_version="v2_role_fit_only"`.
 - **Live Header**: Displays last pipeline run time, 24h new jobs, active model version, and real-time progress toward the 150/30 ranker training gate (with stale run warning if > 36 hours).
 
+### GitHub issue filter order (single gate)
+
+GitHub issues go through one ordered pipeline (`FILTER_STAGES` in
+`src/opportunities/bounty_verdict.py`, tested by
+`tests/test_closed_feed_gate.py::test_filter_order`):
+
+1. **CLOSED**, archived/deleted repo.
+2. **AGGREGATOR_DIGEST**, **BOT_OR_FARM_REPO**, **CLONE_FARM** (plus existing
+   non-task/stale/crypto rules).
+3. **TAKEN**, **SELF_ASSIGNED**, **SELF_FIXED**.
+4. **OWNER_BACKLOG**, **INTERNAL_TEAM_TASK**, **TRIVIAL_TASK**,
+   **TEMPLATED_ISSUE**, **LABEL_STUFFING** (plus FOLLOW_UP_INTERNAL,
+   LOCAL_KNOWLEDGE_REQUIRED, DOMAIN_PENALTY penalties).
+5. **NEW_ISSUE_HOLD** (held out of the feed, not rejected; re-checked at 24h).
+6. Scoring and lane assignment (`PAID` when funded, else `PROOF`).
+7. **Fresh re-check** immediately before the feed: state, assignees, linked/
+   closing PRs, maintainer "claimed/fixed" comments, repo archived. Cached for
+   5 minutes only. A failed re-check marks the item `UNVERIFIED` and keeps it
+   out of the feed. `fetched_at` and `verified_at` are stored and `verified_at`
+   is shown in the feed.
+
+Rejected and held items are written to `rejected_issues` with the reason enum
+and a short evidence string; rows are never deleted (Rejected view). Nothing is
+auto-accepted, auto-messaged or auto-contacted.
+
 
 ## 📊 Database CLI Commands
 

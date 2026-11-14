@@ -1,5 +1,5 @@
 \documentclass[a4paper,10pt]{article}
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=0.75in]{geometry}
 \usepackage{enumitem}
 \usepackage{titlesec}
 \usepackage{helvet}
@@ -8,73 +8,79 @@
 \renewcommand{\familydefault}{\sfdefault}
 \pagenumbering{gobble}
 \titleformat{\section}{\large\bfseries}{}{0em}{}
-\titlespacing*{\section}{0pt}{8pt}{6pt}
-\setlist[itemize]{noitemsep, topsep=2pt}
+\titlespacing*{\section}{0pt}{6pt}{4pt}
+\setlist[itemize]{noitemsep, topsep=1.5pt, leftmargin=1.2em}
+
 \begin{document}
 
 \begin{center}
-    {\LARGE \textbf{Kshitish Pandit}} \\[6pt]
-    \href{mailto:dibijsharma@gmail.com}{dibijsharma@gmail.com} \quad | \quad +977-9703995826 \\[2pt]
-    Kathmandu, Nepal \\[2pt]
+    {\LARGE \textbf{Kshitish Pandit}} \\[4pt]
+    \href{mailto:dibijsharma@gmail.com}{dibijsharma@gmail.com} \quad | \quad +977-9703995826 \quad | \quad Kathmandu, Nepal \\[2pt]
     \href{https://github.com/Dibij}{github.com/Dibij} \quad | \quad
     \href{https://www.linkedin.com/in/kshitish-pandit}{linkedin.com/in/kshitish-pandit}
 \end{center}
 
-\vspace{6pt}
+\vspace{2pt}
 
 \section*{Summary}
-Backend-focused engineer comfortable across multiple stacks (Java, Python, Node.js, Rust), with experience designing service layers, async task processing, real-time communication, and local/cloud data persistence for production and team-based academic projects.
-
-\section*{Featured Backend Projects}
-
-\textbf{YAMDUT -- Ride-Sharing Platform} \\
-\textit{Team Project | Java, Gradle, MySQL, Live GPS Mapping}
-\begin{itemize}[leftmargin=*]
-    \item Contributed to backend services for a ride-sharing platform covering authentication, ride matching, and trip management as part of a college integrative team project
-    \item Worked on a desktop-first Java frontend with live GPS tracking via Mapbox map integration
-    \item Contributed to system documentation covering API design, architecture, and database schema
-\end{itemize}
-
-\vspace{4pt}
-\textbf{Suisik Backend} \\
-\textit{Python, Django, Django REST Framework, Celery}
-\begin{itemize}[leftmargin=*]
-    \item Designed backend services for an EdTech platform: REST APIs, async processing via Celery, and a document/RAG processing pipeline
-    \item Implemented rate-limiting middleware, structured exception handling, and health-check endpoints for operational reliability
-\end{itemize}
-
-\vspace{4pt}
-\textbf{Shame Desktop -- Cross-Platform System App} \\
-\textit{Rust, Tauri, SQLite}
-\begin{itemize}[leftmargin=*]
-    \item Built a desktop application backend using Rust (Tauri) for low-overhead native OS interaction with local SQLite persistence via the Tauri SQL plugin
-\end{itemize}
-
-\vspace{4pt}
-\textbf{Notification Server} \\
-\textit{Node.js, Express.js, Firebase Admin SDK}
-\begin{itemize}[leftmargin=*]
-    \item Built and deployed a lightweight Express.js microservice for push-notification delivery, backed by Firestore token lookups
-\end{itemize}
-
-\vspace{4pt}
-\textbf{n8n Automation Deployment} \\
-\textit{Docker}
-\begin{itemize}[leftmargin=*]
-    \item Containerized the n8n workflow-automation tool with a custom Dockerfile for self-hosted deployment
-\end{itemize}
+Backend and platform software engineer experienced in architecting resilient data pipelines, asynchronous job processing engines, RESTful microservices, and high-integrity storage architectures across Python (FastAPI, Django), Java, Node.js, and Rust. Proven background in PostgreSQL schema design, ELT ingestion pipelines, connection pooling, Docker containerization, and production Linux deployment automation.
 
 \section*{Technical Skills}
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Languages:} Java, Python, JavaScript/Node.js, Rust, SQL
-    \item \textbf{Backend Frameworks:} Django, Django REST Framework, Django Channels, Celery, Express.js
-    \item \textbf{Data:} MySQL, PostgreSQL, SQLite, Firebase/Firestore
-    \item \textbf{Infra/Tooling:} Docker, Git, GitHub Actions, REST API design, WebSockets
+\begin{itemize}
+    \item \textbf{Languages:} Python (3.12+), Java, SQL, Rust, JavaScript/Node.js, Bash
+    \item \textbf{Backend Frameworks:} FastAPI, Django, Django REST Framework, Django Channels (WebSockets), Express.js, Celery
+    \item \textbf{Databases \& Caching:} PostgreSQL, Psycopg 3, MySQL, SQLite, Supabase, Redis, Firebase/Firestore, schema migrations
+    \item \textbf{Platform \& Infrastructure:} Docker, Docker Compose, Linux/systemd, Git, GitHub Actions, cron automation, pytest, RESTful API design, rate-limiting
+\end{itemize}
+
+\section*{Featured Backend \& Platform Projects}
+
+\textbf{Modular Data Ingestion \& Evaluation Pipeline} \\
+\textit{Python (3.12+), PostgreSQL, Pydantic v2, Psycopg 3, Flask, Docker}
+\begin{itemize}
+    \item Engineered an automated ELT pipeline aggregating semi-structured feeds from 15+ external JSON APIs, RSS feeds, and direct ATS endpoints with isolated per-source failure boundaries and polite rate-limiting.
+    \item Preserved raw payloads in PostgreSQL staging tables to guarantee zero data loss; enforced strict Pydantic v2 validation models and SHA-256 hashing to eliminate cross-source duplicate records.
+    \item Automated scheduled execution with process file locking (\texttt{pipeline.lock}), log rotation, systemd/cron automation, and comprehensive \texttt{pytest} test suites.
+    \item Built an internal Flask management dashboard to monitor pipeline throughput, audit rejection logs, and submit live ground-truth feedback directly to the database.
+\end{itemize}
+
+\vspace{3pt}
+\textbf{Suisik -- Backend \& Asynchronous Job Processing Platform} \\
+\textit{Python, Django, Django REST Framework, Celery, Redis, PostgreSQL}
+\begin{itemize}
+    \item Architected core backend services for an EdTech SaaS platform: REST APIs, document ingestion pipelines, and asynchronous Celery worker pools backed by Redis for CPU-intensive document chunking and LLM generation.
+    \item Implemented custom rate-limiting middleware, structured exception handlers, database connection pooling, and health-check endpoints for operational reliability.
+    \item Managed Supabase (PostgreSQL) migrations, writing SQL scripts to resolve schema drift, clean orphan records, and enforce Row-Level Security (RLS) policies.
+\end{itemize}
+
+\vspace{3pt}
+\textbf{YAMDUT -- Ride-Sharing Platform Backend} \\
+\textit{Team Project | Java, Gradle, MySQL, REST APIs}
+\begin{itemize}
+    \item Architected core backend services for a ride-sharing platform covering driver dispatch matching, authentication, and trip lifecycle management.
+    \item Designed normalized relational database schemas in MySQL, indexing spatial coordinates for efficient driver-rider proximity lookups.
+    \item Authored technical architecture documentation covering RESTful API contracts, database schemas, and service-layer patterns.
+\end{itemize}
+
+\vspace{3pt}
+\textbf{Notification Server Microservice} \\
+\textit{Node.js, Express.js, Firebase Admin SDK, Cloud Firestore}
+\begin{itemize}
+    \item Built and deployed a production microservice delivering FCM push notifications, resolving device tokens and managing delivery state against Cloud Firestore.
+    \item Designed lightweight REST endpoints with structured payload validation to ensure resilient message queuing and error recovery.
+\end{itemize}
+
+\vspace{3pt}
+\textbf{Shame Desktop \& Cross-Platform Sync Engine} \\
+\textit{Rust, Tauri, SQLite, Supabase}
+\begin{itemize}
+    \item Built a low-overhead native application backend in Rust (Tauri) interacting with local SQLite databases via transactional migrations, with cloud synchronization to Supabase/PostgreSQL.
 \end{itemize}
 
 \section*{Certifications}
-\begin{itemize}[leftmargin=*]
+\begin{itemize}
     \item Diploma in Data Science and Machine Learning -- Vrit Technologies
+    \item LangChain + Gemini for LLM Applications
 \end{itemize}
 
 \section*{Education}

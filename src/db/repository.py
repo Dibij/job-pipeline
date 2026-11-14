@@ -29,23 +29,26 @@ class JobRepository:
                 outreach_draft, technical_angle, clarification_questions,
                 bounty_verdict, reject_reasons, funding_evidence,
                 bounty_confidence, reject_evidence,
-                score, score_breakdown, why, notes
-            ) VALUES (
+                score, score_breakdown, why, notes, lane,
+                issue_state, issue_state_reason, issue_closed_at,
+                author_login, author_association, assignee_logins,
+                issue_created_at, labels_with_actor,
+                parent_issue_url, sub_issue_urls,
+                fetched_at, verified_at, verification_status
+            ) VALUES (                %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, %s,
-                %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s, %s,
-                %s, %s, %s,
-                %s, %s, %s, %s,
-                %s, %s
-            )
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
+                %s)
             ON CONFLICT (fingerprint_hash) DO UPDATE SET
                 title = EXCLUDED.title,
                 company_name = EXCLUDED.company_name,
@@ -95,7 +98,21 @@ class JobRepository:
                 score = COALESCE(EXCLUDED.score, jobs.score),
                 score_breakdown = COALESCE(EXCLUDED.score_breakdown, jobs.score_breakdown),
                 why = COALESCE(EXCLUDED.why, jobs.why),
-                notes = COALESCE(EXCLUDED.notes, jobs.notes)
+                notes = COALESCE(EXCLUDED.notes, jobs.notes),
+                lane = COALESCE(EXCLUDED.lane, jobs.lane),
+                issue_state = EXCLUDED.issue_state,
+                issue_state_reason = EXCLUDED.issue_state_reason,
+                issue_closed_at = EXCLUDED.issue_closed_at,
+                author_login = COALESCE(EXCLUDED.author_login, jobs.author_login),
+                author_association = COALESCE(EXCLUDED.author_association, jobs.author_association),
+                assignee_logins = EXCLUDED.assignee_logins,
+                issue_created_at = COALESCE(EXCLUDED.issue_created_at, jobs.issue_created_at),
+                labels_with_actor = COALESCE(EXCLUDED.labels_with_actor, jobs.labels_with_actor),
+                parent_issue_url = COALESCE(EXCLUDED.parent_issue_url, jobs.parent_issue_url),
+                sub_issue_urls = COALESCE(EXCLUDED.sub_issue_urls, jobs.sub_issue_urls),
+                fetched_at = COALESCE(EXCLUDED.fetched_at, jobs.fetched_at),
+                verified_at = EXCLUDED.verified_at,
+                verification_status = EXCLUDED.verification_status
             RETURNING id;
         """
         params = (
@@ -151,6 +168,20 @@ class JobRepository:
             Jsonb(job.score_breakdown) if job.score_breakdown is not None else None,
             job.why,
             job.notes,
+            job.lane,
+            job.issue_state,
+            job.issue_state_reason,
+            job.issue_closed_at,
+            job.author_login,
+            job.author_association,
+            job.assignee_logins or [],
+            job.issue_created_at,
+            Jsonb(job.labels_with_actor) if job.labels_with_actor is not None else None,
+            job.parent_issue_url,
+            Jsonb(job.sub_issue_urls) if job.sub_issue_urls is not None else None,
+            job.fetched_at,
+            job.verified_at,
+            job.verification_status,
         )
 
         with get_connection(autocommit=False) as conn:
@@ -245,6 +276,10 @@ class JobRepository:
         score_breakdown: Optional[Dict[str, Any]] = None,
         why: Optional[str] = None,
         notes: Optional[str] = None,
+        reject_reason: Optional[str] = None,
+        verified_at: Optional[Any] = None,
+        fetched_at: Optional[Any] = None,
+        verification_status: str = "VERIFIED",
     ) -> Dict[str, Any]:
         """Record a rejected issue; report whether it should be shown again.
 
@@ -266,8 +301,9 @@ class JobRepository:
                     INSERT INTO rejected_issues (
                         repo, issue_number, title, verdict, reject_reasons,
                         reject_evidence, funding_evidence, score, score_breakdown,
-                        why, notes, last_state_hash, source_url
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        why, notes, last_state_hash, source_url,
+                        reject_reason, verified_at, fetched_at, verification_status
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (repo, issue_number) DO UPDATE SET
                         title = EXCLUDED.title,
                         verdict = EXCLUDED.verdict,
@@ -280,6 +316,10 @@ class JobRepository:
                         notes = EXCLUDED.notes,
                         last_state_hash = EXCLUDED.last_state_hash,
                         source_url = EXCLUDED.source_url,
+                        reject_reason = EXCLUDED.reject_reason,
+                        verified_at = EXCLUDED.verified_at,
+                        fetched_at = EXCLUDED.fetched_at,
+                        verification_status = EXCLUDED.verification_status,
                         last_seen_at = NOW()
                     """
                     ,
@@ -290,6 +330,7 @@ class JobRepository:
                         score,
                         Jsonb(score_breakdown) if score_breakdown is not None else None,
                         why, notes, state_hash, source_url,
+                        reject_reason, verified_at, fetched_at, verification_status,
                     ),
                 )
             conn.commit()

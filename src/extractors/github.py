@@ -26,9 +26,11 @@ from src.extractors.base import BaseExtractor
 from src.opportunities.bounty_config import load_github_config
 from src.opportunities.bounty_verdict import (
     BountyVerdictEngine,
+    RejectReason,
     Verdict,
     material_state_hash,
 )
+from src.opportunities.recheck import FreshRechecker
 from src.opportunities.repo_health import RepoHealthChecker
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,7 @@ class GitHubIssuesExtractor(BaseExtractor):
         secondary_backoff_seconds: float = 60.0,
         max_watchlist_repos: Optional[int] = None,
         max_repo_meta_fetches: Optional[int] = None,
+        run_recheck: bool = True,
     ):
         super().__init__(source_name="github", delay_seconds=delay_seconds)
         self.token = token if token is not None else config.GITHUB_TOKEN
@@ -82,6 +85,11 @@ class GitHubIssuesExtractor(BaseExtractor):
             token=self.token,
             config=self.cfg,
             quota_reserve=self.cfg.thresholds.api_quota_reserve,
+        )
+        self.run_recheck = run_recheck
+        self._rechecker = (
+            FreshRechecker(token=self.token, config_obj=self.cfg, session=self.session)
+            if run_recheck else None
         )
         self._etag_cache: Dict[str, Tuple[str, Optional[str]]] = {}
         if self.token:
@@ -189,6 +197,12 @@ class GitHubIssuesExtractor(BaseExtractor):
                 q = f"{q} language:{sq.language[0]}"
             if "archived:" not in q:
                 q = f"{q} archived:false"
+            # Never trust the YAML alone: closed issues must not be fetched.
+            # `is:open` is the official qualifier (state:open is the alias).
+            if "is:open" not in q and "state:open" not in q:
+                q = f"{q} is:open"
+            if "is:issue" not in q:
+                q = f"{q} is:issue"
 
             page = 1
             while page <= max_pages:
@@ -305,6 +319,7 @@ class GitHubIssuesExtractor(BaseExtractor):
         similar_titles_count: int = 0,
         author_recent_issues: int = 0,
         template_group_size: int = 0,
+        repo_health: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         if not self._verdict_engine:
             return {}
@@ -315,6 +330,7 @@ class GitHubIssuesExtractor(BaseExtractor):
                 similar_titles_count=similar_titles_count,
                 author_recent_issues=author_recent_issues,
                 template_group_size=template_group_size,
+                repo_health=repo_health,
             )
             return BountyVerdictEngine.verdict_to_db_fields(result)
         except Exception as exc:  # pragma: no cover - defensive
@@ -329,6 +345,8 @@ class GitHubIssuesExtractor(BaseExtractor):
                 "score_breakdown": {},
                 "why": "",
                 "notes": "",
+                "lane": None,
+                "hold": False,
             }
 
     @staticmethod
@@ -374,9 +392,36 @@ class GitHubIssuesExtractor(BaseExtractor):
         cross_repo = {n: len(r) for n, r in title_repos.items()}
         return title_counts, cross_repo, author_counts, template_groups
 
+    def _repo_health_fields(self, repo: str) -> Optional[Dict[str, Any]]:
+        """Repo health as a plain dict for the gate (None when unchecked)."""
+        if not repo:
+            return None
+        try:
+            health = self._health.assess(repo)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("[github] repo health failed for %s: %s", repo, exc)
+            return None
+        if not health.checked:
+            return None
+        return {
+            "healthy": health.healthy,
+            "contributor_count": health.contributor_count,
+            "outside_merged_prs_recent": health.outside_merged_prs_recent,
+            "owner_issue_share": health.owner_issue_share,
+            "owner_login": health.owner_login,
+            "owner_type": health.owner_type,
+            "watchlist_candidate": health.watchlist_candidate,
+            "watchlist_reason": health.watchlist_reason,
+        }
+
     def _enrich_and_verdict(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Attach repo metadata, compute batch signals, run verdict."""
+        """Attach repo metadata, run the ordered gate, then the fresh re-check.
+
+        Only accepted, verified, non-held items are staged. Rejected and held
+        items are written to the rejected ledger (never deleted) and dropped.
+        """
         seen_repos: Dict[str, Optional[Dict[str, Any]]] = {}
+        health_by_repo: Dict[str, Optional[Dict[str, Any]]] = {}
         (
             title_counts,
             cross_repo,
@@ -396,21 +441,90 @@ class GitHubIssuesExtractor(BaseExtractor):
                 similar = max(cross_repo.get(norm, 1), title_counts.get(norm, 1)) - 1
                 prefix = " ".join(norm.split()[:3])
                 template_group = template_groups.get((author, prefix), 1)
+                if repo not in health_by_repo:
+                    health_by_repo[repo] = self._repo_health_fields(repo)
                 verdict_fields = self._run_verdict(
                     it,
                     repo_meta,
                     similar_titles_count=similar,
                     author_recent_issues=max(0, author_counts.get(author, 1) - 1),
                     template_group_size=template_group,
+                    repo_health=health_by_repo.get(repo),
                 )
                 it["_bounty_verdict"] = verdict_fields
+                it["_fetched_at"] = datetime.now(timezone.utc)
+
                 if verdict_fields.get("bounty_verdict") == Verdict.REJECT:
                     self._record_rejected(it, verdict_fields)
-                elif verdict_fields.get("bounty_verdict") == Verdict.UNCERTAIN:
-                    # Route to triage, never drop.
-                    it["_triage"] = True
+                    continue
+                if verdict_fields.get("hold"):
+                    # NEW_ISSUE_HOLD: keep out of the feed, ledger only. Marked
+                    # "hold" (not "reject") so the Rejected view is honest.
+                    hold_fields = dict(verdict_fields)
+                    hold_fields["bounty_verdict"] = "hold"
+                    self._record_rejected(it, hold_fields)
+                    continue
+
+            # ---- Stage 7: fresh re-check immediately before staging --------
+            if self.run_verdict and not self._verify_before_feed(it, repo_meta):
+                continue
             kept.append(it)
         return kept
+
+    def _verify_before_feed(
+        self, issue: Dict[str, Any], repo_meta: Optional[Dict[str, Any]]
+    ) -> bool:
+        """Re-check state/assignees/PRs/archived. UNVERIFIED items never pass."""
+        repo = issue.get("_gh_repo") or ""
+        number = issue.get("number")
+        verdict_fields = issue.get("_bounty_verdict") or {}
+        if not self._rechecker or not repo or number is None:
+            issue["_verification_status"] = "UNVERIFIED"
+            if verdict_fields:
+                verdict_fields["verification_status"] = "UNVERIFIED"
+            return False
+        try:
+            result = self._rechecker.verify(repo, int(number), repo_meta=repo_meta)
+            decision = self._rechecker.decide(issue, result)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("[github] re-check crashed for %s#%s: %s", repo, number, exc)
+            issue["_verification_status"] = "UNVERIFIED"
+            if verdict_fields:
+                verdict_fields["verification_status"] = "UNVERIFIED"
+            return False
+
+        issue["_verified_at"] = decision.verified_at
+        issue["_verification_status"] = "VERIFIED" if decision.keep else "UNVERIFIED"
+        # Provenance collected by the re-check (Step 3 data).
+        if result.labels_with_actor:
+            issue["_labels_with_actor"] = result.labels_with_actor
+        if result.parent_issue_url:
+            issue["parent_issue_url"] = result.parent_issue_url
+        if result.sub_issue_urls:
+            issue["_sub_issue_urls"] = result.sub_issue_urls
+        if verdict_fields:
+            verdict_fields["verified_at"] = decision.verified_at
+            verdict_fields["fetched_at"] = decision.fetched_at
+            verdict_fields["verification_status"] = issue["_verification_status"]
+
+        if decision.keep:
+            return True
+
+        logger.info(
+            "[github] re-check dropped %s#%s: %s (%s)",
+            repo, number, ",".join(decision.reasons), decision.evidence,
+        )
+        # Record the re-check rejection/UNVERIFIED in the ledger, keep the row.
+        merged = dict(verdict_fields)
+        merged["bounty_verdict"] = Verdict.REJECT
+        existing = list(merged.get("reject_reasons") or [])
+        merged["reject_reasons"] = list(dict.fromkeys(existing + decision.reasons))
+        merged["reject_evidence"] = "; ".join(
+            p for p in [merged.get("reject_evidence") or "", decision.evidence] if p
+        )
+        merged["verification_status"] = issue["_verification_status"]
+        self._record_rejected(issue, merged)
+        return False
 
     def _record_rejected(self, issue: Dict[str, Any], verdict_fields: Dict[str, Any]) -> None:
         """Persist a rejection to the ledger. Never deletes rows."""
@@ -436,6 +550,10 @@ class GitHubIssuesExtractor(BaseExtractor):
                 score_breakdown=verdict_fields.get("score_breakdown"),
                 why=verdict_fields.get("why"),
                 notes=verdict_fields.get("notes"),
+                reject_reason=(verdict_fields.get("reject_reasons") or [None])[0],
+                verified_at=verdict_fields.get("verified_at"),
+                fetched_at=verdict_fields.get("fetched_at"),
+                verification_status=verdict_fields.get("verification_status") or "UNVERIFIED",
             )
         except Exception as exc:  # pragma: no cover - DB optional in tests
             logger.debug("[github] could not record rejection %s#%s: %s", repo, number, exc)

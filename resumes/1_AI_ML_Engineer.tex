@@ -1,5 +1,5 @@
 \documentclass[a4paper,10pt]{article}
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=0.75in]{geometry}
 \usepackage{enumitem}
 \usepackage{titlesec}
 \usepackage{helvet}
@@ -8,82 +8,85 @@
 \renewcommand{\familydefault}{\sfdefault}
 \pagenumbering{gobble}
 \titleformat{\section}{\large\bfseries}{}{0em}{}
-\titlespacing*{\section}{0pt}{8pt}{6pt}
-\setlist[itemize]{noitemsep, topsep=2pt}
+\titlespacing*{\section}{0pt}{6pt}{4pt}
+\setlist[itemize]{noitemsep, topsep=1.5pt, leftmargin=1.2em}
+
 \begin{document}
 
 \begin{center}
-    {\LARGE \textbf{Kshitish Pandit}} \\[6pt]
-    \href{mailto:dibijsharma@gmail.com}{dibijsharma@gmail.com} \quad | \quad +977-9703995826 \\[2pt]
-    Kathmandu, Nepal \\[2pt]
+    {\LARGE \textbf{Kshitish Pandit}} \\[4pt]
+    \href{mailto:dibijsharma@gmail.com}{dibijsharma@gmail.com} \quad | \quad +977-9703995826 \quad | \quad Kathmandu, Nepal \\[2pt]
     \href{https://github.com/Dibij}{github.com/Dibij} \quad | \quad
     \href{https://www.linkedin.com/in/kshitish-pandit}{linkedin.com/in/kshitish-pandit}
 \end{center}
 
-\vspace{6pt}
+\vspace{2pt}
 
 \section*{Summary}
-Computer Science (AI) student with hands-on experience building end-to-end machine learning and LLM-powered systems: from classical ML pipelines to a production RAG platform and multi-agent AI simulations. Comfortable across the full ML lifecycle -- data preprocessing, model training/evaluation, and deployment behind a real backend.
+Computer Science (AI) student and software engineer with hands-on experience building end-to-end machine learning, NLP, and LLM-powered systems. Experienced across the full ML lifecycle: classical supervised algorithms, from-scratch model implementations, transformer scoring, automated active-learning LLM evaluation pipelines, and production RAG platforms backed by asynchronous backend architectures.
+
+\section*{Technical Skills}
+\begin{itemize}
+    \item \textbf{Languages:} Python (3.12+), SQL, TypeScript, C++
+    \item \textbf{Machine Learning \& Deep Learning:} TensorFlow, Keras, Scikit-learn, XGBoost, NumPy, Pandas, InceptionV3, LSTM with Attention
+    \item \textbf{LLM \& NLP Systems:} RAG pipelines, HuggingFace Transformers, Ollama (local LLM deployment), OpenRouter API, TF-IDF classifiers, prompt engineering, vector embeddings, active-learning triage
+    \item \textbf{Backend \& Data Infrastructure:} Django, Django REST Framework, Celery, FastAPI, PostgreSQL, SQLite, Redis, Docker, Linux/Bash, pytest
+\end{itemize}
 
 \section*{Featured AI/ML Projects}
 
+\textbf{Modular Ingestion Pipeline \& LLM Active-Learning Matcher} \\
+\textit{Python (3.12+), PostgreSQL, Transformers, Ollama (Qwen2.5), Pydantic v2, Scikit-learn}
+\begin{itemize}
+    \item Engineered an automated data pipeline aggregating and normalizing thousands of records across 15+ external sources into PostgreSQL with SHA-256 deduplication and strict Pydantic validation.
+    \item Built a hybrid qualification engine combining a multi-gate rule filter, TF-IDF title classifier, and transformer embedding models to score and rank opportunities against user profile criteria.
+    \item Implemented an active-learning triage system leveraging local Ollama LLMs to classify borderline/uncertain candidates, paired with a web review interface for human-in-the-loop ground-truth curation.
+    \item Automated scheduled execution with pipeline locking, structured logging, and comprehensive \texttt{pytest} test suites.
+\end{itemize}
+
+\vspace{3pt}
 \textbf{Suisik -- AI-Powered Personalized Learning Platform} \\
-\textit{RAG / LLM Application | Next.js, Django, Celery, LLMs (Mistral/Llama)}
-\begin{itemize}[leftmargin=*]
-    \item Built a Retrieval-Augmented Generation pipeline that parses uploaded PDF/DOCX study material into hierarchical chunks and topic graphs
-    \item Implemented LLM-based topic extraction and an adaptive quiz-generation engine producing MCQ, multi-select, and true/false questions tailored to student proficiency
-    \item Designed async processing with Celery and a Django REST/Channels backend serving a Next.js frontend
+\textit{RAG / LLM Application | Next.js, Django, Celery, PostgreSQL, LLMs (Mistral/Llama via Ollama)}
+\begin{itemize}
+    \item Developed an end-to-end Retrieval-Augmented Generation (RAG) pipeline parsing uploaded PDF/DOCX academic documents into hierarchical chunks and knowledge topic graphs.
+    \item Implemented automated topic extraction and an adaptive quiz generation engine producing multiple-choice, multi-select, and true/false questions dynamically adjusted to learner proficiency.
+    \item Built asynchronous background job processing with Celery and Redis to handle document chunking and LLM inference without blocking API responsiveness.
 \end{itemize}
 
-\vspace{4pt}
-\textbf{AI-TASK -- Risk-Aware Multi-Agent Pathfinding} \\
-\textit{Academic AI Coursework | Python, A* Search, Probabilistic Reasoning}
-\begin{itemize}[leftmargin=*]
-    \item Designed a multi-agent system where four robots navigate a partially observable 15x15 grid with hidden mines, using A* search combined with local probabilistic risk estimation
-    \item Built a short-horizon collision-avoidance layer and an experiment harness producing 50+ statistical figures (win rate, survival rate, efficiency) across configurations and seeds
+\vspace{3pt}
+\textbf{AI-TASK -- Risk-Aware Multi-Agent Pathfinding System} \\
+\textit{Academic AI Coursework | Python, A* Search, Probabilistic Reasoning, Matplotlib}
+\begin{itemize}
+    \item Designed a multi-agent pathfinding system where four autonomous agents navigate a partially observable $15\times15$ grid with hidden hazard mines using risk-aware A* search and probabilistic inference.
+    \item Engineered a short-horizon multi-agent collision-avoidance coordination layer to prevent deadlocks and conflicts.
+    \item Constructed an automated benchmarking suite running across 100+ randomized seeds, generating 50+ statistical evaluation figures (survival rate, step efficiency, and risk-reward trade-offs).
 \end{itemize}
 
-\vspace{4pt}
+\vspace{3pt}
+\textbf{Image Captioning System with Attention Mechanism} \\
+\textit{Python, InceptionV3, LSTM, Bahdanau Attention, MS COCO Dataset}
+\begin{itemize}
+    \item Built an encoder-decoder neural network generating natural-language descriptions from input images.
+    \item Extracted spatial visual feature representations using a pre-trained InceptionV3 CNN backbone and fed them into a recurrent LSTM decoder equipped with Bahdanau attention to focus on salient visual regions.
+\end{itemize}
+
+\vspace{3pt}
 \textbf{Customer Churn Predictor} \\
-\textit{Supervised Learning | Python, XGBoost, TensorFlow, Scikit-learn}
-\begin{itemize}[leftmargin=*]
-    \item Built and compared XGBoost and neural network classifiers to predict customer churn from structured data
-    \item Engineered preprocessing pipelines and evaluated feature importance to improve model reliability
+\textit{Supervised Learning | Python, XGBoost, TensorFlow/Keras, Scikit-learn}
+\begin{itemize}
+    \item Designed and benchmarked gradient-boosted decision trees (XGBoost) against deep neural network architectures to predict customer churn from structured enterprise tabular data.
+    \item Conducted extensive exploratory data analysis, engineered feature pipelines, and analyzed feature importance to maximize recall and operational interpretability.
 \end{itemize}
 
-\vspace{4pt}
-\textbf{Models From Scratch} \\
+\vspace{3pt}
+\textbf{Machine Learning Models from Scratch} \\
 \textit{Python, NumPy, Matplotlib}
-\begin{itemize}[leftmargin=*]
-    \item Implemented Linear Regression, Logistic Regression, and a Decision Tree Classifier from first principles using only NumPy -- no scikit-learn
-\end{itemize}
-
-\vspace{4pt}
-\textbf{Used Car Price Prediction} \\
-\textit{Python, Pandas, Scikit-learn, Seaborn}
-\begin{itemize}[leftmargin=*]
-    \item Built a regression model estimating used car prices from engine size, mileage, and brand, with a market-segmentation analysis (mainstream vs. luxury) and a written technical report
-\end{itemize}
-
-\vspace{4pt}
-\textbf{Image Captioning System} \\
-\textit{Jupyter/Python, InceptionV3, LSTM with Attention}
-\begin{itemize}[leftmargin=*]
-    \item Combined InceptionV3 feature extraction with an attention-based LSTM decoder to generate natural-language captions for images from the MS COCO dataset
-\end{itemize}
-
-\section*{Technical Skills}
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Languages:} Python, SQL
-    \item \textbf{ML/DL:} TensorFlow, Keras, Scikit-learn, XGBoost, NumPy, Pandas
-    \item \textbf{LLM/AI Systems:} RAG pipelines, LLM integration (Mistral, Llama via Ollama), vector embeddings, prompt-driven quiz/content generation
-    \item \textbf{Backend:} Django, Django REST Framework, Celery, Django Channels
-    \item \textbf{Tools:} Jupyter, Git, Google Colab, Kaggle
-
+\begin{itemize}
+    \item Implemented Linear Regression, Logistic Regression (gradient descent), and Decision Tree Classifier from first principles using pure NumPy without relying on Scikit-learn.
 \end{itemize}
 
 \section*{Certifications}
-\begin{itemize}[leftmargin=*]
+\begin{itemize}
     \item Diploma in Data Science and Machine Learning -- Vrit Technologies
     \item LangChain + Gemini for LLM Applications
     \item Natural Language Processing with HuggingFace Transformers

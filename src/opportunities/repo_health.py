@@ -55,6 +55,20 @@ class RepoHealth:
     blocklisted: bool = False
     blocklisted_until: Optional[str] = None
     checked_at: Optional[datetime] = None
+    # --- Step 3 additions ---------------------------------------------------
+    owner_login: Optional[str] = None
+    owner_type: Optional[str] = None          # "User" | "Organization"
+    contributor_count: Optional[int] = None   # distinct contributors (capped page)
+    outside_merged_prs_recent: int = 0        # merged PRs by non-owner in window
+    open_issue_count: Optional[int] = None
+    owner_issue_share: Optional[float] = None # share of issues authored by owner
+    watchlist_candidate: bool = False
+    watchlist_reason: str = ""
+
+    @property
+    def suggests_watchlist(self) -> bool:
+        """Watchlist only for repos with outside merges AND a CONTRIBUTING file."""
+        return self.watchlist_candidate
 
 
 class RepoHealthChecker:
@@ -230,7 +244,9 @@ class RepoHealthChecker:
                         "SELECT repo, healthy, pushed_at, is_fork, is_archived, "
                         "has_contributing, recent_merged_prs, maintainer_reply_days, "
                         "repo_size_kb, language, open_prs, merged_prs_recent, checked_at, "
-                        "blocklisted, blocklisted_until "
+                        "blocklisted, blocklisted_until, owner_login, owner_type, "
+                        "contributor_count, outside_merged_prs_recent, open_issue_count, "
+                        "owner_issue_share, watchlist_candidate, watchlist_reason "
                         "FROM repo_health WHERE repo = %s",
                         (repo,),
                     )
@@ -245,7 +261,10 @@ class RepoHealthChecker:
             "repo", "healthy", "pushed_at", "is_fork", "is_archived",
             "has_contributing", "recent_merged_prs", "maintainer_reply_days",
             "repo_size_kb", "language", "open_prs", "merged_prs_recent",
-            "checked_at", "blocklisted", "blocklisted_until",
+            "checked_at", "blocklisted", "blocklisted_until", "owner_login",
+            "owner_type", "contributor_count", "outside_merged_prs_recent",
+            "open_issue_count", "owner_issue_share", "watchlist_candidate",
+            "watchlist_reason",
         }
         data = {k: v for k, v in dict(row).items() if k in allowed}
         data["reasons"] = []
@@ -261,8 +280,12 @@ class RepoHealthChecker:
                             repo, healthy, pushed_at, is_fork, is_archived,
                             has_contributing, recent_merged_prs, maintainer_reply_days,
                             repo_size_kb, language, open_prs, merged_prs_recent,
-                            checked_at, blocklisted, blocklisted_until
-                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s)
+                            checked_at, blocklisted, blocklisted_until,
+                            owner_login, owner_type, contributor_count,
+                            outside_merged_prs_recent, open_issue_count,
+                            owner_issue_share, watchlist_candidate, watchlist_reason
+                        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,
+                                  %s,%s,%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (repo) DO UPDATE SET
                             healthy = EXCLUDED.healthy,
                             pushed_at = EXCLUDED.pushed_at,
@@ -277,7 +300,15 @@ class RepoHealthChecker:
                             merged_prs_recent = EXCLUDED.merged_prs_recent,
                             checked_at = NOW(),
                             blocklisted = EXCLUDED.blocklisted,
-                            blocklisted_until = EXCLUDED.blocklisted_until
+                            blocklisted_until = EXCLUDED.blocklisted_until,
+                            owner_login = EXCLUDED.owner_login,
+                            owner_type = EXCLUDED.owner_type,
+                            contributor_count = EXCLUDED.contributor_count,
+                            outside_merged_prs_recent = EXCLUDED.outside_merged_prs_recent,
+                            open_issue_count = EXCLUDED.open_issue_count,
+                            owner_issue_share = EXCLUDED.owner_issue_share,
+                            watchlist_candidate = EXCLUDED.watchlist_candidate,
+                            watchlist_reason = EXCLUDED.watchlist_reason
                         """,
                         (
                             health.repo, health.healthy, health.pushed_at,
@@ -285,7 +316,11 @@ class RepoHealthChecker:
                             health.recent_merged_prs, health.maintainer_reply_days,
                             health.repo_size_kb, health.language, health.open_prs,
                             health.merged_prs_recent, health.blocklisted,
-                            health.blocklisted_until,
+                            health.blocklisted_until, health.owner_login,
+                            health.owner_type, health.contributor_count,
+                            health.outside_merged_prs_recent, health.open_issue_count,
+                            health.owner_issue_share, health.watchlist_candidate,
+                            health.watchlist_reason,
                         ),
                     )
         except Exception as exc:  # pragma: no cover
@@ -293,7 +328,12 @@ class RepoHealthChecker:
 
     # ------------------------------------------------------------------ assess
     def _fetch_health(self, repo: str) -> RepoHealth:
-        """Fetch repo data (2 calls max) and apply the "most of" rule."""
+        """Fetch repo data and apply the "most of" rule.
+
+        Calls: repo, pulls, contributors, community profile, issue search.
+        Missing optional data degrades gracefully; transient failures return
+        checked=False (never persisted as unhealthy).
+        """
         health = RepoHealth(repo=repo)
         resp = self._get(f"https://api.github.com/repos/{repo}")
         if resp is None or resp.status_code != 200:
@@ -309,24 +349,90 @@ class RepoHealthChecker:
         health.repo_size_kb = int(data.get("size") or 0)
         health.language = data.get("language")
         health.open_prs = int(data.get("open_issues_count") or 0)
+        health.open_issue_count = data.get("open_issues_count")
+        owner = data.get("owner") or {}
+        health.owner_login = owner.get("login")
+        health.owner_type = owner.get("type")
+        owner_login = (health.owner_login or "").lower()
 
-        # Merged-PR recency, one call (search API would be a second; this is cheaper).
-        since = (datetime.now(timezone.utc) - timedelta(days=30)).date().isoformat()
+        window_days = self.config.thresholds.outside_merge_window_days
+        since_dt = datetime.now(timezone.utc) - timedelta(days=window_days)
+        since = since_dt.date().isoformat()
+        outside_merges = 0
+        recent_merged = 0
+
+        # Closed PRs, most recently updated first.
         prs = self._get(
             f"https://api.github.com/repos/{repo}/pulls",
-            params={"state": "closed", "sort": "updated", "direction": "desc", "per_page": 30},
+            params={"state": "closed", "sort": "updated", "direction": "desc", "per_page": 100},
         )
         if prs is not None and prs.status_code == 200:
             for pr in prs.json() or []:
                 merged_at = pr.get("merged_at")
-                if merged_at and merged_at[:10] >= since:
+                if not merged_at:
+                    continue
+                merged_day = merged_at[:10]
+                if merged_day >= since:
+                    recent_merged += 1
+                    pr_author = ((pr.get("user") or {}).get("login") or "").lower()
+                    if pr_author and pr_author != owner_login:
+                        outside_merges += 1
+                # 30-day merged count kept for the existing health criteria.
+                thirty = (datetime.now(timezone.utc) - timedelta(days=30)).date().isoformat()
+                if merged_day >= thirty:
                     health.merged_prs_recent += 1
 
-        # CONTRIBUTING is optional: a 404 is normal, not a warning.
-        contributing = self._get(
-            f"https://api.github.com/repos/{repo}/contents/CONTRIBUTING.md"
+        health.outside_merged_prs_recent = outside_merges
+
+        # Distinct contributor count (one page is enough for a >= threshold test).
+        contributors = self._get(
+            f"https://api.github.com/repos/{repo}/contributors",
+            params={"per_page": 100, "anon": "false"},
         )
-        health.has_contributing = bool(contributing is not None and contributing.status_code == 200)
+        if contributors is not None and contributors.status_code == 200:
+            try:
+                rows = contributors.json() or []
+                if isinstance(rows, list):
+                    health.contributor_count = len({
+                        (c.get("login") or "").lower()
+                        for c in rows if isinstance(c, dict) and c.get("login")
+                    })
+                else:
+                    health.contributor_count = None
+            except ValueError:
+                health.contributor_count = None
+
+        # CONTRIBUTING via the community profile (covers CONTRIBUTING.md,
+        # .github/CONTRIBUTING.md, docs/CONTRIBUTING.md, etc.).
+        # Endpoint: GET /repos/{owner}/{repo}/community/profile (official).
+        contributing = self._get(f"https://api.github.com/repos/{repo}/community/profile")
+        if contributing is not None and contributing.status_code == 200:
+            try:
+                files = (contributing.json() or {}).get("files") or {}
+                health.has_contributing = bool(files.get("contributing"))
+            except ValueError:
+                health.has_contributing = False
+
+        # Owner-authored share of issues (first page of issues, all states).
+        issues = self._get(
+            f"https://api.github.com/repos/{repo}/issues",
+            params={"state": "all", "per_page": 100},
+        )
+        if issues is not None and issues.status_code == 200:
+            try:
+                payload = issues.json() or []
+                rows = [
+                    r for r in payload
+                    if isinstance(r, dict) and not r.get("pull_request")
+                ] if isinstance(payload, list) else []
+                if rows:
+                    owner_authored = sum(
+                        1 for r in rows
+                        if ((r.get("user") or {}).get("login") or "").lower() == owner_login
+                    )
+                    health.owner_issue_share = round(owner_authored / len(rows), 3)
+            except ValueError:
+                health.owner_issue_share = None
 
         # ---- "Most of" scoring ------------------------------------------
         checks: Dict[str, bool] = {}
@@ -361,6 +467,28 @@ class RepoHealthChecker:
         hard_veto = health.is_fork or health.is_archived
         # "Most of": at least 5 of 7 criteria.
         health.healthy = (not hard_veto) and health.passed >= 5
+
+        # Watchlist suggestion: several outside merged PRs AND a CONTRIBUTING
+        # file. A repo whose only issue author is the owner is never suggested.
+        outside_enough = health.outside_merged_prs_recent >= self.config.thresholds.min_contributors
+        owner_only = (
+            health.owner_issue_share is not None
+            and health.owner_issue_share >= self.config.thresholds.owner_issue_share_threshold
+            and health.outside_merged_prs_recent == 0
+        )
+        health.watchlist_candidate = bool(
+            health.checked and health.healthy and outside_enough
+            and health.has_contributing and not owner_only
+        )
+        if health.watchlist_candidate:
+            health.watchlist_reason = (
+                f"{health.outside_merged_prs_recent} outside merged PRs in "
+                f"{window_days}d + CONTRIBUTING"
+            )
+        elif owner_only:
+            health.watchlist_reason = "owner-authored only, no outside merged PRs"
+        else:
+            health.watchlist_reason = "not enough outside merged PRs or no CONTRIBUTING"
 
         if not health.healthy:
             until = datetime.now(timezone.utc) + timedelta(

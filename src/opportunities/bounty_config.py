@@ -36,6 +36,42 @@ MAX_REPO_META_FETCHES = 25
 API_QUOTA_RESERVE = 400
 CONFIDENCE_ACCEPT = 70
 CONFIDENCE_REJECT = 40
+
+# --- Closed/owner/team gate (added by the closed-feed fix) --------------------
+MIN_CONTRIBUTORS = 3                 # OWNER_BACKLOG: below this = solo-looking
+OUTSIDE_MERGE_WINDOW_DAYS = 90       # OWNER_BACKLOG: outside merges in this window
+NEW_ISSUE_HOLD_MINUTES = 60          # NEW_ISSUE_HOLD: younger than this = hold
+NEW_ISSUE_HOLD_RELEASE_HOURS = 24    # held until the issue is this old
+SELF_FIXED_LINK_WINDOW_MINUTES = 30  # issue->PR link within this window = SELF_FIXED
+OWNER_ISSUE_SHARE_THRESHOLD = 0.90   # owner authors >= this share = backlog signal
+REVERIFY_CACHE_SECONDS = 300         # fresh re-check cache TTL (5 minutes)
+
+NEWCOMER_LABELS: List[str] = ["help wanted", "good first issue", "up-for-grabs", "up for grabs"]
+INTERNAL_LABELS: List[str] = ["plan", "internal", "roadmap", "tracking", "epic", "meta"]
+PLAN_TITLE_PREFIXES: List[str] = ["[plan]", "plan:", "todo", "issue 1.5:"]
+INTERNAL_TEAM_PHRASES: List[str] = [
+    "teammates", "team mates", "split by category", "see docs/conventions.md before starting",
+    "our team", "sprint", "internal team", "assigned to the team",
+]
+FOLLOW_UP_PATTERNS: List[str] = [
+    "follow-up from the review of", "follow up from the review of",
+    "from the review of pr #", "from the review of #", "follow-up of the review",
+]
+LOCAL_KNOWLEDGE_PATTERNS: List[str] = [
+    "campus", "college", "university", "curriculum", "institution's documents",
+    "official documents", "syllabus", "school's", "district's",
+]
+DOMAIN_PATTERNS: List[str] = [
+    "kernel", "kernel code", "operating system", "hypervisor", "firmware",
+    "assembly", "asm", "smart contract", "solidity", "cryptography",
+]
+AGGREGATOR_REPO_PATTERNS: List[str] = [
+    "-watch", "-scout", "bounty-scout", "bounty-watch", "digest",
+]
+AGGREGATOR_TITLE_PATTERNS: List[str] = [
+    "scope digest", "bounty scout —", "bounty scout -", "bounty alert",
+    "intake (release-watch)",
+]
 PLATFORM_FEATURE_KEYWORDS: List[str] = ["bounty platform", "bounty website", "bounty app", "escrow app", "reward platform"]
 UNFUNDED_PHRASES: List[str] = ["does not fund a bounty", "no reward", "not funded", "unpaid", "publishing this issue does not fund", "this issue does not fund"]
 CRYPTO_ADDRESS_RE = re.compile(r"\b([13][a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-z0-9]{39,59}|0x[a-fA-F0-9]{40}|L[a-km-zA-HJ-NP-Z1-9]{26,33}|tb1[a-z0-9]{39,59})\b")
@@ -97,6 +133,14 @@ class ThresholdConfig:
     api_quota_reserve: int = API_QUOTA_RESERVE
     confidence_accept: int = CONFIDENCE_ACCEPT
     confidence_reject: int = CONFIDENCE_REJECT
+    # Closed/owner/team gate
+    min_contributors: int = MIN_CONTRIBUTORS
+    outside_merge_window_days: int = OUTSIDE_MERGE_WINDOW_DAYS
+    new_issue_hold_minutes: int = NEW_ISSUE_HOLD_MINUTES
+    new_issue_hold_release_hours: int = NEW_ISSUE_HOLD_RELEASE_HOURS
+    self_fixed_link_window_minutes: int = SELF_FIXED_LINK_WINDOW_MINUTES
+    owner_issue_share_threshold: float = OWNER_ISSUE_SHARE_THRESHOLD
+    reverify_cache_seconds: int = REVERIFY_CACHE_SECONDS
 
 
 @dataclass
@@ -136,6 +180,16 @@ class GithubConfig:
     watchlist_seeds: List[str] = field(default_factory=list)
     crypto_payment_tokens: List[str] = field(default_factory=lambda: list(CRYPTO_PAYMENT_TOKENS))
     crypto_payment_re: object = field(default_factory=lambda: CRYPTO_PAYMENT_RE)
+    # Closed/owner/team gate lists (config/github_issues.yml)
+    newcomer_labels: List[str] = field(default_factory=lambda: list(NEWCOMER_LABELS))
+    internal_labels: List[str] = field(default_factory=lambda: list(INTERNAL_LABELS))
+    plan_title_prefixes: List[str] = field(default_factory=lambda: list(PLAN_TITLE_PREFIXES))
+    internal_team_phrases: List[str] = field(default_factory=lambda: list(INTERNAL_TEAM_PHRASES))
+    follow_up_patterns: List[str] = field(default_factory=lambda: list(FOLLOW_UP_PATTERNS))
+    local_knowledge_patterns: List[str] = field(default_factory=lambda: list(LOCAL_KNOWLEDGE_PATTERNS))
+    domain_patterns: List[str] = field(default_factory=lambda: list(DOMAIN_PATTERNS))
+    aggregator_repo_patterns: List[str] = field(default_factory=lambda: list(AGGREGATOR_REPO_PATTERNS))
+    aggregator_title_patterns: List[str] = field(default_factory=lambda: list(AGGREGATOR_TITLE_PATTERNS))
 
     def __getattr__(self, name: str):
         if "thresholds" in self.__dict__ and hasattr(self.thresholds, name):
@@ -236,6 +290,7 @@ def load_github_config(path: str = GITHUB_CONFIG_PATH) -> GithubConfig:
     stack = data.get("stack", {}) or {}
     search = data.get("search", {}) or {}
     watchlist = data.get("watchlist", {}) or {}
+    gate = data.get("gate", {}) or {}
 
     search_queries: List[SearchQuery] = []
     for q in search.get("queries", []) or []:
@@ -297,6 +352,13 @@ def load_github_config(path: str = GITHUB_CONFIG_PATH) -> GithubConfig:
             api_quota_reserve=int(thresholds.get("api_quota_reserve", API_QUOTA_RESERVE)),
             confidence_accept=int(thresholds.get("confidence_accept", CONFIDENCE_ACCEPT)),
             confidence_reject=int(thresholds.get("confidence_reject", CONFIDENCE_REJECT)),
+            min_contributors=int(gate.get("min_contributors", MIN_CONTRIBUTORS)),
+            outside_merge_window_days=int(gate.get("outside_merge_window_days", OUTSIDE_MERGE_WINDOW_DAYS)),
+            new_issue_hold_minutes=int(gate.get("new_issue_hold_minutes", NEW_ISSUE_HOLD_MINUTES)),
+            new_issue_hold_release_hours=int(gate.get("new_issue_hold_release_hours", NEW_ISSUE_HOLD_RELEASE_HOURS)),
+            self_fixed_link_window_minutes=int(gate.get("self_fixed_link_window_minutes", SELF_FIXED_LINK_WINDOW_MINUTES)),
+            owner_issue_share_threshold=float(gate.get("owner_issue_share_threshold", OWNER_ISSUE_SHARE_THRESHOLD)),
+            reverify_cache_seconds=int(gate.get("reverify_cache_seconds", REVERIFY_CACHE_SECONDS)),
         ),
         stack=StackConfig(
             strong=stack.get("strong", []),
@@ -307,6 +369,15 @@ def load_github_config(path: str = GITHUB_CONFIG_PATH) -> GithubConfig:
         watchlist_seeds=watchlist.get("seeds", []),
         crypto_payment_tokens=crypto.get("payment_tokens", list(CRYPTO_PAYMENT_TOKENS)) or list(CRYPTO_PAYMENT_TOKENS),
         crypto_payment_re=CRYPTO_PAYMENT_RE,
+        newcomer_labels=gate.get("newcomer_labels", list(NEWCOMER_LABELS)),
+        internal_labels=gate.get("internal_labels", list(INTERNAL_LABELS)),
+        plan_title_prefixes=gate.get("plan_title_prefixes", list(PLAN_TITLE_PREFIXES)),
+        internal_team_phrases=gate.get("internal_team_phrases", list(INTERNAL_TEAM_PHRASES)),
+        follow_up_patterns=gate.get("follow_up_patterns", list(FOLLOW_UP_PATTERNS)),
+        local_knowledge_patterns=gate.get("local_knowledge_patterns", list(LOCAL_KNOWLEDGE_PATTERNS)),
+        domain_patterns=data.get("domain_patterns", list(DOMAIN_PATTERNS)),
+        aggregator_repo_patterns=data.get("aggregator_repo_patterns", list(AGGREGATOR_REPO_PATTERNS)),
+        aggregator_title_patterns=data.get("aggregator_title_patterns", list(AGGREGATOR_TITLE_PATTERNS)),
     )
 
 

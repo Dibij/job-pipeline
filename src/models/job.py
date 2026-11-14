@@ -75,6 +75,22 @@ class NormalizedJob(BaseModel):
     score_breakdown: Optional[Dict[str, Any]] = None
     why: Optional[str] = None
     notes: Optional[str] = None
+    lane: Optional[str] = None
+    # ── GitHub issue state / provenance (migration 019) ──
+    issue_state: Optional[str] = None
+    issue_state_reason: Optional[str] = None
+    issue_closed_at: Optional[datetime] = None
+    author_login: Optional[str] = None
+    author_association: Optional[str] = None
+    assignee_logins: List[str] = Field(default_factory=list)
+    issue_created_at: Optional[datetime] = None
+    labels_with_actor: Optional[Any] = None
+    parent_issue_url: Optional[str] = None
+    sub_issue_urls: Optional[Any] = None
+    # ── Fresh re-check (Step 2) ──
+    fetched_at: Optional[datetime] = None
+    verified_at: Optional[datetime] = None
+    verification_status: str = "UNVERIFIED"
 
     @model_validator(mode="before")
     @classmethod

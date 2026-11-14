@@ -62,6 +62,32 @@ def _opportunity_score_for(row: Dict[str, Any]) -> Any:
         return None
 
 
+def _github_feed_eligible(row: Dict[str, Any]) -> bool:
+    """Final guard: a GitHub issue must be accepted, VERIFIED and non-held.
+
+    Mirrors the extractor's ordered gate; a closed, assigned, owner-authored or
+    under-an-hour-old item can never pass even if it is in the jobs table.
+    """
+    if (row.get("bounty_verdict") or "").lower() != "accept":
+        return False
+    if (row.get("verification_status") or "UNVERIFIED").upper() != "VERIFIED":
+        return False
+    if (row.get("issue_state") or "").lower() != "open":
+        return False
+    if row.get("assignee_logins"):
+        return False
+    verdict_reasons = row.get("reject_reasons") or []
+    if verdict_reasons:
+        return False
+    created = row.get("issue_created_at")
+    if created is not None:
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if (datetime.now(timezone.utc) - created).total_seconds() < 3600:
+            return False
+    return True
+
+
 def load_all_triage_suggestions():
     """Load and merge all triage_suggestions_*.json from data/ directory keyed by job_id."""
     data_dir = PROJECT_ROOT / "data"
@@ -911,6 +937,9 @@ class AppServerHandler(BaseHTTPRequestHandler):
                     j.opportunity_type, j.compensation_type, j.budget_min, j.budget_max,
                     j.budget_currency, j.payment_verification_status, j.scam_risk_score,
                     j.risk_flags, j.risk_explanation, j.deadline, j.last_seen_at,
+                    j.bounty_verdict, j.reject_reasons, j.lane, j.issue_state,
+                    j.verified_at, j.verification_status, j.author_login,
+                    j.assignee_logins, j.issue_created_at,
                     COALESCE(m.match_score, 0.0) AS match_score,
                     laya.final_score AS laya_score
                 FROM jobs j
@@ -930,6 +959,11 @@ class AppServerHandler(BaseHTTPRequestHandler):
 
             feed_items = []
             for r in rows:
+                # GitHub issues: only accepted, verified, non-held items may
+                # appear. Closed/assigned/owner-authored items never reach here.
+                if (r.get("source") or "") == "github":
+                    if not _github_feed_eligible(r):
+                        continue
                 hf_res = apply_hard_filter(r)
                 if not hf_res.passed:
                     continue
@@ -984,6 +1018,9 @@ class AppServerHandler(BaseHTTPRequestHandler):
                     "risk_explanation": r.get("risk_explanation"),
                     "deadline": r["deadline"].isoformat() if r.get("deadline") else None,
                     "last_seen_at": r["last_seen_at"].isoformat() if r.get("last_seen_at") else None,
+                    "lane": r.get("lane"),
+                    "verified_at": r["verified_at"].isoformat() if r.get("verified_at") else None,
+                    "verification_status": r.get("verification_status") or "UNVERIFIED",
                 })
 
             feed_items.sort(key=lambda x: x["title_score"], reverse=True)

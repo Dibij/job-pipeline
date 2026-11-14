@@ -78,10 +78,20 @@ funding:
 
 # --- Hard reject reasons (enum) -----------------------------------------------
 reject_reasons:
+  - CLOSED
+  - SELF_ASSIGNED
+  - SELF_FIXED
+  - OWNER_BACKLOG
+  - INTERNAL_TEAM_TASK
+  - FOLLOW_UP_INTERNAL
+  - NEW_ISSUE_HOLD
+  - LOCAL_KNOWLEDGE_REQUIRED
+  - DOMAIN_PENALTY
   - WORD_ONLY_MATCH
   - AGGREGATOR_DIGEST
   - TAKEN
   - CRYPTO_WALLET_IN_BODY
+  - CRYPTO_PAYMENT
   - BOT_OR_FARM_REPO
   - CLONE_FARM
   - REPEATED_TITLE
@@ -93,6 +103,92 @@ reject_reasons:
   - LABEL_STUFFING
   - STALE
   - CLOSED_OR_ARCHIVED_REPO
+  - UNVERIFIED
+
+# --- Closed/owner/team gate (ordered pipeline) --------------------------------
+# Order is enforced in src/opportunities/bounty_verdict.py:FILTER_STAGES and
+# tested by tests/test_github_quality_gate.py::test_filter_order.
+gate:
+  min_contributors: 3                 # OWNER_BACKLOG: fewer distinct contributors = solo-looking
+  outside_merge_window_days: 90       # OWNER_BACKLOG: look for outside merged PRs in this window
+  new_issue_hold_minutes: 60          # NEW_ISSUE_HOLD: younger than this is held
+  new_issue_hold_release_hours: 24    # held until the issue reaches this age
+  self_fixed_link_window_minutes: 30  # issue->linked PR within this window = SELF_FIXED
+  owner_issue_share_threshold: 0.90   # owner authors >= this share of issues = backlog signal
+  reverify_cache_seconds: 300         # fresh re-check cache TTL (5 min, per Step 2)
+  # Labels a maintainer applies to invite outside contributors.
+  newcomer_labels:
+    - "help wanted"
+    - "good first issue"
+    - "up-for-grabs"
+    - "up for grabs"
+  internal_labels:
+    - plan
+    - internal
+    - roadmap
+    - tracking
+    - epic
+    - meta
+  plan_title_prefixes:
+    - "[plan]"
+    - "plan:"
+    - "todo"
+    - "issue 1.5:"
+  internal_team_phrases:
+    - "teammates"
+    - "team mates"
+    - "split by category"
+    - "see docs/conventions.md before starting"
+    - "our team"
+    - "sprint"
+    - "internal team"
+    - "assigned to the team"
+  follow_up_patterns:
+    - "follow-up from the review of"
+    - "follow up from the review of"
+    - "from the review of pr #"
+    - "from the review of #"
+    - "follow-up of the review"
+  local_knowledge_patterns:
+    - campus
+    - college
+    - university
+    - curriculum
+    - "institution's documents"
+    - "official documents"
+    - syllabus
+    - "school's"
+    - "district's"
+
+# --- Aggregator / farm repo and title patterns --------------------------------
+# TODO(verify): confirm these match the repos you actually see in the feed.
+aggregator_repo_patterns:
+  - "-watch"
+  - "-scout"
+  - "bounty-scout"
+  - "bounty-watch"
+  - "digest"
+
+aggregator_title_patterns:
+  - "scope digest"
+  - "bounty scout —"      # em dash, as used by bounty-scout
+  - "bounty scout -"      # plain hyphen fallback
+  - "bounty alert"
+  - "intake (release-watch)"
+
+# --- Domain penalties (score penalty, not a hard reject) ----------------------
+# TODO(tune): add/remove domains you do not want to work in.
+domain_patterns:
+  - kernel
+  - kernel code
+  - operating system
+  - hypervisor
+  - firmware
+  - assembly
+  - asm
+  - smart contract
+  - solidity
+  - cryptography
 
 # --- Platform patterns --------------------------------------------------------
 farm_repo_patterns:

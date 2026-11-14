@@ -1,5 +1,5 @@
 \documentclass[a4paper,10pt]{article}
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=0.75in]{geometry}
 \usepackage{enumitem}
 \usepackage{titlesec}
 \usepackage{helvet}
@@ -8,82 +8,87 @@
 \renewcommand{\familydefault}{\sfdefault}
 \pagenumbering{gobble}
 \titleformat{\section}{\large\bfseries}{}{0em}{}
-\titlespacing*{\section}{0pt}{8pt}{6pt}
-\setlist[itemize]{noitemsep, topsep=2pt}
+\titlespacing*{\section}{0pt}{6pt}{4pt}
+\setlist[itemize]{noitemsep, topsep=1.5pt, leftmargin=1.2em}
+
 \begin{document}
 
 \begin{center}
-    {\LARGE \textbf{Kshitish Pandit}} \\[6pt]
-    \href{mailto:dibijsharma@gmail.com}{dibijsharma@gmail.com} \quad | \quad +977-9703995826 \\[2pt]
-    Kathmandu, Nepal \\[2pt]
+    {\LARGE \textbf{Kshitish Pandit}} \\[4pt]
+    \href{mailto:dibijsharma@gmail.com}{dibijsharma@gmail.com} \quad | \quad +977-9703995826 \quad | \quad Kathmandu, Nepal \\[2pt]
     \href{https://github.com/Dibij}{github.com/Dibij} \quad | \quad
     \href{https://www.linkedin.com/in/kshitish-pandit}{linkedin.com/in/kshitish-pandit}
 \end{center}
 
-\vspace{6pt}
+\vspace{2pt}
 
 \section*{Summary}
-Computer Science (AI) student with a track record of shipping real-time computer vision applications -- from webcam-based safety monitoring to biometric and pose-tracking systems -- using OpenCV, Dlib, and deep learning models.
+Computer Science (AI) student specializing in real-time computer vision and perception systems. Proven track record building low-latency webcam pipelines -- including driver alertness monitoring, biometric facial analysis, kinematic pose estimation, deep learning object detection (YOLOv3), and multimodal vision-language systems using OpenCV, Dlib, and TensorFlow.
+
+\section*{Technical Skills}
+\begin{itemize}
+    \item \textbf{Languages:} Python, C++, SQL
+    \item \textbf{Computer Vision \& Perception:} OpenCV, Dlib (68-point facial landmarks), MediaPipe Pose Estimation, DeepFace, Haar Cascades, YOLOv3 (Darknet DNN), Eye Aspect Ratio (EAR)
+    \item \textbf{Deep Learning \& Architectures:} TensorFlow, Keras, InceptionV3, CNNs, LSTM with Bahdanau Attention, Scikit-learn, NumPy
+    \item \textbf{Video Processing \& Tools:} Real-time video/webcam streams, screen frame capture, multithreaded non-blocking alerts, Git, Linux
+\end{itemize}
 
 \section*{Featured Computer Vision Projects}
 
-\textbf{Real-Time Drowsiness Detection} \\
-\textit{Python, Dlib, OpenCV}
-\begin{itemize}[leftmargin=*]
-    \item Built a driver-alertness system tracking 68 facial landmarks in real time via webcam to detect prolonged eye closure
-    \item Triggered a non-blocking audio alert (via threading) when eyes remained closed for 2+ seconds, avoiding UI freezes
+\textbf{Real-Time Drowsiness Detection System} \\
+\textit{Python, Dlib, OpenCV, Multithreading}
+\begin{itemize}
+    \item Engineered a real-time driver fatigue monitoring system tracking 68 facial landmarks at high frame rates via webcam.
+    \item Computed Eye Aspect Ratio (EAR) across consecutive frames to distinguish normal blinks from microsleep and prolonged eye closure ($>2$ seconds).
+    \item Designed a non-blocking multithreaded audio alerting mechanism ensuring zero frame drop or UI lag during emergency trigger events.
 \end{itemize}
 
-\vspace{4pt}
-\textbf{Kitchen Hazard Detection System} \\
-\textit{Multimodal AI | Python, OpenCV, Gemini API}
-\begin{itemize}[leftmargin=*]
-    \item Built a real-time kitchen safety monitor combining live video feeds with multimodal AI analysis
-    \item Converted raw visual signals into clear, actionable hazard alerts for end users
+\vspace{3pt}
+\textbf{AimBot -- Real-Time Autonomous Target Detection \& Tracking} \\
+\textit{Python, OpenCV DNN, YOLOv3, Win32 API, NumPy}
+\begin{itemize}
+    \item Built an experimental autonomous detection pipeline executing YOLOv3 deep neural network inference on real-time screen captures of dynamic 3D gameplay.
+    \item Leveraged OpenCV's \texttt{cv.dnn} backend for low-latency bounding-box extraction, confidence scoring, and Euclidean distance targeting calculations.
+    \item Implemented an asynchronous keyboard listener hook to toggle targeting states without interrupting rendering loops.
 \end{itemize}
 
-\vspace{4pt}
-\textbf{Exercise Tracker} \\
-\textit{Python, OpenCV, Pose Estimation}
-\begin{itemize}[leftmargin=*]
-    \item Built rep-counting trackers for push-ups, squats, bicep curls, planks, and jumping jacks from video, sharing a common base-tracker architecture
-    \item Output annotated video plus structured JSON rep/form data for each exercise session
+\vspace{3pt}
+\textbf{Exercise Tracker \& Kinematic Posture Analysis} \\
+\textit{Python, OpenCV, MediaPipe Pose Estimation}
+\begin{itemize}
+    \item Designed an automated fitness rep counter supporting push-ups, squats, bicep curls, planks, and jumping jacks built on an extensible object-oriented base tracker architecture.
+    \item Calculated 2D trigonometric joint angles in real time to validate exercise form and drive finite-state machines for repetition counting.
+    \item Exported annotated video overlays alongside structured JSON session analytics documenting cadence, repetition counts, and posture deviations.
 \end{itemize}
 
-\vspace{4pt}
-\textbf{Face Recognition \& Analysis System} \\
+\vspace{3pt}
+\textbf{Face Recognition \& Biometric Demographic Analysis} \\
 \textit{Python, TensorFlow, DeepFace, OpenCV}
-\begin{itemize}[leftmargin=*]
-    \item Built a real-time face recognition pipeline that identifies known individuals from a webcam feed
-    \item Integrated DeepFace to analyze age, gender, emotion, and race attributes alongside recognition
+\begin{itemize}
+    \item Implemented a real-time facial recognition pipeline identifying registered individuals from live webcam streams.
+    \item Integrated DeepFace neural embeddings to extract and classify multi-attribute demographic features -- including facial emotion, estimated age, and gender -- concurrently with identification.
 \end{itemize}
 
-\vspace{4pt}
-\textbf{Image Captioning System} \\
-\textit{Python, InceptionV3, LSTM with Attention}
-\begin{itemize}[leftmargin=*]
-    \item Combined CNN-based feature extraction (InceptionV3) with an attention-based language decoder to generate natural-language image captions on MS COCO
+\vspace{3pt}
+\textbf{Kitchen Hazard Detection System} \\
+\textit{Multimodal AI | Python, OpenCV, Gemini Vision API}
+\begin{itemize}
+    \item Developed a proactive kitchen safety monitor processing video frames through multimodal vision-language models.
+    \item Transformed unstructured visual cues into real-time hazard classifications (unattended flames, smoke, hazardous spills) to trigger actionable alerts.
 \end{itemize}
 
-\vspace{4pt}
-\textbf{Circle Catch Game} \\
-\textit{Python, OpenCV, Haar Cascades}
-\begin{itemize}[leftmargin=*]
-    \item Built an interactive hand-detection game using Haar Cascade classifiers, with real-time scoring and a game timer
-\end{itemize}
-
-\section*{Technical Skills}
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Languages:} Python
-    \item \textbf{Computer Vision:} OpenCV, Dlib, Haar Cascades, DeepFace, MediaPipe
-    \item \textbf{Deep Learning:} TensorFlow, Keras, CNNs, attention-based sequence models
-    \item \textbf{Other:} NumPy, real-time video/webcam pipelines, multithreaded alerting
+\vspace{3pt}
+\textbf{Image Captioning System with Attention Mechanism} \\
+\textit{Python, InceptionV3, LSTM, Attention Mechanism, MS COCO}
+\begin{itemize}
+    \item Coupled InceptionV3 CNN visual feature representations with an attention-based LSTM decoder to produce natural-language descriptions of complex visual scenes.
 \end{itemize}
 
 \section*{Certifications}
-\begin{itemize}[leftmargin=*]
+\begin{itemize}
     \item Diploma in Data Science and Machine Learning -- Vrit Technologies
     \item Natural Language Processing with HuggingFace Transformers
+    \item LangChain + Gemini for LLM Applications
 \end{itemize}
 
 \section*{Education}
